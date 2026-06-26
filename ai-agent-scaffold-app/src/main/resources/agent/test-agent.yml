@@ -1,0 +1,42 @@
+ai:
+  agent:
+    config:
+      tables:
+        testAgent:
+          app-name: testAgent
+          agent-info:
+            agent-id: 100001
+            agent-name: 测试智能体01
+            agent-desc: 一个测试的智能体
+          module:
+            llm-model:
+                model-name: deepseek-ai/DeepSeek-V4-Flash
+                chat-model:
+                    base-url: https://api.siliconflow.cn
+                    api-key: sk-lddiozvjmpxmdsdjqcjtthuvpwxrpdiyepesltiwfzbgiicw
+                    model-name: deepseek-ai/DeepSeek-V4-Flash
+                streaming-chat-model:
+                    base-url: https://api.siliconflow.cn
+                    api-key: sk-lddiozvjmpxmdsdjqcjtthuvpwxrpdiyepesltiwfzbgiicw
+                    model-name: deepseek-ai/DeepSeek-V4-Flash
+            agents:
+              - name: CodeWriterAgent
+                description: Writes initial Java code based on a specification.
+                instruction: You are a concise assistant. Say hello in a friendly way.
+                output-key: generated_code
+              - name: CodeReviewerAgent
+                description: Reviews code and provides feedback.
+                instruction: You are a concise assistant. Say hello in a friendly way.
+                output-key: review_comments
+              - name: CodeRefactorerAgent
+                description: Refactors code based on review comments.
+                instruction: You are a concise assistant. Say hello in a friendly way.
+                output-key: refactored_code
+            agent-workflows:
+              - type: sequential
+                name: CodePipelineAgent
+                description: Executes a sequence of code writing, reviewing, and refactoring.
+                sub-agents:
+                  - CodeWriterAgent
+                  - CodeReviewerAgent
+                  - CodeRefactorerAgent

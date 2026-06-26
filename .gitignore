@@ -1,0 +1,7 @@
+/.idea/
+/ai-agent-scaffold-app/target/
+/ai-agent-scaffold-api/target/
+/ai-agent-scaffold-domain/target/
+/ai-agent-scaffold-infrastructure/target/
+/ai-agent-scaffold-trigger/target/
+/ai-agent-scaffold-types/target/
