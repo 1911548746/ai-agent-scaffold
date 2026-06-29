@@ -3,6 +3,7 @@ package com.hh.domain.agent.model.valobj;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class AiAgentConfigTableVO {
@@ -31,26 +32,59 @@ public class AiAgentConfigTableVO {
         private Long timeout = 90L;
         private Integer maxRetries = 4;
     }
-    @Data
-    public static class StreamingChatModel {
-        private String baseUrl;
-        private String apiKey;
-        private String modelName;
-        private Long timeout = 90L;
-    }
-    @Data
-    public static class LlmModel {
-        private ChatModel chatModel;
-        private StreamingChatModel streamingChatModel;
-        private String modelName;
-    }
+
     @Data
     public static class LlmAgent {
         private String name;
         private String description;
         private String instruction;
         private String outputKey;
+        private List<McpTool> mcpToolList;
     }
+
+    @Data
+    public static class McpTool {
+
+        private SSEServerParameters sse;
+        private HttpServerParameters http;
+        private StdioServerParameters stdio;
+        private LocalServerParameters local;
+
+        @Data
+        public static class SSEServerParameters {
+            private String name;
+            private String url;
+            private String sseEndpoint;
+            private Long timeout = 90L;
+            private Long requestTimeout = 120L;
+        }
+
+        @Data
+        public static class HttpServerParameters {
+            private String name;
+            private String url;
+            private Map<String, String> headers;
+            private Long timeout = 90L;
+            private Long requestTimeout = 120L;
+        }
+
+        @Data
+        public static class StdioServerParameters {
+            private String name;
+            private String command;
+            private List<String> args;
+            private Map<String, String> env;
+
+        }
+
+        @Data
+        public static class LocalServerParameters {
+            private String beanName;
+            private String methodName;
+        }
+
+    }
+
     @Data
     public static class AgentWorkflow {
         /**
@@ -65,11 +99,16 @@ public class AiAgentConfigTableVO {
     }
 
     @Data
+    public static class Runner {
+        private String agentName;
+    }
+
+    @Data
     public static class Module {
-//        private ChatModel chatModel;
-        private LlmModel llmModel;
+        private ChatModel chatModel;
         private List<LlmAgent> agents;
         private List<AgentWorkflow> agentWorkflows;
+        private Runner runner;
     }
 
 }

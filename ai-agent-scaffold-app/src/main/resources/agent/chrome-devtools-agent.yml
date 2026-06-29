@@ -1,0 +1,34 @@
+ai:
+  agent:
+    config:
+      tables:
+        ChromeDevtoolsAgent:
+          app-name: ChromeDevtoolsAgent
+          agent-info:
+            agent-id: 100002
+            agent-name: Chrome-devtools-Agent
+            agent-desc: 一个用于测试MCP Chrome devtools的智能体
+          module:
+            chat-model:
+                base-url: https://api.siliconflow.cn
+                api-key: sk-lddiozvjmpxmdsdjqcjtthuvpwxrpdiyepesltiwfzbgiicw
+                model-name: deepseek-ai/DeepSeek-V4-Flash
+            agents:
+                - name: ChromeDevtoolsAgent
+                  description: Writes initial Java code based on a specification.
+                  instruction: |
+
+                    你是一个可以通过 MCP 工具控制 Chrome 浏览器的智能体（Agent）。
+                    你的唯一目标是：**通过工具真实操作浏览器完成任务，不允许模拟结果。**
+
+                  mcp-tool-list:
+                      - stdio:
+                            name: Chrome-devtools MCP
+                            command: cmd
+                            args:
+                                - /c
+                                - npx
+                                - -y
+                                - chrome-devtools-mcp@latest
+            runner:
+                agent-name: ChromeDevtoolsAgent

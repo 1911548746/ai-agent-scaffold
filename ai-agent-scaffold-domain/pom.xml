@@ -12,6 +12,11 @@
     <dependencies>
 
         <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>cn.bugstack.wrench</groupId>
             <artifactId>xfg-wrench-starter-design-framework</artifactId>
         </dependency>
