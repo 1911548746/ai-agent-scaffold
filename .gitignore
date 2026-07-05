@@ -5,3 +5,7 @@
 /ai-agent-scaffold-infrastructure/target/
 /ai-agent-scaffold-trigger/target/
 /ai-agent-scaffold-types/target/
+
+### Log files ###
+/data/log
+*.log

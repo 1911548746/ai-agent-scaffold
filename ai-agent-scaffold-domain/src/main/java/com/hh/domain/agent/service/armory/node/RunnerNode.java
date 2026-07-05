@@ -2,6 +2,7 @@ package com.hh.domain.agent.service.armory.node;
 
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.BaseAgent;
+import com.google.adk.plugins.Plugin;
 import com.google.adk.runner.InMemoryRunner;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
@@ -11,6 +12,9 @@ import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -55,8 +59,19 @@ public class RunnerNode  extends AbstractArmorySupport {
         // 获取智能体（用这个智能体装配 InMemoryRunner）
         BaseAgent baseAgent = dynamicContext.getAgentGroup().get(agentName);
 
+        // 配置插件列表
+        List<Plugin> plugins = new ArrayList<>();
+        List<String> pluginNameList = aiAgentConfigTableVO.getModule().getRunner().getPluginNameList();
+
+        for (String pluginName : pluginNameList) {
+            Plugin plugin = getBean(pluginName);
+            if (plugin != null) {
+                plugins.add(plugin);
+            }
+        }
+
         // 会话运行节点
-        return new InMemoryRunner(baseAgent, appName);
+        return new InMemoryRunner(baseAgent, appName, plugins);
     }
 
 }

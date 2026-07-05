@@ -1,4 +1,4 @@
-package com.hh.domain.agent.service.armory.mcp.server;
+package com.hh.domain.agent.service.armory.matter.mcp.server;
 
 import com.google.adk.tools.Annotations;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 
 @Slf4j
-@Service
+@Service("myTestMcpServer")
 public class MyTestMcpServer {
 
     @Annotations.Schema(name = "get_weather", description = "获取指定城市的天气信息")

@@ -101,6 +101,7 @@ public class AiAgentConfigTableVO {
     @Data
     public static class Runner {
         private String agentName;
+        private List<String> pluginNameList;
     }
 
     @Data

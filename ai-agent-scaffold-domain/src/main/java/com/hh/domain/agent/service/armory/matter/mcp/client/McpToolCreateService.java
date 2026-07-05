@@ -1,4 +1,4 @@
-package com.hh.domain.agent.service.armory.mcp.client;
+package com.hh.domain.agent.service.armory.matter.mcp.client;
 
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
 

@@ -48,7 +48,7 @@ public class AiAgentAutoConfigTest {
                 .streamingMode(RunConfig.StreamingMode.NONE)
                 .build();
 
-        AiAgentRegisterVO aiAgentRegisterVO = applicationContext.getBean("100002", AiAgentRegisterVO.class);
+        AiAgentRegisterVO aiAgentRegisterVO = applicationContext.getBean("100000", AiAgentRegisterVO.class);
 
         String appName = aiAgentRegisterVO.getAppName();
         Runner runner = aiAgentRegisterVO.getRunner();

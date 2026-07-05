@@ -1,11 +1,11 @@
-package com.hh.domain.agent.service.armory.mcp.client.factory;
+package com.hh.domain.agent.service.armory.matter.mcp.client.factory;
 
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
-import com.hh.domain.agent.service.armory.mcp.client.McpToolCreateService;
-import com.hh.domain.agent.service.armory.mcp.client.impl.HttpMcpToolCreateService;
-import com.hh.domain.agent.service.armory.mcp.client.impl.LocalMcpToolCreateService;
-import com.hh.domain.agent.service.armory.mcp.client.impl.SSEMcpToolCreateService;
-import com.hh.domain.agent.service.armory.mcp.client.impl.StdioMcpToolCreateService;
+import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
+import com.hh.domain.agent.service.armory.matter.mcp.client.impl.HttpMcpToolCreateService;
+import com.hh.domain.agent.service.armory.matter.mcp.client.impl.LocalMcpToolCreateService;
+import com.hh.domain.agent.service.armory.matter.mcp.client.impl.SSEMcpToolCreateService;
+import com.hh.domain.agent.service.armory.matter.mcp.client.impl.StdioMcpToolCreateService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 

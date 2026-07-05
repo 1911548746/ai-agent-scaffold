@@ -3,21 +3,19 @@ package com.hh.domain.agent.service.armory.node;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.LlmAgent;
 import com.google.adk.models.BaseLlm;
-import com.google.adk.tools.mcp.McpToolset;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
-import com.hh.domain.agent.service.armory.mcp.client.McpToolCreateService;
-import com.hh.domain.agent.service.armory.mcp.client.factory.DefaultMcpClientFactory;
+import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
+import com.hh.domain.agent.service.armory.matter.mcp.client.factory.DefaultMcpClientFactory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 @Slf4j
 @Component

@@ -21,6 +21,7 @@ ai:
                     - local:
                         bean-name: myTestMcpServer
                         method-name: getWeather
-
             runner:
                 agent-name: HelloAgent
+                plugin-name-list:
+                  - myLoggingPlugin
