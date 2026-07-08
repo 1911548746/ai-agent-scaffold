@@ -32,10 +32,14 @@
             <groupId>com.hh</groupId>
             <artifactId>ai-agent-scaffold-api</artifactId>
         </dependency>
+
+        <!-- 类型定义模块 -->
         <dependency>
             <groupId>com.hh</groupId>
             <artifactId>ai-agent-scaffold-types</artifactId>
         </dependency>
+
+        <!-- 领域模块 -->
         <dependency>
             <groupId>com.hh</groupId>
             <artifactId>ai-agent-scaffold-domain</artifactId>

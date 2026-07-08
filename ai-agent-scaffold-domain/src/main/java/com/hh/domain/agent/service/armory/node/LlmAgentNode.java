@@ -6,6 +6,7 @@ import com.google.adk.models.BaseLlm;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
+import com.hh.domain.agent.model.valobj.McpTool;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
@@ -34,17 +35,17 @@ public class LlmAgentNode extends AbstractArmorySupport {
         BaseLlm llmModel = dynamicContext.getLlmModel();
 
         AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
-        List<AiAgentConfigTableVO.LlmAgent> agentsConfig = aiAgentConfigTableVO.getModule().getAgents();
+        List<com.hh.domain.agent.model.valobj.LlmAgent> agentsConfig = aiAgentConfigTableVO.getModule().getAgents();
 
 
-        for (AiAgentConfigTableVO.LlmAgent agentConfig : agentsConfig) {
+        for (com.hh.domain.agent.model.valobj.LlmAgent agentConfig : agentsConfig) {
 
             List<Object> mcpToolsets = new ArrayList<>();
 
             // 判断是否配置了mcp工具列表
             if (agentConfig.getMcpToolList() != null && !agentConfig.getMcpToolList().isEmpty()) {
                 // 构建mcp服务
-                for (AiAgentConfigTableVO.McpTool mcpToolConfig : agentConfig.getMcpToolList()) {
+                for (McpTool mcpToolConfig : agentConfig.getMcpToolList()) {
                     McpToolCreateService mcpToolCreateService = mcpClientFactory.getMcpToolCreateService(mcpToolConfig);
                     mcpToolsets.add(mcpToolCreateService.buildMcpToolset(mcpToolConfig));
                 }

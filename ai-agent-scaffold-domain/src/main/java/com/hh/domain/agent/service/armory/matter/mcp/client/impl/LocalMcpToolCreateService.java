@@ -1,6 +1,6 @@
 package com.hh.domain.agent.service.armory.matter.mcp.client.impl;
 import com.google.adk.tools.FunctionTool;
-import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.valobj.McpTool;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
 import jakarta.annotation.Resource;
 import org.springframework.context.ApplicationContext;
@@ -13,9 +13,9 @@ public class LocalMcpToolCreateService implements McpToolCreateService<FunctionT
     private ApplicationContext applicationContext;
 
     @Override
-    public FunctionTool buildMcpToolset(AiAgentConfigTableVO.McpTool mcpToolConfig) {
+    public FunctionTool buildMcpToolset(McpTool mcpToolConfig) {
 
-        AiAgentConfigTableVO.McpTool.LocalServerParameters toolConfigLocal = mcpToolConfig.getLocal();
+        McpTool.LocalServerParameters toolConfigLocal = mcpToolConfig.getLocal();
         String beanName = toolConfigLocal.getBeanName();
         String methodName = toolConfigLocal.getMethodName();
 

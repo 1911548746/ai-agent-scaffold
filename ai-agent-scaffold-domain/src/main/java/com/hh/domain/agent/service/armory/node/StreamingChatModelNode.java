@@ -4,9 +4,9 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
+import com.hh.domain.agent.model.valobj.ChatModel;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
-import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +26,7 @@ public class StreamingChatModelNode extends AbstractArmorySupport {
         log.info("Ai Agent 装配操作 - StreamingChatModelNode");
 
         AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
-        AiAgentConfigTableVO.ChatModel chatModelConfig = aiAgentConfigTableVO.getModule().getChatModel();
+        ChatModel chatModelConfig = aiAgentConfigTableVO.getModule().getChatModel();
 
         OpenAiStreamingChatModel streamingChatModel = OpenAiStreamingChatModel.builder()
                 .baseUrl(chatModelConfig.getBaseUrl())

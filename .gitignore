@@ -7,5 +7,5 @@
 /ai-agent-scaffold-types/target/
 
 ### Log files ###
-/data/log
+/data/log/*
 *.log

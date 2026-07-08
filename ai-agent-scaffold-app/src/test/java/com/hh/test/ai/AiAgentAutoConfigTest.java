@@ -116,12 +116,12 @@ public class AiAgentAutoConfigTest {
             boolean[] printedTextStream) {
 
         if (!event.functionCalls().isEmpty()) {
-            System.out.println("\nfunctionCalls > " + event.functionCalls());
+//            System.out.println("\nfunctionCalls > " + event.functionCalls());
             return;
         }
 
         if (!event.functionResponses().isEmpty()) {
-            System.out.println("\nfunctionResponses > " + event.functionResponses());
+//            System.out.println("\nfunctionResponses > " + event.functionResponses());
             return;
         }
 

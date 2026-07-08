@@ -2,16 +2,16 @@ package com.hh.domain.agent.service.armory.factory;
 
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.BaseAgent;
-import com.google.adk.agents.LlmAgent;
 import com.google.adk.models.BaseLlm;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.valobj.AgentWorkflow;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import com.hh.domain.agent.service.armory.node.RootNode;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import jakarta.annotation.Resource;
 import lombok.Data;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -22,6 +22,13 @@ public class DefaultArmoryFactory {
 
     @Resource
     private RootNode rootNode;
+
+    @Resource
+    private ApplicationContext applicationContext;
+
+    public AiAgentRegisterVO getAiAgentRegisterVO(String agentId) {
+        return applicationContext.getBean(agentId, AiAgentRegisterVO.class);
+    }
 
     public StrategyHandler<ArmoryCommandEntity, DynamicContext, AiAgentRegisterVO> armoryStrategyHandler() {
         return rootNode;
@@ -49,7 +56,7 @@ public class DefaultArmoryFactory {
         /**
          * 当前的智能体
          */
-        private AiAgentConfigTableVO.AgentWorkflow currentAgentWorkflow;
+        private AgentWorkflow currentAgentWorkflow;
 
 
         private Map<String, Object> dataObjects = new HashMap<>();

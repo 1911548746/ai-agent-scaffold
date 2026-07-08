@@ -4,6 +4,7 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
+import com.hh.domain.agent.model.valobj.ChatModel;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -25,7 +26,7 @@ public class ChatModelNode extends AbstractArmorySupport {
         log.info("Ai Agent 装配操作 - ChatModelNode");
 
         AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
-        AiAgentConfigTableVO.ChatModel chatModelConfig = aiAgentConfigTableVO.getModule().getChatModel();
+        ChatModel chatModelConfig = aiAgentConfigTableVO.getModule().getChatModel();
 
         OpenAiChatModel chatModel = OpenAiChatModel.builder()
                 .baseUrl(chatModelConfig.getBaseUrl())

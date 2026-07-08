@@ -42,6 +42,9 @@ public abstract class AbstractArmorySupport extends AbstractMultiThreadStrategyR
         log.info("成功注册Bean：{}", beanName);
     }
 
+    /**
+     * 通用的Bean获取方法
+     */
     protected <T> T getBean(String beanName) {
         return (T) applicationContext.getBean(beanName);
     }

@@ -1,6 +1,6 @@
 package com.hh.domain.agent.service.armory.matter.mcp.client.factory;
 
-import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.valobj.McpTool;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
 import com.hh.domain.agent.service.armory.matter.mcp.client.impl.HttpMcpToolCreateService;
 import com.hh.domain.agent.service.armory.matter.mcp.client.impl.LocalMcpToolCreateService;
@@ -21,7 +21,7 @@ public class DefaultMcpClientFactory {
     @Resource
     private LocalMcpToolCreateService localMcpToolCreateService;
 
-    public McpToolCreateService getMcpToolCreateService(AiAgentConfigTableVO.McpTool mcpToolConfig) {
+    public McpToolCreateService getMcpToolCreateService(McpTool mcpToolConfig) {
         if (null != mcpToolConfig.getSse()) {
             return sseMcpToolCreateService;
         }

@@ -2,6 +2,7 @@ package com.hh.domain.agent.service.armory.node;
 
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
+import com.hh.domain.agent.model.valobj.AgentWorkflow;
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import com.hh.domain.agent.model.valobj.enums.AgentTypeEnum;
@@ -38,7 +39,7 @@ public class AgentWorkflowNode extends AbstractArmorySupport {
         log.info("Ai Agent 装配操作 - AgentWorkflowNode");
 
         AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
-        List<AiAgentConfigTableVO.AgentWorkflow> agentWorkflowsConfig = aiAgentConfigTableVO.getModule().getAgentWorkflows();
+        List<AgentWorkflow> agentWorkflowsConfig = aiAgentConfigTableVO.getModule().getAgentWorkflows();
 
         // 如果未配置 agentWorkflows, 或者当前步骤索引超出 agentWorkflows 范围, 则直接流转到 RunnerNode
         if (null == agentWorkflowsConfig || agentWorkflowsConfig.isEmpty() || dynamicContext.getCurrentStepIndex().get() >= agentWorkflowsConfig.size()) {
@@ -57,7 +58,7 @@ public class AgentWorkflowNode extends AbstractArmorySupport {
     @Override
     public StrategyHandler<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AiAgentRegisterVO> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
 
-        AiAgentConfigTableVO.AgentWorkflow currentAgentWorkflow = dynamicContext.getCurrentAgentWorkflow();
+        AgentWorkflow currentAgentWorkflow = dynamicContext.getCurrentAgentWorkflow();
 
         if (null == currentAgentWorkflow) {
             // 如果未配置 agentWorkflows 则直接流转到 RunnerNode
