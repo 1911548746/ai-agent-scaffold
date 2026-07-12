@@ -13,6 +13,8 @@ import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import com.hh.domain.agent.model.valobj.properties.AiAgentAutoConfigProperties;
 import com.hh.domain.agent.service.IChatService;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
+import com.hh.types.enums.ResponseCode;
+import com.hh.types.exception.AppException;
 import io.reactivex.rxjava3.core.Flowable;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -60,9 +62,8 @@ public class ChatService implements IChatService {
 
         AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(agentId);
 
-        // TODO 业务异常
         if (aiAgentRegisterVO == null) {
-            throw new RuntimeException("Agent not found");
+            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
         }
 
         String appName = aiAgentRegisterVO.getAppName();
@@ -82,9 +83,8 @@ public class ChatService implements IChatService {
 
         AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(agentId);
 
-        // TODO 业务异常
         if (aiAgentRegisterVO == null) {
-            throw new RuntimeException("Agent not found");
+            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
         }
 
         String sessionId = createSession(agentId, userId);
@@ -97,9 +97,8 @@ public class ChatService implements IChatService {
 
         AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(agentId);
 
-        // TODO 业务异常
         if (aiAgentRegisterVO == null) {
-            throw new RuntimeException("Agent not found");
+            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
         }
 
         Runner runner = aiAgentRegisterVO.getRunner();
@@ -107,8 +106,13 @@ public class ChatService implements IChatService {
         Content userMessage = Content.fromParts(Part.fromText(message));
 
         List<String> outputs = new ArrayList<>();
+
         runner.runAsync(userId, sessionId, userMessage)
-                .blockingForEach(event -> outputs.add(event.stringifyContent()));
+                .blockingForEach(event -> {
+                    if (event.finalResponse()) {
+                        outputs.add(event.stringifyContent());
+                    }
+                });
 
         return outputs;
     }
@@ -118,9 +122,8 @@ public class ChatService implements IChatService {
 
         AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(agentId);
 
-        // TODO 业务异常
         if (aiAgentRegisterVO == null) {
-            throw new RuntimeException("Agent not found");
+            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
         }
 
         RunConfig runConfig = RunConfig.builder()
@@ -139,11 +142,9 @@ public class ChatService implements IChatService {
 
         AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(chatCommandEntity.getAgentId());
 
-        // TODO 业务异常
         if (aiAgentRegisterVO == null) {
-            throw new RuntimeException("Agent not found");
+            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
         }
-
 
         // 构建参数
         List<Part> parts = new ArrayList<>();
@@ -181,7 +182,11 @@ public class ChatService implements IChatService {
 
         List<String> outputs = new ArrayList<>();
         runner.runAsync(chatCommandEntity.getUserId(), chatCommandEntity.getSessionId(), userMessage)
-                .blockingForEach(event -> outputs.add(event.stringifyContent()));
+                .blockingForEach(event -> {
+                    if (event.finalResponse()) {
+                        outputs.add(event.stringifyContent());
+                    }
+                });
 
         return outputs;
     }

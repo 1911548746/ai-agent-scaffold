@@ -3,6 +3,9 @@ package com.hh.domain.agent.service.armory.node;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.LlmAgent;
 import com.google.adk.models.BaseLlm;
+import com.google.adk.skills.LocalSkillSource;
+import com.google.adk.skills.SkillSource;
+import com.google.adk.tools.skills.SkillToolset;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
@@ -11,10 +14,12 @@ import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
 import com.hh.domain.agent.service.armory.matter.mcp.client.factory.DefaultMcpClientFactory;
+import com.hh.domain.agent.service.armory.matter.skills.SkillSourceFactory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,6 +33,9 @@ public class LlmAgentNode extends AbstractArmorySupport {
     @Resource
     private DefaultMcpClientFactory mcpClientFactory;
 
+    @Resource
+    private SkillSourceFactory skillSourceFactory;
+
     @Override
     protected AiAgentRegisterVO doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         log.info("Ai Agent 装配操作 - LlmAgentNode");
@@ -40,15 +48,22 @@ public class LlmAgentNode extends AbstractArmorySupport {
 
         for (com.hh.domain.agent.model.valobj.LlmAgent agentConfig : agentsConfig) {
 
-            List<Object> mcpToolsets = new ArrayList<>();
+            List<Object> toolsets = new ArrayList<>();
 
             // 判断是否配置了mcp工具列表
             if (agentConfig.getMcpToolList() != null && !agentConfig.getMcpToolList().isEmpty()) {
                 // 构建mcp服务
                 for (McpTool mcpToolConfig : agentConfig.getMcpToolList()) {
                     McpToolCreateService mcpToolCreateService = mcpClientFactory.getMcpToolCreateService(mcpToolConfig);
-                    mcpToolsets.add(mcpToolCreateService.buildMcpToolset(mcpToolConfig));
+                    toolsets.add(mcpToolCreateService.buildMcpToolset(mcpToolConfig));
                 }
+            }
+
+            // 判断是否配置了skills
+            if (agentConfig.getSkillsDir() != null) {
+                // 构建skills
+                SkillSource skillSource = skillSourceFactory.createSkillSource(agentConfig.getSkillsDir());
+                toolsets.add(new SkillToolset(skillSource));
             }
 
             // 构建LlmAgent
@@ -58,7 +73,7 @@ public class LlmAgentNode extends AbstractArmorySupport {
                     .model(llmModel)
                     .instruction(agentConfig.getInstruction())
                     .outputKey(agentConfig.getOutputKey())
-                    .tools(mcpToolsets)
+                    .tools(toolsets)
                     .build();
 
             dynamicContext.getAgentGroup().put(agentConfig.getName(), llmAgent);

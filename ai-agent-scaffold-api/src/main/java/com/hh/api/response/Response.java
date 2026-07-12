@@ -24,4 +24,8 @@ public class Response<T> implements Serializable {
         return new Response<>(ResponseCode.SUCCESS.getCode(), ResponseCode.SUCCESS.getInfo(), data);
     }
 
+    public static <T> Response<T> error(String info) {
+        return new Response<>(ResponseCode.UN_ERROR.getCode(), info, null);
+    }
+
 }

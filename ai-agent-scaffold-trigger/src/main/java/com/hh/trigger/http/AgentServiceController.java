@@ -20,8 +20,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1")
-// TODO 全局跨域
-@CrossOrigin(origins = "*")
 @Slf4j
 public class AgentServiceController implements IAgentService {
 
@@ -235,6 +233,11 @@ public class AgentServiceController implements IAgentService {
         ).subscribe(
                 event -> {
                     try {
+
+                        // 忽略 FunctionCall 和 FunctionResponse
+                        if (!event.finalResponse())
+                            return;
+
                         // 发送标准 SSE 格式数据
                         emitter.send(SseEmitter.event()
                                 .name("message")

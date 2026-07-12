@@ -1,8 +1,0 @@
-26-06-29.23:07:27.596 [main            ] WARN  ClassPathMapperScanner - No MyBatis mapper was found in '[com.hh]' package. Please check your configuration.
-26-06-29.23:07:28.161 [main            ] ERROR AprLifecycleListener   - An incompatible version [1.1.34] of the Apache Tomcat Native library is installed, while Tomcat requires version [1.2.34]
-26-06-29.23:09:33.678 [main            ] WARN  ClassPathMapperScanner - No MyBatis mapper was found in '[com.hh]' package. Please check your configuration.
-26-06-29.23:09:34.162 [main            ] ERROR AprLifecycleListener   - An incompatible version [1.1.34] of the Apache Tomcat Native library is installed, while Tomcat requires version [1.2.34]
-26-06-29.23:16:55.286 [main            ] WARN  ClassPathMapperScanner - No MyBatis mapper was found in '[com.hh]' package. Please check your configuration.
-26-06-29.23:16:55.846 [main            ] ERROR AprLifecycleListener   - An incompatible version [1.1.34] of the Apache Tomcat Native library is installed, while Tomcat requires version [1.2.34]
-26-06-29.23:21:50.516 [main            ] WARN  ClassPathMapperScanner - No MyBatis mapper was found in '[com.hh]' package. Please check your configuration.
-26-06-29.23:21:51.057 [main            ] ERROR AprLifecycleListener   - An incompatible version [1.1.34] of the Apache Tomcat Native library is installed, while Tomcat requires version [1.2.34]

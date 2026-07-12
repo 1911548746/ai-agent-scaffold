@@ -23,8 +23,8 @@ public class AiAgentAutoConfigTest {
     public void test01() {
 
         RunConfig runConfig = RunConfig.builder()
-                .streamingMode(RunConfig.StreamingMode.SSE)
-//                .streamingMode(RunConfig.StreamingMode.NONE)
+//                .streamingMode(RunConfig.StreamingMode.SSE)
+                .streamingMode(RunConfig.StreamingMode.NONE)
                 .build();
 
         AiAgentRegisterVO aiAgentRegisterVO = applicationContext.getBean("100000", AiAgentRegisterVO.class);
@@ -36,7 +36,8 @@ public class AiAgentAutoConfigTest {
                 .createSession(appName, "user001")
                 .blockingGet();
 
-        runTurnStream(runner, session, "北京今天的天气怎么样？", runConfig);
+//        runTurnStream(runner, session, "北京今天的天气怎么样？", runConfig);
+        runTurn(runner, session, "北京今天的天气怎么样？", runConfig);
 
     }
 

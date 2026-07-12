@@ -11,4 +11,5 @@ public class LlmAgent {
     private String instruction;
     private String outputKey;
     private List<McpTool> mcpToolList;
+    private String skillsDir;
 }
