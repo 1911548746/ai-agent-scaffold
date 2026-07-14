@@ -12,7 +12,7 @@ public enum AgentTypeEnum {
     Loop("循环执行","loop","loopAgentNode"),
     Parallel("并行执行","parallel","parallelAgentNode"),
     Sequential("串行执行","sequential","sequentialAgentNode"),
-
+    BaseLlm("基础LLM","baseLlm","baseLlmAgentNode"),
     ;
 
     private String name;

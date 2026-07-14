@@ -20,7 +20,7 @@ public class ParallelAgentNode extends AbstractArmorySupport {
 
     @Override
     protected AiAgentRegisterVO doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("Ai Agent 装配操作 - AgentWorkflowNode");
+        log.info("Ai Agent 装配操作 - ParallelAgentNode");
 
         AgentWorkflow currentAgentWorkflowConfig = dynamicContext.getCurrentAgentWorkflow();
 

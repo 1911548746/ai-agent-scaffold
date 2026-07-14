@@ -45,7 +45,6 @@ public class LlmAgentNode extends AbstractArmorySupport {
         AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
         List<com.hh.domain.agent.model.valobj.LlmAgent> agentsConfig = aiAgentConfigTableVO.getModule().getAgents();
 
-
         for (com.hh.domain.agent.model.valobj.LlmAgent agentConfig : agentsConfig) {
 
             List<Object> toolsets = new ArrayList<>();

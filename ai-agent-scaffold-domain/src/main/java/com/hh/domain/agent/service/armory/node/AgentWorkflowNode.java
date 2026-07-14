@@ -8,6 +8,7 @@ import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import com.hh.domain.agent.model.valobj.enums.AgentTypeEnum;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
+import com.hh.domain.agent.service.armory.node.workflow.BaseLlmAgentNode;
 import com.hh.domain.agent.service.armory.node.workflow.LoopAgentNode;
 import com.hh.domain.agent.service.armory.node.workflow.ParallelAgentNode;
 import com.hh.domain.agent.service.armory.node.workflow.SequentialAgentNode;
@@ -23,12 +24,12 @@ public class AgentWorkflowNode extends AbstractArmorySupport {
 
     @Resource
     private LoopAgentNode loopAgentNode;
-
     @Resource
     private ParallelAgentNode parallelAgentNode;
-
     @Resource
     private SequentialAgentNode sequentialAgentNode;
+    @Resource
+    private BaseLlmAgentNode baseLlmAgentNode;
 
     @Resource
     private RunnerNode runnerNode;
@@ -76,6 +77,7 @@ public class AgentWorkflowNode extends AbstractArmorySupport {
             case Loop -> loopAgentNode;
             case Parallel -> parallelAgentNode;
             case Sequential -> sequentialAgentNode;
+            case BaseLlm -> baseLlmAgentNode;
             default -> runnerNode;
         };
     }

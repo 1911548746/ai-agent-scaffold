@@ -11,8 +11,9 @@ public class AgentWorkflow {
      */
     private String type;
     private String name;
-    private List<String> subAgents;
     private String description;
+    private String instruction;
+    private List<String> subAgents;
     private Integer maxIterations = 3;
 
 }
