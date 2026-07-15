@@ -215,6 +215,16 @@ public class MySqlSessionService implements IMySqlSessionService {
     }
 
     private void persistEvent(String appName, String userId, String sessionId, Event event) {
+
+        // 某些 ADK 后置事件（例如 compaction 相关事件）可能没有预先填充 eventId。
+        // 数据库把 event_id 设计为非空唯一键，因此这里统一补齐，避免插入阶段失败。
+        if (event.id() == null || event.id().isBlank()) {
+            event.setId(Event.generateEventId());
+        }
+        if (event.timestamp() <= 0) {
+            event.setTimestamp(Instant.now().getEpochSecond());
+        }
+
         SessionEventPO existing = sessionEventDao.selectOne(new LambdaQueryWrapper<SessionEventPO>()
                 .eq(SessionEventPO::getAppName, appName)
                 .eq(SessionEventPO::getUserId, userId)
