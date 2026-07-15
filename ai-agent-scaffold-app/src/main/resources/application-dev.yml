@@ -16,13 +16,13 @@ thread:
 spring:
   config:
     import:
-#      - classpath:agent/test-agent.yml
+      - classpath:agent/test-agent.yml
 #      - classpath:agent/chrome-devtools-agent.yml
       - classpath:agent/hello-agent.yml
   datasource:
     username: root
-    password: 123456
-    url: jdbc:mysql://127.0.0.1:3306/xfg_frame_archetype?useUnicode=true&characterEncoding=utf8&autoReconnect=true&zeroDateTimeBehavior=convertToNull&serverTimezone=UTC&useSSL=true
+    password: root
+    url: jdbc:mysql://127.0.0.1:3306/scaffold?useUnicode=true&characterEncoding=utf8&autoReconnect=true&zeroDateTimeBehavior=convertToNull&serverTimezone=UTC&useSSL=true
     driver-class-name: com.mysql.cj.jdbc.Driver
   hikari:
     pool-name: Retail_HikariCP

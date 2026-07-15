@@ -24,5 +24,7 @@ ai:
                   skills-dir: classpath:agent/skills
             runner:
                 agent-name: HelloAgent
+                # 持久化
+                persistence: true
                 plugin-name-list:
                   - myLoggingPlugin

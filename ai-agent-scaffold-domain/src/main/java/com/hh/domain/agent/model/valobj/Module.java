@@ -15,6 +15,7 @@ public class Module {
     @Data
     public static class Runner {
         private String agentName;
+        private Boolean persistence;
         private List<String> pluginNameList;
     }
 

@@ -20,7 +20,7 @@
         <repository>
             <id>nexus-aliyun</id>
             <name>nexus-aliyun</name>
-            <url>http://maven.aliyun.com/nexus/content/groups/public/</url>
+            <url>https://maven.aliyun.com/repository/public</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -62,12 +62,14 @@
                 <version>${jackson-annotations.version}</version>
             </dependency>
 
+            <!-- 扳手工程 -->
             <dependency>
                 <groupId>cn.bugstack.wrench</groupId>
                 <artifactId>xfg-wrench-starter-design-framework</artifactId>
                 <version>3.0.0</version>
             </dependency>
 
+            <!-- AI相关 -->
             <!-- ADK -->
             <dependency>
                 <groupId>com.google.adk</groupId>
@@ -87,10 +89,16 @@
                 <version>1.4.0</version>
             </dependency>
 
+            <!-- 数据库相关 -->
+<!--            <dependency>-->
+<!--                <groupId>org.mybatis.spring.boot</groupId>-->
+<!--                <artifactId>mybatis-spring-boot-starter</artifactId>-->
+<!--                <version>3.0.4</version>-->
+<!--            </dependency>-->
             <dependency>
-                <groupId>org.mybatis.spring.boot</groupId>
-                <artifactId>mybatis-spring-boot-starter</artifactId>
-                <version>3.0.4</version>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>3.5.17</version>
             </dependency>
             <!-- # 多数据源路由配置
                  # mysql 5.x driver-class-name: com.mysql.jdbc.Driver    mysql-connector-java 5.1.34
