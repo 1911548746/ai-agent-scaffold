@@ -83,3 +83,6 @@ ai:
                   - CodeRefactorerAgent
             runner:
                 agent-name: CodePipelineAgent
+                persistence: true
+                plugin-name-list:
+                    - myLoggingPlugin

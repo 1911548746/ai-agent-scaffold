@@ -24,7 +24,11 @@ ai:
                   skills-dir: classpath:agent/skills
             runner:
                 agent-name: HelloAgent
-                # 持久化
                 persistence: true
+                context-compress:
+                    # slidingWindow: 滑动窗口      fixedSize: 固定窗口
+                    type: slidingWindow
+                    compaction-interval: 8
+                    overlap-size: 2
                 plugin-name-list:
                   - myLoggingPlugin
