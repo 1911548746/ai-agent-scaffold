@@ -1,7 +1,7 @@
 package com.hh.infrastructure.adapter.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.hh.domain.agent.adapter.repository.IMySqlSessionService;
+import com.hh.domain.agent.adapter.repository.IMySqlSessionServiceRepository;
 import com.hh.infrastructure.dao.SessionDao;
 import com.hh.infrastructure.dao.SessionEventDao;
 import com.hh.infrastructure.dao.po.SessionEventPO;
@@ -33,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 @Service
-public class MySqlSessionService implements IMySqlSessionService {
+public class MySqlSessionServiceRepository implements IMySqlSessionServiceRepository {
 
     @Resource
     private SessionDao sessionDao;
