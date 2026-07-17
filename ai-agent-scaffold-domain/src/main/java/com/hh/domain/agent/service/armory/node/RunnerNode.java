@@ -11,7 +11,7 @@ import com.google.adk.sessions.BaseSessionService;
 import com.google.adk.sessions.InMemorySessionService;
 import com.google.adk.summarizer.EventsCompactionConfig;
 import com.google.adk.summarizer.LlmEventSummarizer;
-import com.hh.domain.agent.adapter.repository.IMySqlSessionService;
+import com.hh.domain.agent.adapter.repository.IMySqlSessionServiceRepository;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
@@ -31,7 +31,7 @@ import java.util.List;
 public class RunnerNode  extends AbstractArmorySupport {
 
     @Resource
-    private IMySqlSessionService mySqlSessionService;
+    private IMySqlSessionServiceRepository mySqlSessionService;
 
     @Override
     protected AiAgentRegisterVO doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
