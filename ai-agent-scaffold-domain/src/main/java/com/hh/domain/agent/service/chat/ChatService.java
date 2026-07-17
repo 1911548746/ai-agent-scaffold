@@ -6,6 +6,8 @@ import com.google.adk.runner.Runner;
 import com.google.adk.sessions.Session;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
+import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
+import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.valobj.AgentInfo;
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
@@ -34,6 +36,11 @@ public class ChatService implements IChatService {
 
     @Resource
     private AiAgentAutoConfigProperties aiAgentAutoConfigProperties;
+
+    @Resource
+    private IConversationArchiveRepository conversationArchiveRepository;
+    @Resource
+    private IMessageArchiveRepository messageArchiveRepository;
 
     private final Map<String, String> userSessions = new ConcurrentHashMap<>();
 
@@ -73,7 +80,12 @@ public class ChatService implements IChatService {
             Session session = runner.sessionService()
                     .createSession(appName, uid)
                     .blockingGet();
-            return session.id();
+            String sessionId = session.id();
+
+            // 创建或查找会话记录
+            conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
+
+            return sessionId;
         });
     }
 
@@ -101,7 +113,14 @@ public class ChatService implements IChatService {
             throw new AppException(ResponseCode.AGENT_NOT_FOUND);
         }
 
+        String appName = aiAgentRegisterVO.getAppName();
         Runner runner = aiAgentRegisterVO.getRunner();
+
+        // 查找或创建会话记录，拿到 conversationId
+        Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
+
+        // 保存用户消息
+        messageArchiveRepository.saveUserMessage(conversationId, appName, userId, sessionId, message);
 
         Content userMessage = Content.fromParts(Part.fromText(message));
 
@@ -113,6 +132,10 @@ public class ChatService implements IChatService {
                         outputs.add(event.stringifyContent());
                     }
                 });
+
+        String content = String.join("\n", outputs);
+        // 保存AI回复
+        messageArchiveRepository.saveAssistantMessage(conversationId, appName, userId, sessionId, content);
 
         return outputs;
     }
@@ -130,11 +153,30 @@ public class ChatService implements IChatService {
                 .streamingMode(RunConfig.StreamingMode.SSE)
                 .build();
 
+        String appName = aiAgentRegisterVO.getAppName();
         Runner runner = aiAgentRegisterVO.getRunner();
+
+        // 查找或创建会话记录，拿到 conversationId
+        Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
+        // 保存用户消息
+        messageArchiveRepository.saveUserMessage(conversationId, appName, userId, sessionId, message);
 
         Content userMessage = Content.fromParts(Part.fromText(message));
 
-        return runner.runAsync(userId, sessionId, userMessage, runConfig);
+        Flowable<Event> events = runner.runAsync(userId, sessionId, userMessage, runConfig);
+
+        // 在流结束时保存AI的完整回复
+        // 用 doFinally，保证流被取消/出错时也能保存
+        StringBuilder assistantBuffer = new StringBuilder();
+        return events.doOnNext(event -> {
+            if (event.finalResponse()) {
+                assistantBuffer.append(event.stringifyContent());
+            }
+        }).doFinally(() -> {
+            if (assistantBuffer.length() > 0) {
+                messageArchiveRepository.saveAssistantMessage(conversationId, appName, userId, sessionId, assistantBuffer.toString());
+            }
+        });
     }
 
     @Override
@@ -146,6 +188,13 @@ public class ChatService implements IChatService {
             throw new AppException(ResponseCode.AGENT_NOT_FOUND);
         }
 
+        String appName = aiAgentRegisterVO.getAppName();
+        String userId = chatCommandEntity.getUserId();
+        String sessionId = chatCommandEntity.getSessionId();
+
+        // 查找或创建会话记录，拿到 conversationId
+        Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, chatCommandEntity.getUserId(), chatCommandEntity.getSessionId());
+
         // 构建参数
         List<Part> parts = new ArrayList<>();
 
@@ -155,6 +204,11 @@ public class ChatService implements IChatService {
             for (ChatCommandEntity.Content.Text text : texts) {
                 parts.add(Part.fromText(text.getMessage()));
             }
+            // 保存用户文本消息
+            String userText = texts.stream()
+                    .map(ChatCommandEntity.Content.Text::getMessage)
+                    .reduce("", (a, b) -> a + b);
+            messageArchiveRepository.saveUserMessage(conversationId, appName, userId, sessionId, userText);
         }
 
         // 文件内容
@@ -184,10 +238,29 @@ public class ChatService implements IChatService {
         runner.runAsync(chatCommandEntity.getUserId(), chatCommandEntity.getSessionId(), userMessage)
                 .blockingForEach(event -> {
                     if (event.finalResponse()) {
-                        outputs.add(event.stringifyContent());
+                        String content = event.stringifyContent();
+                        outputs.add(content);
+                        messageArchiveRepository.saveAssistantMessage(conversationId, appName, chatCommandEntity.getUserId(), chatCommandEntity.getSessionId(), content);
                     }
                 });
 
         return outputs;
+    }
+
+    @Override
+    public void deleteSession(String agentId, String userId, String sessionId) {
+
+        AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(agentId);
+
+        if (aiAgentRegisterVO == null) {
+            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
+        }
+
+        String appName = aiAgentRegisterVO.getAppName();
+        Runner runner = aiAgentRegisterVO.getRunner();
+
+        runner.sessionService()
+                .deleteSession(appName, userId, sessionId)
+                .blockingAwait();
     }
 }

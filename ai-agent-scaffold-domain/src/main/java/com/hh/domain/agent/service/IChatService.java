@@ -21,4 +21,6 @@ public interface IChatService {
 
     List<String> handleMessage(ChatCommandEntity chatCommandEntity);
 
+    void deleteSession(String agentId, String userId, String sessionId);
+
 }

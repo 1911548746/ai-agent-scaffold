@@ -67,33 +67,33 @@ public class SchemaInitializer implements InitializingBean {
 //                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 //                """);
 
-//        jdbcTemplate.execute("""
-//                CREATE TABLE IF NOT EXISTS conversations (
-//                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-//                    app_name VARCHAR(128) NOT NULL,
-//                    user_id VARCHAR(128) NOT NULL,
-//                    session_id VARCHAR(128) NOT NULL,
-//                    title VARCHAR(255) NULL,
-//                    created_at DATETIME NOT NULL,
-//                    updated_at DATETIME NOT NULL,
-//                    UNIQUE KEY uk_conversations_session (app_name, user_id, session_id)
-//                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-//                """);
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS conversations (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    app_name VARCHAR(128) NOT NULL,
+                    user_id VARCHAR(128) NOT NULL,
+                    session_id VARCHAR(128) NOT NULL,
+                    title VARCHAR(255) NULL,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL,
+                    UNIQUE KEY uk_conversations_session (app_name, user_id, session_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """);
 
-//        jdbcTemplate.execute("""
-//                CREATE TABLE IF NOT EXISTS messages (
-//                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-//                    conversation_id BIGINT NOT NULL,
-//                    app_name VARCHAR(128) NOT NULL,
-//                    user_id VARCHAR(128) NOT NULL,
-//                    session_id VARCHAR(128) NOT NULL,
-//                    role VARCHAR(32) NOT NULL,
-//                    content_text MEDIUMTEXT NOT NULL,
-//                    content_json JSON NULL,
-//                    created_at DATETIME NOT NULL,
-//                    KEY idx_messages_conversation (conversation_id, id),
-//                    KEY idx_messages_session (app_name, user_id, session_id, id)
-//                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-//                """);
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    conversation_id BIGINT NOT NULL,
+                    app_name VARCHAR(128) NOT NULL,
+                    user_id VARCHAR(128) NOT NULL,
+                    session_id VARCHAR(128) NOT NULL,
+                    role VARCHAR(32) NOT NULL,
+                    content_text MEDIUMTEXT NOT NULL,
+                    content_json JSON NULL,
+                    created_at DATETIME NOT NULL,
+                    KEY idx_messages_conversation (conversation_id, id),
+                    KEY idx_messages_session (app_name, user_id, session_id, id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """);
     }
 }
