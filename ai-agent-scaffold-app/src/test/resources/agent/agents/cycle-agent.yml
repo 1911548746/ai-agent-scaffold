@@ -1,0 +1,9 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: cycle-agent
+      name: CycleAgent
+      description: Workflow cycle fixture.
+      instruction: Offline fixture.
+      model-ref: deepseek-v4-flash

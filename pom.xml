@@ -108,6 +108,8 @@
                 <artifactId>mysql-connector-java</artifactId>
                 <version>8.0.28</version>
             </dependency>
+
+            <!-- 杂项 -->
             <dependency>
                 <groupId>com.alibaba</groupId>
                 <artifactId>fastjson</artifactId>

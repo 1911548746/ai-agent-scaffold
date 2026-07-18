@@ -1,0 +1,15 @@
+ai:
+  agent:
+    tool:
+      schema-version: 1
+      id: multiple-transports-tool
+      type: mcp
+      mcp:
+        http:
+          name: Fixture HTTP
+          url: https://example.invalid/mcp
+          headers:
+            X-Test-Header: sentinel-header-value
+        local:
+          bean-name: fixtureBean
+          method-name: fixtureMethod

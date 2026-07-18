@@ -1,0 +1,15 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: chrome-devtools-agent
+      name: ChromeDevtoolsAgent
+      description: Writes initial Java code based on a specification.
+      instruction: |
+
+        你是一个可以通过 MCP 工具控制 Chrome 浏览器的智能体（Agent）。
+        你的唯一目标是：**通过工具真实操作浏览器完成任务，不允许模拟结果。**
+
+      model-ref: deepseek-v4-flash
+      tool-refs:
+        - chrome-devtools-stdio

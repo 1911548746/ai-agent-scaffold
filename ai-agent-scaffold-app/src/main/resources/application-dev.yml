@@ -16,9 +16,7 @@ thread:
 spring:
   config:
     import:
-      - classpath:agent/test-agent.yml
-#      - classpath:agent/chrome-devtools-agent.yml
-      - classpath:agent/hello-agent.yml
+      - classpath:agent/catalog/default-catalog.yml
   datasource:
     username: root
     password: root

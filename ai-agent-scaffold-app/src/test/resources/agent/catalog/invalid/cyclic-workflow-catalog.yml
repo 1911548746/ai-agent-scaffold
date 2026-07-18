@@ -1,0 +1,20 @@
+ai:
+  agent:
+    config:
+      enabled: true
+      schema-version: 1
+      catalog-path: classpath:agent/catalog/invalid/cyclic-workflow-catalog.yml
+      model-resources:
+        - classpath:agent/models/deepseek-v4-flash.yml
+      agent-resources:
+        - classpath:agent/agents/cycle-agent.yml
+      workflow-resources:
+        - classpath:agent/workflows/cycle-a.yml
+        - classpath:agent/workflows/cycle-b.yml
+      applications:
+        - id: cycle-fixture
+          app-name: CycleFixture
+          agent-id: fixture-cycle
+          agent-name: Cycle fixture
+          agent-desc: Cycle fixture
+          workflow-ref: cycle-a

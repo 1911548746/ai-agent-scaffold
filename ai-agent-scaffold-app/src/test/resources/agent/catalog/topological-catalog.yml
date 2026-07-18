@@ -1,0 +1,20 @@
+ai:
+  agent:
+    config:
+      enabled: true
+      schema-version: 1
+      catalog-path: classpath:agent/catalog/topological-catalog.yml
+      model-resources:
+        - classpath:agent/models/deepseek-v4-flash.yml
+      agent-resources:
+        - classpath:agent/agents/cycle-agent.yml
+      workflow-resources:
+        - classpath:agent/workflows/topological-parent.yml
+        - classpath:agent/workflows/topological-child.yml
+      applications:
+        - id: topological-fixture
+          app-name: TopologicalFixture
+          agent-id: fixture-topological
+          agent-name: Topological fixture
+          agent-desc: Topological fixture
+          workflow-ref: topological-parent

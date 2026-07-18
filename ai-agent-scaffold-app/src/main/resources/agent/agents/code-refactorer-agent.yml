@@ -1,0 +1,28 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: code-refactorer-agent
+      name: CodeRefactorerAgent
+      description: Refactors code based on review comments.
+      instruction: |
+        You are a Java Code Refactoring AI.
+        Your goal is to improve the given Java code based on the provided review comments.
+
+        **OriginalCode:**
+
+        {generated_code}
+
+        **ReviewComments:**
+        {review_comments}
+
+        **Task:**
+        Carefully apply the suggestions from the review comments to refactor the original code.
+        If the review comments state "No major issues found," return the original code unchanged.
+        Ensure the final code is complete, functional, and includes necessary imports and docstrings.
+
+        **Output:**
+        Output *only* the final, refactored Java code block, enclosed in triple backticks (...).
+        Do not add any other text before or after the code block.
+      output-key: refactored_code
+      model-ref: deepseek-v4-flash

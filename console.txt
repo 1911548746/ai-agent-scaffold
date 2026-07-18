@@ -1,0 +1,17 @@
+26-07-18.16:51:05.719 [http-nio-8080-exec-1] INFO  LoggingPlugin          - [logging_plugin] 🧠 LLM REQUEST
+26-07-18.16:51:05.719 [http-nio-8080-exec-1] INFO  LoggingPlugin          - [logging_plugin]    Model: deepseek-ai/DeepSeek-V4-Flash
+26-07-18.16:51:05.719 [http-nio-8080-exec-1] INFO  LoggingPlugin          - [logging_plugin]    Agent: HelloAgent
+26-07-18.16:51:05.720 [http-nio-8080-exec-1] INFO  LoggingPlugin          - [logging_plugin]    System Instruction: 'You are a concise assistant. Say hello in a friendly way.
+
+You are an agent. Your internal name is "HelloAgent". The description about you is "A minimal ADK Java hello agent.".
+
+You can use specialize...'
+26-07-18.16:51:05.720 [http-nio-8080-exec-1] INFO  LoggingPlugin          - [logging_plugin]    Available Tools: [load_skill_resource, load_skill, list_skills, get_weather]
+26-07-18.16:51:06.169 [http-nio-8080-exec-1] ERROR [dispatcherServlet]    - Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Request processing failed: dev.langchain4j.exception.AuthenticationException: {"code":30014,"data":null,"message":"Token is invalid."}] with root cause
+dev.langchain4j.exception.HttpException: {"code":30014,"data":null,"message":"Token is invalid."}
+	at dev.langchain4j.http.client.jdk.JdkHttpClient.execute(JdkHttpClient.java:54)
+	at dev.langchain4j.model.openai.internal.SyncRequestExecutor.execute(SyncRequestExecutor.java:20)
+	at dev.langchain4j.model.openai.internal.RequestExecutor.executeRaw(RequestExecutor.java:44)
+...........
+	at com.hh.domain.agent.service.chat.ChatService.handleMessage(ChatService.java:130)
+	at com.hh.trigger.http.AgentServiceController.chat(AgentServiceController.java:148)

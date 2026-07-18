@@ -1,0 +1,54 @@
+ai:
+  agent:
+    config:
+      enabled: true
+      schema-version: 1
+      catalog-path: classpath:agent/catalog/default-catalog.yml
+      model-resources:
+        - classpath:agent/models/deepseek-v4-flash.yml
+      tool-resources:
+        - classpath:agent/tools/local-weather.yml
+        - classpath:agent/tools/release-note-skill.yml
+        - classpath:agent/tools/chrome-devtools-stdio.yml
+      agent-resources:
+        - classpath:agent/agents/hello-agent.yml
+        - classpath:agent/agents/code-writer-agent.yml
+        - classpath:agent/agents/code-reviewer-agent.yml
+        - classpath:agent/agents/code-refactorer-agent.yml
+        - classpath:agent/agents/chrome-devtools-agent.yml
+      workflow-resources:
+        - classpath:agent/workflows/code-pipeline.yml
+      applications:
+        - id: hello-agent
+          app-name: HelloAgent
+          agent-id: "100000"
+          agent-name: 测试智能体00
+          agent-desc: 一个测试的智能体
+          agent-ref: hello-agent
+          runner:
+            persistence: true
+            context-compress:
+              type: slidingWindow
+              compaction-interval: 8
+              overlap-size: 2
+            plugin-name-list:
+              - myLoggingPlugin
+
+        - id: pipeline-agent
+          app-name: PipelineAgent
+          agent-id: "100001"
+          agent-name: 测试智能体01
+          agent-desc: 一个测试的智能体
+          workflow-ref: code-pipeline
+          runner:
+            persistence: true
+            plugin-name-list:
+              - myLoggingPlugin
+
+        - id: chrome-devtools-agent
+          enabled: false
+          app-name: ChromeDevtoolsAgent
+          agent-id: "100002"
+          agent-name: Chrome-devtools-Agent
+          agent-desc: 一个用于测试 MCP Chrome DevTools 的智能体
+          agent-ref: chrome-devtools-agent

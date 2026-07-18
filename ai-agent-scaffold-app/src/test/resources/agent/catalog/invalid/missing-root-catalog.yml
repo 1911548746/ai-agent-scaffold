@@ -1,0 +1,16 @@
+ai:
+  agent:
+    config:
+      enabled: true
+      schema-version: 1
+      catalog-path: classpath:agent/catalog/invalid/missing-root-catalog.yml
+      model-resources:
+        - classpath:agent/models/deepseek-v4-flash.yml
+      agent-resources:
+        - classpath:agent/agents/cycle-agent.yml
+      applications:
+        - id: missing-root-fixture
+          app-name: MissingRootFixture
+          agent-id: fixture-missing-root
+          agent-name: Missing root fixture
+          agent-desc: Missing root fixture

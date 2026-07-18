@@ -1,0 +1,10 @@
+ai:
+  agent:
+    tool:
+      schema-version: 1
+      id: local-weather
+      type: mcp
+      mcp:
+        local:
+          bean-name: myTestMcpServer
+          method-name: getWeather

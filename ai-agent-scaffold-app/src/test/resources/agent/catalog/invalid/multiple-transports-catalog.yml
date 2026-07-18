@@ -1,0 +1,19 @@
+ai:
+  agent:
+    config:
+      enabled: true
+      schema-version: 1
+      catalog-path: classpath:agent/catalog/invalid/multiple-transports-catalog.yml
+      model-resources:
+        - classpath:agent/models/deepseek-v4-flash.yml
+      tool-resources:
+        - classpath:agent/tools/multiple-transports-tool.yml
+      agent-resources:
+        - classpath:agent/agents/multiple-transports-agent.yml
+      applications:
+        - id: multiple-transports-fixture
+          app-name: MultipleTransportsFixture
+          agent-id: fixture-multiple-transports
+          agent-name: Multiple transports fixture
+          agent-desc: Multiple transports fixture
+          agent-ref: multiple-transports-agent

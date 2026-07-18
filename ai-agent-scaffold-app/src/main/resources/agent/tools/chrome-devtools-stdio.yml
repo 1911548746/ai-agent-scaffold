@@ -1,0 +1,15 @@
+ai:
+  agent:
+    tool:
+      schema-version: 1
+      id: chrome-devtools-stdio
+      type: mcp
+      mcp:
+        stdio:
+          name: Chrome-devtools MCP
+          command: cmd
+          args:
+            - /c
+            - npx
+            - -y
+            - chrome-devtools-mcp@latest

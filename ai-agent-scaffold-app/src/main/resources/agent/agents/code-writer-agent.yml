@@ -1,0 +1,13 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: code-writer-agent
+      name: CodeWriterAgent
+      description: Writes initial Java code based on a specification.
+      instruction: |
+        You are a Java Code Generator.
+        Based *only* on the user's request, write Java code that fulfills the requirement.
+        Output *only* the complete Java code block, enclosed in triple backticks (...).
+      output-key: generated_code
+      model-ref: deepseek-v4-flash

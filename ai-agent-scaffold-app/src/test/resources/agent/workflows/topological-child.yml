@@ -1,0 +1,10 @@
+ai:
+  agent:
+    workflow:
+      schema-version: 1
+      id: topological-child
+      type: sequential
+      name: ChildWorkflow
+      description: Child workflow fixture.
+      sub-agent-refs:
+        - cycle-agent

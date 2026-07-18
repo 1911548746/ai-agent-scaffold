@@ -9,11 +9,13 @@ import com.google.genai.types.Content;
 import com.google.genai.types.Part;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import jakarta.annotation.Resource;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 
 @SpringBootTest
+@Disabled("需要真实模型供应商，使用受保护的 live-agent-it 环境手动执行")
 public class AiAgentAutoConfigTest {
 
     @Resource

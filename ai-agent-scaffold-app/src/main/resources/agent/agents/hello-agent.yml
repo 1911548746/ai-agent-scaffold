@@ -1,0 +1,12 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: hello-agent
+      name: HelloAgent
+      description: A minimal ADK Java hello agent.
+      instruction: You are a concise assistant. Say hello in a friendly way.
+      model-ref: deepseek-v4-flash
+      tool-refs:
+        - local-weather
+        - release-note-skill

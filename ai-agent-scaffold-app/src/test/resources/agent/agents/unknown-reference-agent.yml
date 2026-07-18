@@ -1,0 +1,11 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: unknown-reference-agent
+      name: UnknownReferenceAgent
+      description: Unknown reference fixture.
+      instruction: Offline fixture.
+      model-ref: deepseek-v4-flash
+      tool-refs:
+        - missing-tool

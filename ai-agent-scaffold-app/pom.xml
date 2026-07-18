@@ -21,6 +21,11 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- 为 catalog 的 @Validated 绑定和 AgentDefinitionLoader 提供 Hibernate Validator 实现。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-core</artifactId>
@@ -59,11 +64,6 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
@@ -115,18 +115,6 @@
             </testResource>
         </testResources>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.6</version>
-                <configuration>
-                    <skipTests>true</skipTests>
-                    <testFailureIgnore>false</testFailureIgnore>
-                    <includes>
-                        <include>**/*Test.java</include>
-                    </includes>
-                </configuration>
-            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

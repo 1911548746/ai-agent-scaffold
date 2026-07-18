@@ -1,0 +1,17 @@
+ai:
+  agent:
+    config:
+      enabled: true
+      schema-version: 1
+      catalog-path: classpath:agent/catalog/invalid/unknown-reference-catalog.yml
+      model-resources:
+        - classpath:agent/models/deepseek-v4-flash.yml
+      agent-resources:
+        - classpath:agent/agents/unknown-reference-agent.yml
+      applications:
+        - id: unknown-reference-fixture
+          app-name: UnknownReferenceFixture
+          agent-id: fixture-unknown-reference
+          agent-name: Unknown reference fixture
+          agent-desc: Unknown reference fixture
+          agent-ref: unknown-reference-agent

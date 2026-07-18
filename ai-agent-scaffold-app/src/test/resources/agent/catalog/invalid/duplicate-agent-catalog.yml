@@ -1,0 +1,18 @@
+ai:
+  agent:
+    config:
+      enabled: true
+      schema-version: 1
+      catalog-path: classpath:agent/catalog/invalid/duplicate-agent-catalog.yml
+      model-resources:
+        - classpath:agent/models/deepseek-v4-flash.yml
+      agent-resources:
+        - classpath:agent/agents/duplicate-agent-one.yml
+        - classpath:agent/agents/duplicate-agent-two.yml
+      applications:
+        - id: duplicate-fixture
+          app-name: DuplicateFixture
+          agent-id: fixture-duplicate
+          agent-name: Duplicate fixture
+          agent-desc: Duplicate fixture
+          agent-ref: duplicate-agent

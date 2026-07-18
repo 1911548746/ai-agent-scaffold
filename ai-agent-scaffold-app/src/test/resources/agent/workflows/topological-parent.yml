@@ -1,0 +1,10 @@
+ai:
+  agent:
+    workflow:
+      schema-version: 1
+      id: topological-parent
+      type: sequential
+      name: ParentWorkflow
+      description: Parent workflow fixture.
+      sub-workflow-refs:
+        - topological-child

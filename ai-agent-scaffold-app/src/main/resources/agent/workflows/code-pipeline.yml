@@ -1,0 +1,12 @@
+ai:
+  agent:
+    workflow:
+      schema-version: 1
+      id: code-pipeline
+      type: sequential
+      name: CodePipelineAgent
+      description: Executes a sequence of code writing, reviewing, and refactoring.
+      sub-agent-refs:
+        - code-writer-agent
+        - code-reviewer-agent
+        - code-refactorer-agent

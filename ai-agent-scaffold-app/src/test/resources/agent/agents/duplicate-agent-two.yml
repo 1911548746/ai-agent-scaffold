@@ -1,0 +1,9 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: duplicate-agent
+      name: DuplicateAgentTwo
+      description: Second duplicate fixture.
+      instruction: Offline fixture.
+      model-ref: deepseek-v4-flash

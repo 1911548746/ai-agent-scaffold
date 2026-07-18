@@ -1,0 +1,11 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: multiple-transports-agent
+      name: MultipleTransportsAgent
+      description: Multiple transports fixture.
+      instruction: Offline fixture.
+      model-ref: deepseek-v4-flash
+      tool-refs:
+        - multiple-transports-tool

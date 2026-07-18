@@ -1,0 +1,12 @@
+ai:
+  agent:
+    workflow:
+      schema-version: 1
+      id: cycle-a
+      type: sequential
+      name: CycleA
+      description: First cycle fixture.
+      sub-agent-refs:
+        - cycle-agent
+      sub-workflow-refs:
+        - cycle-b
