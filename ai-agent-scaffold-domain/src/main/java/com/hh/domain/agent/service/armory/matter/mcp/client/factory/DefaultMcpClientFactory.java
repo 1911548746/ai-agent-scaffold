@@ -1,6 +1,6 @@
 package com.hh.domain.agent.service.armory.matter.mcp.client.factory;
 
-import com.hh.domain.agent.model.valobj.McpTool;
+import com.hh.domain.agent.model.legacyconfig.McpTool;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
 import com.hh.domain.agent.service.armory.matter.mcp.client.impl.HttpMcpToolCreateService;
 import com.hh.domain.agent.service.armory.matter.mcp.client.impl.LocalMcpToolCreateService;

@@ -1,4 +1,4 @@
-package com.hh.domain.agent.model.valobj;
+package com.hh.domain.agent.model.legacyconfig;
 
 import lombok.Data;
 

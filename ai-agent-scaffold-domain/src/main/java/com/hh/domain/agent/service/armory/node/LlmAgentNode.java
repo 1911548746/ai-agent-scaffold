@@ -3,13 +3,12 @@ package com.hh.domain.agent.service.armory.node;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.LlmAgent;
 import com.google.adk.models.BaseLlm;
-import com.google.adk.skills.LocalSkillSource;
 import com.google.adk.skills.SkillSource;
 import com.google.adk.tools.skills.SkillToolset;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
-import com.hh.domain.agent.model.valobj.McpTool;
+import com.hh.domain.agent.model.legacyconfig.McpTool;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
@@ -19,7 +18,6 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,9 +41,9 @@ public class LlmAgentNode extends AbstractArmorySupport {
         BaseLlm llmModel = dynamicContext.getLlmModel();
 
         AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
-        List<com.hh.domain.agent.model.valobj.LlmAgent> agentsConfig = aiAgentConfigTableVO.getModule().getAgents();
+        List<com.hh.domain.agent.model.legacyconfig.LlmAgent> agentsConfig = aiAgentConfigTableVO.getModule().getAgents();
 
-        for (com.hh.domain.agent.model.valobj.LlmAgent agentConfig : agentsConfig) {
+        for (com.hh.domain.agent.model.legacyconfig.LlmAgent agentConfig : agentsConfig) {
 
             List<Object> toolsets = new ArrayList<>();
 

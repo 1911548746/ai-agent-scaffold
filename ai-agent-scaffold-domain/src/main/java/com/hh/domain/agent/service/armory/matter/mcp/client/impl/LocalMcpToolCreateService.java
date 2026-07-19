@@ -1,6 +1,6 @@
 package com.hh.domain.agent.service.armory.matter.mcp.client.impl;
 import com.google.adk.tools.FunctionTool;
-import com.hh.domain.agent.model.valobj.McpTool;
+import com.hh.domain.agent.model.legacyconfig.McpTool;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
 import jakarta.annotation.Resource;
 import org.springframework.context.ApplicationContext;

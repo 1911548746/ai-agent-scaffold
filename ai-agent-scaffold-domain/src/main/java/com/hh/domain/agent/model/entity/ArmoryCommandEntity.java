@@ -1,6 +1,6 @@
 package com.hh.domain.agent.model.entity;
 
-import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

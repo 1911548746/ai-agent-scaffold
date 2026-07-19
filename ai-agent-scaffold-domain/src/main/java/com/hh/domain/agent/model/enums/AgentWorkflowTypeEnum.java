@@ -1,4 +1,4 @@
-package com.hh.domain.agent.model.valobj.enums;
+package com.hh.domain.agent.model.enums;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public enum AgentTypeEnum {
+public enum AgentWorkflowTypeEnum {
 
     Loop("循环执行","loop","loopAgentNode"),
     Parallel("并行执行","parallel","parallelAgentNode"),
@@ -19,11 +19,11 @@ public enum AgentTypeEnum {
     private String type;
     private String node;
 
-    public static AgentTypeEnum getByType(String type) {
+    public static AgentWorkflowTypeEnum getByType(String type) {
         if (type == null) {
             return null;
         }
-        for (AgentTypeEnum value : values()) {
+        for (AgentWorkflowTypeEnum value : values()) {
             if (value.getType().equalsIgnoreCase(type)) {
                 return value;
             }

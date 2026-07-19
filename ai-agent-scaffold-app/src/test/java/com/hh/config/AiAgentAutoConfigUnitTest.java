@@ -2,9 +2,9 @@ package com.hh.config;
 
 import com.hh.config.agent.AgentDefinitionLoader;
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.domain.agent.model.valobj.AgentInfo;
-import com.hh.domain.agent.model.valobj.ChatModel;
-import com.hh.domain.agent.model.valobj.Module;
+import com.hh.domain.agent.model.legacyconfig.AgentInfo;
+import com.hh.domain.agent.model.legacyconfig.ChatModel;
+import com.hh.domain.agent.model.legacyconfig.Module;
 import com.hh.domain.agent.model.valobj.properties.AiAgentAutoConfigProperties;
 import com.hh.domain.agent.service.IArmoryService;
 import org.junit.jupiter.api.Test;

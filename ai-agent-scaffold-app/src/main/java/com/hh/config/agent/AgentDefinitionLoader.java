@@ -1,13 +1,13 @@
 package com.hh.config.agent;
 
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.domain.agent.model.valobj.AgentInfo;
-import com.hh.domain.agent.model.valobj.AgentWorkflow;
-import com.hh.domain.agent.model.valobj.ChatModel;
-import com.hh.domain.agent.model.valobj.LlmAgent;
-import com.hh.domain.agent.model.valobj.McpTool;
-import com.hh.domain.agent.model.valobj.Module;
-import com.hh.domain.agent.model.valobj.enums.AgentTypeEnum;
+import com.hh.domain.agent.model.legacyconfig.AgentInfo;
+import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
+import com.hh.domain.agent.model.legacyconfig.ChatModel;
+import com.hh.domain.agent.model.legacyconfig.LlmAgent;
+import com.hh.domain.agent.model.legacyconfig.McpTool;
+import com.hh.domain.agent.model.legacyconfig.Module;
+import com.hh.domain.agent.model.enums.AgentWorkflowTypeEnum;
 import com.hh.domain.agent.model.valobj.properties.AiAgentAutoConfigProperties;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -161,7 +161,7 @@ public class AgentDefinitionLoader {
 
         workflows.values().forEach(workflow -> {
             requireSchemaVersion(workflow.getSchemaVersion(), workflow.getSourcePath() + ".schema-version");
-            if (AgentTypeEnum.getByType(workflow.getType()) == null) {
+            if (AgentWorkflowTypeEnum.getByType(workflow.getType()) == null) {
                 throw error(workflow.getSourcePath() + ".type", "unsupported workflow type '" + workflow.getType() + "'");
             }
             for (int i = 0; i < workflow.getSubAgentRefs().size(); i++) {

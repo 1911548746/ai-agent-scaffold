@@ -3,7 +3,7 @@ package com.hh.config;
 import com.hh.config.agent.AgentConfigurationException;
 import com.hh.config.agent.AgentDefinitionLoader;
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.properties.AiAgentAutoConfigProperties;
 import com.hh.domain.agent.service.IArmoryService;
 import lombok.extern.slf4j.Slf4j;
@@ -11,7 +11,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

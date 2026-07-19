@@ -2,10 +2,10 @@ package com.hh.domain.agent.service.armory.node;
 
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.valobj.AgentWorkflow;
-import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
+import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
-import com.hh.domain.agent.model.valobj.enums.AgentTypeEnum;
+import com.hh.domain.agent.model.enums.AgentWorkflowTypeEnum;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import com.hh.domain.agent.service.armory.node.workflow.BaseLlmAgentNode;
@@ -67,13 +67,13 @@ public class AgentWorkflowNode extends AbstractArmorySupport {
         }
 
         String type = currentAgentWorkflow.getType();
-        AgentTypeEnum agentTypeEnum = AgentTypeEnum.getByType(type);
+        AgentWorkflowTypeEnum agentWorkflowTypeEnum = AgentWorkflowTypeEnum.getByType(type);
 
-        if (null == agentTypeEnum) {
+        if (null == agentWorkflowTypeEnum) {
             throw new RuntimeException("agentWorkflow type is error!");
         }
 
-        return switch (agentTypeEnum) {
+        return switch (agentWorkflowTypeEnum) {
             case Loop -> loopAgentNode;
             case Parallel -> parallelAgentNode;
             case Sequential -> sequentialAgentNode;

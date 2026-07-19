@@ -1,10 +1,9 @@
 package com.hh.trigger.http;
 
-import com.google.adk.events.Event;
 import com.hh.api.IAgentService;
 import com.hh.api.dto.*;
 import com.hh.api.response.Response;
-import com.hh.domain.agent.model.valobj.AgentInfo;
+import com.hh.domain.agent.model.legacyconfig.AgentInfo;
 import com.hh.domain.agent.service.IChatService;
 import com.hh.types.support.SensitiveDataRedactor;
 import io.reactivex.rxjava3.disposables.Disposable;

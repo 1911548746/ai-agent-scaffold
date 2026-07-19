@@ -1,11 +1,11 @@
 package com.hh.domain.agent.model.definition;
 
-import com.hh.domain.agent.model.valobj.AgentInfo;
-import com.hh.domain.agent.model.valobj.AgentWorkflow;
-import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
-import com.hh.domain.agent.model.valobj.ChatModel;
-import com.hh.domain.agent.model.valobj.LlmAgent;
-import com.hh.domain.agent.model.valobj.Module;
+import com.hh.domain.agent.model.legacyconfig.AgentInfo;
+import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
+import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.legacyconfig.ChatModel;
+import com.hh.domain.agent.model.legacyconfig.LlmAgent;
+import com.hh.domain.agent.model.legacyconfig.Module;
 import lombok.Builder;
 import lombok.Getter;
 

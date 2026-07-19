@@ -1,7 +1,7 @@
 package com.hh.domain.agent.model.valobj.properties;
 
 
-import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
@@ -15,6 +15,17 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+/**
+ * TODO 迁移至 app 包
+ * <p>AiAgentAutoConfigProperties 带有 @ConfigurationProperties、@Validated 和 Spring 绑定注解，
+ * 且描述的是新版 catalog 的配置绑定入口，不是旧的 AiAgentConfigTableVO。它放在 domain 已经不太合适
+ * <br>
+ * 但是 AiAgentAutoConfigProperties 不能只改包直接迁到 app：当前 ChatService.java 直接依赖它读取 tables，会形成 domain 依赖 app 的反向依赖。
+ * 正确做法是后续先让 ChatService 依赖一个领域查询端口（例如 AgentCatalog / AgentDefinitionQuery），
+ * 再由 app 用配置对象实现该端口，最后迁移 Properties
+ * </p>
+ */
 
 /**
  * catalog 文件在 Spring Environment 中的绑定入口。

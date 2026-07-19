@@ -4,7 +4,7 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.BaseAgent;
 import com.google.adk.models.BaseLlm;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.valobj.AgentWorkflow;
+import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import com.hh.domain.agent.service.armory.node.RootNode;
 import dev.langchain4j.model.openai.OpenAiChatModel;
