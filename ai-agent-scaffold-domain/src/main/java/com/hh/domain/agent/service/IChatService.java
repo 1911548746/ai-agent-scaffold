@@ -13,8 +13,9 @@ public interface IChatService {
 
     String createSession(String agentId, String userId);
 
-    List<String> handleMessage(String agentId, String userId, String message);
-
+    /**
+     * 使用已创建的明确会话发送同步消息，避免服务端隐式选择或复用会话。
+     */
     List<String> handleMessage(String agentId, String userId, String sessionId, String message);
 
     Flowable<Event> handleMessageStream(String agentId, String userId, String sessionId, String message);

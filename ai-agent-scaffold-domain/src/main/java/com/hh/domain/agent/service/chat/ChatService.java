@@ -25,7 +25,6 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -41,8 +40,6 @@ public class ChatService implements IChatService {
     private IConversationArchiveRepository conversationArchiveRepository;
     @Resource
     private IMessageArchiveRepository messageArchiveRepository;
-
-    private final Map<String, String> userSessions = new ConcurrentHashMap<>();
 
     /**
      * 获取智能体列表
@@ -76,32 +73,17 @@ public class ChatService implements IChatService {
         String appName = aiAgentRegisterVO.getAppName();
         Runner runner = aiAgentRegisterVO.getRunner();
 
-        return userSessions.computeIfAbsent(userId, uid -> {
-            Session session = runner.sessionService()
-                    .createSession(appName, uid)
-                    .blockingGet();
-            String sessionId = session.id();
+        // 会话身份由 appName、userId、sessionId 共同确定，不能按 userId 缓存；
+        // 否则同一用户切换 Agent 或创建第二个会话时会错误复用旧会话。
+        Session session = runner.sessionService()
+                .createSession(appName, userId)
+                .blockingGet();
+        String sessionId = session.id();
 
-            // 创建或查找会话记录
-            conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
+        // 创建对应的会话归档记录；后续对话只能使用调用方显式传入的 sessionId。
+        conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
 
-            return sessionId;
-        });
-    }
-
-
-    @Override
-    public List<String> handleMessage(String agentId, String userId, String message) {
-
-        AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(agentId);
-
-        if (aiAgentRegisterVO == null) {
-            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
-        }
-
-        String sessionId = createSession(agentId, userId);
-
-        return handleMessage(agentId, userId, sessionId, message);
+        return sessionId;
     }
 
     @Override
@@ -163,6 +145,7 @@ public class ChatService implements IChatService {
 
         Content userMessage = Content.fromParts(Part.fromText(message));
 
+        // TODO 流式输出时 events 表中一个 token 存一条记录
         Flowable<Event> events = runner.runAsync(userId, sessionId, userMessage, runConfig);
 
         // 在流结束时保存AI的完整回复

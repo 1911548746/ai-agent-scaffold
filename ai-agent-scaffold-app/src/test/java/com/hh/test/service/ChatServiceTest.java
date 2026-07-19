@@ -31,7 +31,8 @@ public class ChatServiceTest {
 
     @Test
     public void handleMessageTest_01() {
-        List<String> list = chatService.handleMessage("100000", "user001", "你好");
+        String sessionId = chatService.createSession("100000", "user001");
+        List<String> list = chatService.handleMessage("100000", "user001", sessionId, "你好");
         log.info("测试结果: {}", JSON.toJSONString(list));
     }
 
