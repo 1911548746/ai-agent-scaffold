@@ -28,6 +28,16 @@ public class ChatModelNode extends AbstractArmorySupport {
         AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
         ChatModel chatModelConfig = aiAgentConfigTableVO.getModule().getChatModel();
 
+        // TODO 超时重试优化
+        /*
+         * dev.langchain4j.exception.TimeoutException: request timed out
+         * 	at dev.langchain4j.http.client.jdk.JdkHttpClient.execute(JdkHttpClient.java:59)
+         *
+         * 	Caused by: java.net.http.HttpTimeoutException: request timed out
+         * 	at java.net.http/jdk.internal.net.http.HttpClientImpl.send(HttpClientImpl.java:572)
+         * 	at java.net.http/jdk.internal.net.http.HttpClientFacade.send(HttpClientFacade.java:123)
+         * 	at dev.langchain4j.http.client.jdk.JdkHttpClient.execute(JdkHttpClient.java:51)
+         */
         OpenAiChatModel chatModel = OpenAiChatModel.builder()
                 .baseUrl(chatModelConfig.getBaseUrl())
                 .apiKey(chatModelConfig.getApiKey())

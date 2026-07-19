@@ -17,6 +17,7 @@ public class ArmoryService implements IArmoryService {
     @Resource
     private DefaultArmoryFactory defaultArmoryFactory;
 
+    // TODO 迁移至新装配链
     @Override
     public void acceptArmoryAgents(List<AiAgentConfigTableVO> tables) throws Exception {
 
