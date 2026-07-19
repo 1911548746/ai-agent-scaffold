@@ -15,6 +15,7 @@ public class MessageVO {
     private Long id;
     private Long conversationId;
     private String role;
+    private String status;
     private String contentText;
     private String contentJson;
     private LocalDateTime createdAt;

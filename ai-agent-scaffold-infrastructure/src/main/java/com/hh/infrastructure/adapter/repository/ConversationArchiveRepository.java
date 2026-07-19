@@ -96,6 +96,7 @@ public class ConversationArchiveRepository implements IConversationArchiveReposi
                 .id(po.getId())
                 .conversationId(po.getConversationId())
                 .role(po.getRole())
+                .status(po.getStatus())
                 .contentText(po.getContentText())
                 .contentJson(po.getContentJson())
                 .createdAt(po.getCreatedAt())

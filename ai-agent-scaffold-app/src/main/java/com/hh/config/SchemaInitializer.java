@@ -88,6 +88,7 @@ public class SchemaInitializer implements InitializingBean {
                     user_id VARCHAR(128) NOT NULL,
                     session_id VARCHAR(128) NOT NULL,
                     role VARCHAR(32) NOT NULL,
+                    status VARCHAR(16) NOT NULL DEFAULT 'completed',
                     content_text MEDIUMTEXT NOT NULL,
                     content_json JSON NULL,
                     created_at DATETIME NOT NULL,
@@ -95,5 +96,28 @@ public class SchemaInitializer implements InitializingBean {
                     KEY idx_messages_session (app_name, user_id, session_id, id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """);
+
+        ensureMessageStatusColumn();
+    }
+
+    /**
+     * 兼容已经由旧版本初始化的数据库；历史消息没有执行状态时按已完成处理。
+     *
+     * <p>该兼容 DDL 仅用于本次扩展，后续 {@code DATA-05} 迁移至 Flyway 后应移除。</p>
+     */
+    private void ensureMessageStatusColumn() {
+        Integer columnCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'messages'
+                  AND column_name = 'status'
+                """, Integer.class);
+        if (columnCount != null && columnCount == 0) {
+            jdbcTemplate.execute("""
+                    ALTER TABLE messages
+                    ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'completed' AFTER role
+                    """);
+        }
     }
 }

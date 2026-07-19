@@ -12,6 +12,7 @@ import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.valobj.AgentInfo;
 import com.hh.domain.agent.model.valobj.AiAgentConfigTableVO;
 import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
+import com.hh.domain.agent.model.enums.MessageStatus;
 import com.hh.domain.agent.model.valobj.properties.AiAgentAutoConfigProperties;
 import com.hh.domain.agent.service.IChatService;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -145,21 +147,35 @@ public class ChatService implements IChatService {
 
         Content userMessage = Content.fromParts(Part.fromText(message));
 
+        // 在订阅前创建 pending 消息，确保取消和异常不会被误存为 completed 回复。
+        Long assistantMessageId = messageArchiveRepository.createPendingAssistantMessage(
+                conversationId, appName, userId, sessionId);
+
         // TODO 流式输出时 events 表中一个 token 存一条记录
         Flowable<Event> events = runner.runAsync(userId, sessionId, userMessage, runConfig);
 
-        // 在流结束时保存AI的完整回复
-        // 用 doFinally，保证流被取消/出错时也能保存
+        // 只有拿到 ADK 明确标记的最终响应，正常完成时才允许写入完整 assistant 内容。
         StringBuilder assistantBuffer = new StringBuilder();
+        AtomicBoolean finalResponseReceived = new AtomicBoolean(false);
         return events.doOnNext(event -> {
             if (event.finalResponse()) {
                 assistantBuffer.append(event.stringifyContent());
+                finalResponseReceived.set(true);
             }
-        }).doFinally(() -> {
-            if (assistantBuffer.length() > 0) {
-                messageArchiveRepository.saveAssistantMessage(conversationId, appName, userId, sessionId, assistantBuffer.toString());
+        }).doOnComplete(() -> {
+            if (finalResponseReceived.get()) {
+                messageArchiveRepository.completeAssistantMessage(
+                        conversationId, assistantMessageId, assistantBuffer.toString());
+            } else {
+                // 上游没有返回最终响应却结束时，不能把空或部分内容当作成功消息。
+                messageArchiveRepository.updateAssistantMessageStatus(
+                        conversationId, assistantMessageId, MessageStatus.FAILED);
             }
-        });
+        }).doOnError(error -> messageArchiveRepository.updateAssistantMessageStatus(
+                conversationId, assistantMessageId, MessageStatus.FAILED
+        )).doOnCancel(() -> messageArchiveRepository.updateAssistantMessageStatus(
+                conversationId, assistantMessageId, MessageStatus.CANCELLED
+        ));
     }
 
     @Override

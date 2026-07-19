@@ -7,6 +7,7 @@ import com.hh.api.response.Response;
 import com.hh.domain.agent.model.valobj.AgentInfo;
 import com.hh.domain.agent.service.IChatService;
 import com.hh.types.support.SensitiveDataRedactor;
+import io.reactivex.rxjava3.disposables.Disposable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +15,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -180,33 +183,46 @@ public class AgentServiceController implements IAgentService {
      * <pre>
      * event:message
      * data:你好
-     * retry:3000
      *
      * event:message
      * data:！我是
-     * retry:3000
      *
      * event:message
      * data: **Hello
-     * retry:3000
      *
      * event:message
      * data:Agent**
-     * retry:3000
      * </pre>
      *
-     * <p>前端使用 EventSource 接收示例：
+     * <p>本接口是 POST，原生 {@code EventSource} 只能发起 GET，不能直接调用。前端应使用
+     * {@code fetch} 读取响应流，例如：
      * <pre>{@code
-     * const eventSource = new EventSource('/api/v1/chat-stream');
-     *
-     * eventSource.addEventListener('message', function(event) {
-     *     console.log('收到消息:', event.data);
-     *     // 逐字拼接显示 AI 回复
+     * const abortController = new AbortController();
+     * const response = await fetch('/api/v1/chat-stream', {
+     *   method: 'POST',
+     *   headers: {'Content-Type': 'application/json'},
+     *   body: JSON.stringify({agentId, userId, sessionId, message}),
+     *   signal: abortController.signal
      * });
+     * if (!response.ok || !response.body) throw new Error('SSE request failed');
      *
-     * eventSource.addEventListener('error', function(event) {
-     *     console.error('发生错误:', event.data);
-     * });
+     * const reader = response.body.getReader();
+     * const decoder = new TextDecoder();
+     * let pending = '';
+     * while (true) {
+     *   const {done, value} = await reader.read();
+     *   pending += decoder.decode(value || new Uint8Array(), {stream: !done});
+     *   for (let boundary; (boundary = pending.indexOf('\n\n')) >= 0;) {
+     *     const frame = pending.slice(0, boundary).replace(/\r/g, '');
+     *     pending = pending.slice(boundary + 2);
+     *     const event = frame.match(/^event:(.+)$/m)?.[1]?.trim();
+     *     const data = frame.match(/^data:(.*)$/m)?.[1]?.trim() || '';
+     *     if (event === 'message') appendAssistantText(data);
+     *     if (event === 'error') showError(JSON.parse(data));
+     *   }
+     *   if (done) break;
+     * }
+     * // 用户停止生成时调用 abortController.abort()，服务端会取消上游模型流。
      * }</pre>
      *
      * <p>响应说明：
@@ -214,7 +230,7 @@ public class AgentServiceController implements IAgentService {
      *   <li><b>event:message</b> - 标准消息事件</li>
      *   <li><b>data:{content}</b> - 消息内容片段（需前端拼接）</li>
      *   <li><b>event:error</b> - 固定 JSON 错误对象，包含公开的 {@code code} 和 {@code info}</li>
-     *   <li><b>retry:3000</b> - 断线后 3 秒自动重连</li>
+     *   <li>重连和取消由 {@code fetch} 调用方控制；当前 POST 接口不提供 EventSource 自动重连。</li>
      * </ul>
      */
     @PostMapping(value = "/chat-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -226,8 +242,29 @@ public class AgentServiceController implements IAgentService {
 
         SseEmitter emitter = createEmitter();
 
-        // 订阅消息流
-        chatService.handleMessageStream(
+        AtomicReference<Disposable> subscriptionReference = new AtomicReference<>();
+        AtomicBoolean cancellationRequested = new AtomicBoolean(false);
+        Runnable cancelUpstream = () -> cancelSubscription(subscriptionReference, cancellationRequested);
+
+        // 先注册回调，避免客户端在订阅建立完成前断开时遗漏取消信号。
+        emitter.onTimeout(() -> {
+            log.warn("SSE 连接超时，取消上游流式调用");
+            cancelUpstream.run();
+            emitter.complete();
+        });
+        emitter.onError(error -> {
+            log.warn("SSE 异步连接异常，取消上游流式调用，异常类型: {}",
+                    error.getClass().getName());
+            cancelUpstream.run();
+        });
+        emitter.onCompletion(() -> {
+            // Spring MVC 在正常结束、超时和网络断连时都会进入此回调，统一释放上游订阅。
+            cancelUpstream.run();
+            log.info("SSE 连接已关闭");
+        });
+
+        // 保留 Disposable，才能将 HTTP 生命周期的取消信号传递给 ADK/RxJava 上游。
+        Disposable subscription = chatService.handleMessageStream(
                 requestDTO.agentId(),
                 requestDTO.userId(),
                 requestDTO.sessionId(),
@@ -243,16 +280,17 @@ public class AgentServiceController implements IAgentService {
                         // 发送标准 SSE 格式数据
                         emitter.send(SseEmitter.event()
                                 .name("message")
-                                .data(event.stringifyContent())
-                                .reconnectTime(3000));
+                                .data(event.stringifyContent()));
                     } catch (IOException e) {
                         // 写入失败通常表示客户端已断开；记录脱敏日志后关闭流，不能再将异常交给 MVC 输出。
                         log.warn("智能体对话流式输出失败，异常类型: {}，异常详情: {}",
                                 e.getClass().getName(), SensitiveDataRedactor.formatStackTrace(e));
+                        cancelUpstream.run();
                         emitter.complete();
                     }
                 },
                 error -> {
+                    cancelUpstream.run();
                     completeWithSafeError(emitter, error);
                 },
                 () -> {
@@ -261,18 +299,26 @@ public class AgentServiceController implements IAgentService {
                 }
         );
 
-        // 设置超时回调
-        emitter.onTimeout(() -> {
-            log.warn("SSE 连接超时");
-            emitter.complete();
-        });
-
-        // 设置完成回调
-        emitter.onCompletion(() -> {
-            log.info("SSE 连接已关闭");
-        });
+        subscriptionReference.set(subscription);
+        // 如果回调发生在 subscribe 返回之前，这里补偿执行 dispose，避免建立竞态泄漏上游任务。
+        if (cancellationRequested.get()) {
+            cancelSubscription(subscriptionReference, cancellationRequested);
+        }
 
         return emitter;
+    }
+
+    /**
+     * 请求取消可能早于 Disposable 创建；先记录状态，再在订阅可用时执行 dispose。
+     */
+    private void cancelSubscription(
+            AtomicReference<Disposable> subscriptionReference,
+            AtomicBoolean cancellationRequested) {
+        cancellationRequested.set(true);
+        Disposable subscription = subscriptionReference.get();
+        if (subscription != null && !subscription.isDisposed()) {
+            subscription.dispose();
+        }
     }
 
     /**

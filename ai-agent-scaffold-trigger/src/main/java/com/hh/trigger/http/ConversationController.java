@@ -89,16 +89,18 @@ public class ConversationController implements IConversationService {
      *     "createdAt": "2026-07-17T03:46:01",
      *     "updatedAt": "2026-07-17T03:47:40",
      *     "messages": [
-     *       {
-     *         "messageId": 1,
-     *         "role": "user",
-     *         "contentText": "你好",
+         *       {
+         *         "messageId": 1,
+         *         "role": "user",
+         *         "status": "completed",
+         *         "contentText": "你好",
      *         "createdAt": "2026-07-17T03:46:01"
      *       },
-     *       {
-     *         "messageId": 2,
-     *         "role": "assistant",
-     *         "contentText": "你好！我是 HelloAgent，一个简洁的 ADK Java 智能助手 🤖\n\n有什么可以帮你的吗？你可以问我问题，或者让我查询天气等。",
+         *       {
+         *         "messageId": 2,
+         *         "role": "assistant",
+         *         "status": "completed",
+         *         "contentText": "你好！我是 HelloAgent，一个简洁的 ADK Java 智能助手 🤖\n\n有什么可以帮你的吗？你可以问我问题，或者让我查询天气等。",
      *         "createdAt": "2026-07-17T03:46:35"
      *       }
      *     ]
@@ -118,6 +120,7 @@ public class ConversationController implements IConversationService {
                 .map(m -> new MessageItemDTO(
                         m.getId(),
                         m.getRole(),
+                        m.getStatus(),
                         m.getContentText(),
                         m.getCreatedAt() != null ? m.getCreatedAt().toString() : null
                 ))

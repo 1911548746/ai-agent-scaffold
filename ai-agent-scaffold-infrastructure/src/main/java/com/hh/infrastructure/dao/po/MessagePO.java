@@ -24,6 +24,7 @@ public class MessagePO {
     private String userId;
     private String sessionId;
     private String role;
+    private String status;
     private String contentText;
     private String contentJson;
     private LocalDateTime createdAt;
