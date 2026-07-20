@@ -6,9 +6,9 @@ import com.google.adk.runner.Runner;
 import com.google.genai.types.Content;
 import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
 import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import com.hh.domain.agent.model.enums.MessageStatus;
-import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
+import com.hh.domain.agent.model.runtime.AgentRuntime;
+import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import org.junit.jupiter.api.Test;
@@ -16,6 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -32,7 +34,7 @@ import static org.mockito.Mockito.when;
 class ChatServiceStreamingTest {
 
     @Mock
-    private DefaultArmoryFactory armoryFactory;
+    private AgentRuntimeRegistry runtimeRegistry;
     @Mock
     private IConversationArchiveRepository conversationArchiveRepository;
     @Mock
@@ -84,8 +86,8 @@ class ChatServiceStreamingTest {
 
     private Runner prepareRunner(Flowable<Event> events) {
         Runner runner = mock(Runner.class);
-        when(armoryFactory.getAiAgentRegisterVO("agent-a"))
-                .thenReturn(AiAgentRegisterVO.builder().appName("app-a").runner(runner).build());
+        when(runtimeRegistry.find("agent-a"))
+                .thenReturn(Optional.of(new AgentRuntime("app-a", "agent-a", "agent-a", "agent-a", runner)));
         when(conversationArchiveRepository.findOrCreateConversation("app-a", "user-1", "session-1"))
                 .thenReturn(1L);
         when(messageArchiveRepository.createPendingAssistantMessage(1L, "app-a", "user-1", "session-1"))

@@ -5,8 +5,8 @@ import com.google.adk.sessions.BaseSessionService;
 import com.google.adk.sessions.Session;
 import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
 import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
-import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
+import com.hh.domain.agent.model.runtime.AgentRuntime;
+import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
 import org.junit.jupiter.api.Test;
@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -30,7 +31,7 @@ import static org.mockito.Mockito.when;
 class ChatServiceSessionTest {
 
     @Mock
-    private DefaultArmoryFactory armoryFactory;
+    private AgentRuntimeRegistry runtimeRegistry;
     @Mock
     private IConversationArchiveRepository conversationArchiveRepository;
     @Mock
@@ -44,8 +45,8 @@ class ChatServiceSessionTest {
         BaseSessionService sessionService = mock(BaseSessionService.class);
         Runner runner = mock(Runner.class);
         when(runner.sessionService()).thenReturn(sessionService);
-        when(armoryFactory.getAiAgentRegisterVO("agent-a"))
-                .thenReturn(register("app-a", "agent-a", runner));
+        when(runtimeRegistry.find("agent-a"))
+                .thenReturn(Optional.of(runtime("app-a", "agent-a", runner)));
 
         AtomicInteger sequence = new AtomicInteger();
         when(sessionService.createSession("app-a", "user-1"))
@@ -69,10 +70,10 @@ class ChatServiceSessionTest {
         Runner secondRunner = mock(Runner.class);
         when(firstRunner.sessionService()).thenReturn(firstSessionService);
         when(secondRunner.sessionService()).thenReturn(secondSessionService);
-        when(armoryFactory.getAiAgentRegisterVO("agent-a"))
-                .thenReturn(register("app-a", "agent-a", firstRunner));
-        when(armoryFactory.getAiAgentRegisterVO("agent-b"))
-                .thenReturn(register("app-b", "agent-b", secondRunner));
+        when(runtimeRegistry.find("agent-a"))
+                .thenReturn(Optional.of(runtime("app-a", "agent-a", firstRunner)));
+        when(runtimeRegistry.find("agent-b"))
+                .thenReturn(Optional.of(runtime("app-b", "agent-b", secondRunner)));
         when(firstSessionService.createSession("app-a", "user-1"))
                 .thenReturn(Single.just(session("session-a", "app-a", "user-1")));
         when(secondSessionService.createSession("app-b", "user-1"))
@@ -92,8 +93,8 @@ class ChatServiceSessionTest {
         BaseSessionService sessionService = mock(BaseSessionService.class);
         Runner runner = mock(Runner.class);
         when(runner.sessionService()).thenReturn(sessionService);
-        when(armoryFactory.getAiAgentRegisterVO("agent-a"))
-                .thenReturn(register("app-a", "agent-a", runner));
+        when(runtimeRegistry.find("agent-a"))
+                .thenReturn(Optional.of(runtime("app-a", "agent-a", runner)));
         when(sessionService.createSession("app-a", "user-1"))
                 .thenReturn(Single.just(session("old-session", "app-a", "user-1")))
                 .thenReturn(Single.just(session("new-session", "app-a", "user-1")));
@@ -111,12 +112,8 @@ class ChatServiceSessionTest {
         verify(sessionService, times(2)).deleteSession("app-a", "user-1", "old-session");
     }
 
-    private AiAgentRegisterVO register(String appName, String agentId, Runner runner) {
-        return AiAgentRegisterVO.builder()
-                .appName(appName)
-                .agentId(agentId)
-                .runner(runner)
-                .build();
+    private AgentRuntime runtime(String appName, String agentId, Runner runner) {
+        return new AgentRuntime(appName, agentId, agentId, agentId, runner);
     }
 
     private Session session(String sessionId, String appName, String userId) {

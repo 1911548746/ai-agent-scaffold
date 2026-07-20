@@ -10,12 +10,10 @@ import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
 import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.legacyconfig.AgentInfo;
-import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
+import com.hh.domain.agent.model.runtime.AgentRuntime;
+import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
 import com.hh.domain.agent.model.enums.MessageStatus;
-import com.hh.domain.agent.model.valobj.properties.AiAgentAutoConfigProperties;
 import com.hh.domain.agent.service.IChatService;
-import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import com.hh.types.validation.RequestPayloadLimits;
@@ -26,7 +24,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
@@ -34,10 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ChatService implements IChatService {
 
     @Resource
-    private DefaultArmoryFactory defaultArmoryFactory;
-
-    @Resource
-    private AiAgentAutoConfigProperties aiAgentAutoConfigProperties;
+    private AgentRuntimeRegistry runtimeRegistry;
 
     @Resource
     private IConversationArchiveRepository conversationArchiveRepository;
@@ -49,13 +43,11 @@ public class ChatService implements IChatService {
      */
     @Override
     public List<AgentInfo> queryAgentList() {
-        Map<String, AiAgentConfigTableVO> tables = aiAgentAutoConfigProperties.getTables();
         List<AgentInfo> agentList = new ArrayList<>();
 
-        if (tables != null) {
-            for (AiAgentConfigTableVO aiAgentConfig : tables.values()) {
-                agentList.add(aiAgentConfig.getAgentInfo());
-            }
+        // Registry 快照不可变，列表查询不会与启动发布过程交叉看到半成品配置。
+        for (AgentRuntime runtime : runtimeRegistry.snapshot().values()) {
+            agentList.add(runtime.toAgentInfo());
         }
 
         return agentList;
@@ -67,14 +59,9 @@ public class ChatService implements IChatService {
     @Override
     public String createSession(String agentId, String userId) {
 
-        AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(agentId);
-
-        if (aiAgentRegisterVO == null) {
-            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
-        }
-
-        String appName = aiAgentRegisterVO.getAppName();
-        Runner runner = aiAgentRegisterVO.getRunner();
+        AgentRuntime runtime = requireRuntime(agentId);
+        String appName = runtime.appName();
+        Runner runner = runtime.runner();
 
         // 会话身份由 appName、userId、sessionId 共同确定，不能按 userId 缓存；
         // 否则同一用户切换 Agent 或创建第二个会话时会错误复用旧会话。
@@ -92,14 +79,9 @@ public class ChatService implements IChatService {
     @Override
     public List<String> handleMessage(String agentId, String userId, String sessionId, String message) {
 
-        AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(agentId);
-
-        if (aiAgentRegisterVO == null) {
-            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
-        }
-
-        String appName = aiAgentRegisterVO.getAppName();
-        Runner runner = aiAgentRegisterVO.getRunner();
+        AgentRuntime runtime = requireRuntime(agentId);
+        String appName = runtime.appName();
+        Runner runner = runtime.runner();
 
         // 查找或创建会话记录，拿到 conversationId
         Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
@@ -128,18 +110,14 @@ public class ChatService implements IChatService {
     @Override
     public Flowable<Event> handleMessageStream(String agentId, String userId, String sessionId, String message) {
 
-        AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(agentId);
-
-        if (aiAgentRegisterVO == null) {
-            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
-        }
+        AgentRuntime runtime = requireRuntime(agentId);
 
         RunConfig runConfig = RunConfig.builder()
                 .streamingMode(RunConfig.StreamingMode.SSE)
                 .build();
 
-        String appName = aiAgentRegisterVO.getAppName();
-        Runner runner = aiAgentRegisterVO.getRunner();
+        String appName = runtime.appName();
+        Runner runner = runtime.runner();
 
         // 查找或创建会话记录，拿到 conversationId
         Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
@@ -185,13 +163,8 @@ public class ChatService implements IChatService {
         // 此入口可被未来的非 HTTP 适配器调用，不能只依赖 Web 层的 Bean Validation。
         validateInlineDataSize(chatCommandEntity);
 
-        AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(chatCommandEntity.getAgentId());
-
-        if (aiAgentRegisterVO == null) {
-            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
-        }
-
-        String appName = aiAgentRegisterVO.getAppName();
+        AgentRuntime runtime = requireRuntime(chatCommandEntity.getAgentId());
+        String appName = runtime.appName();
         String userId = chatCommandEntity.getUserId();
         String sessionId = chatCommandEntity.getSessionId();
 
@@ -235,7 +208,7 @@ public class ChatService implements IChatService {
                 .build();
 
         // 获取运行体
-        Runner runner = aiAgentRegisterVO.getRunner();
+        Runner runner = runtime.runner();
 
         List<String> outputs = new ArrayList<>();
         runner.runAsync(chatCommandEntity.getUserId(), chatCommandEntity.getSessionId(), userMessage)
@@ -279,17 +252,20 @@ public class ChatService implements IChatService {
     @Override
     public void deleteSession(String agentId, String userId, String sessionId) {
 
-        AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(agentId);
-
-        if (aiAgentRegisterVO == null) {
-            throw new AppException(ResponseCode.AGENT_NOT_FOUND);
-        }
-
-        String appName = aiAgentRegisterVO.getAppName();
-        Runner runner = aiAgentRegisterVO.getRunner();
+        AgentRuntime runtime = requireRuntime(agentId);
+        String appName = runtime.appName();
+        Runner runner = runtime.runner();
 
         runner.sessionService()
                 .deleteSession(appName, userId, sessionId)
                 .blockingAwait();
+    }
+
+    /**
+     * 所有请求统一从 Registry 查找已发布快照，缺失时返回稳定业务错误而不是 Spring Bean 查找异常。
+     */
+    private AgentRuntime requireRuntime(String agentId) {
+        return runtimeRegistry.find(agentId)
+                .orElseThrow(() -> new AppException(ResponseCode.AGENT_NOT_FOUND));
     }
 }

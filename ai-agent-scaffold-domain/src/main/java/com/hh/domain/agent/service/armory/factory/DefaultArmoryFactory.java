@@ -11,7 +11,6 @@ import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import jakarta.annotation.Resource;
 import lombok.Data;
-import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -22,13 +21,6 @@ public class DefaultArmoryFactory {
 
     @Resource
     private RootNode rootNode;
-
-    @Resource
-    private ApplicationContext applicationContext;
-
-    public AiAgentRegisterVO getAiAgentRegisterVO(String agentId) {
-        return applicationContext.getBean(agentId, AiAgentRegisterVO.class);
-    }
 
     public StrategyHandler<ArmoryCommandEntity, DynamicContext, AiAgentRegisterVO> armoryStrategyHandler() {
         return rootNode;

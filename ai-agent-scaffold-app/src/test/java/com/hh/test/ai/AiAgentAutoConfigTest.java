@@ -6,19 +6,19 @@ import com.google.adk.runner.Runner;
 import com.google.adk.sessions.Session;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
+import com.hh.domain.agent.model.runtime.AgentRuntime;
+import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.ApplicationContext;
 
 @SpringBootTest
 @Disabled("需要真实模型供应商，使用受保护的 live-agent-it 环境手动执行")
 public class AiAgentAutoConfigTest {
 
     @Resource
-    private ApplicationContext applicationContext;
+    private AgentRuntimeRegistry runtimeRegistry;
 
     @Test
     public void test01() {
@@ -28,10 +28,10 @@ public class AiAgentAutoConfigTest {
                 .streamingMode(RunConfig.StreamingMode.NONE)
                 .build();
 
-        AiAgentRegisterVO aiAgentRegisterVO = applicationContext.getBean("100000", AiAgentRegisterVO.class);
+        AgentRuntime runtime = runtimeRegistry.find("100000").orElseThrow();
 
-        String appName = aiAgentRegisterVO.getAppName();
-        Runner runner = aiAgentRegisterVO.getRunner();
+        String appName = runtime.appName();
+        Runner runner = runtime.runner();
 
         Session session = runner.sessionService()
                 .createSession(appName, "user001")
@@ -50,10 +50,10 @@ public class AiAgentAutoConfigTest {
                 .streamingMode(RunConfig.StreamingMode.NONE)
                 .build();
 
-        AiAgentRegisterVO aiAgentRegisterVO = applicationContext.getBean("100000", AiAgentRegisterVO.class);
+        AgentRuntime runtime = runtimeRegistry.find("100000").orElseThrow();
 
-        String appName = aiAgentRegisterVO.getAppName();
-        Runner runner = aiAgentRegisterVO.getRunner();
+        String appName = runtime.appName();
+        Runner runner = runtime.runner();
 
         Session session = runner.sessionService()
                 .createSession(appName, "user001")

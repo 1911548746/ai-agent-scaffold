@@ -1,7 +1,6 @@
 package com.hh.domain.agent.model.valobj.properties;
 
 
-import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
@@ -12,9 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * TODO 迁移至 app 包
@@ -30,8 +27,8 @@ import java.util.Map;
 /**
  * catalog 文件在 Spring Environment 中的绑定入口。
  *
- * <p>前半部分保存模块资源位置和对外 application 描述；tables 是编译后为旧 HTTP/Armory
- * 调用方保留的运行时视图，两者不能混为一谈。</p>
+ * <p>该对象只保存模块资源位置和 application 描述。已编译的 ADK Runtime 由
+ * AgentRuntimeRegistry 管理，不能写回可变的 ConfigurationProperties。</p>
  */
 @Data
 @Validated
@@ -65,9 +62,6 @@ public class AiAgentAutoConfigProperties {
     @Valid
     @NotNull
     private List<ApplicationDefinition> applications = new ArrayList<>();
-
-    // 编译后的兼容视图：ChatService 仍通过它查询当前可用 Agent，不参与 YAML 绑定。
-    private Map<String, AiAgentConfigTableVO> tables = new LinkedHashMap<>();
 
     /**
      * 仅在启用配置时要求 catalog 完整；禁用模式允许应用不导入任何 Agent 资源而正常启动。

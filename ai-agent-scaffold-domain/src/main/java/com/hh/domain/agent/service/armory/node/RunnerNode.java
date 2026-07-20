@@ -59,10 +59,8 @@ public class RunnerNode  extends AbstractArmorySupport {
                 .runner(runner)
                 .build();
 
-        // 注册到Spring容器
-        registerBean(agentId, AiAgentRegisterVO.class, aiAgentRegisterVO);
-
-        return router(requestParameter, dynamicContext);
+        // 返回临时构建结果；AgentCompiler 在所有 Agent 成功后统一发布 Registry 快照。
+        return aiAgentRegisterVO;
     }
 
     @Override
