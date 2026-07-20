@@ -18,6 +18,7 @@ import com.hh.domain.agent.service.IChatService;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
+import com.hh.types.validation.RequestPayloadLimits;
 import io.reactivex.rxjava3.core.Flowable;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -181,6 +182,9 @@ public class ChatService implements IChatService {
     @Override
     public List<String> handleMessage(ChatCommandEntity chatCommandEntity) {
 
+        // 此入口可被未来的非 HTTP 适配器调用，不能只依赖 Web 层的 Bean Validation。
+        validateInlineDataSize(chatCommandEntity);
+
         AiAgentRegisterVO aiAgentRegisterVO = defaultArmoryFactory.getAiAgentRegisterVO(chatCommandEntity.getAgentId());
 
         if (aiAgentRegisterVO == null) {
@@ -244,6 +248,32 @@ public class ChatService implements IChatService {
                 });
 
         return outputs;
+    }
+
+    /**
+     * 在构造 ADK Part 前检查内联字节总量。Bean Validation 适合 HTTP 绑定，但这里还要
+     * 覆盖直接调用领域服务的场景，避免大字节数组已经交给模型 SDK 后才失败。
+     */
+    private void validateInlineDataSize(ChatCommandEntity chatCommandEntity) {
+        List<ChatCommandEntity.Content.InlineData> inlineDatas = chatCommandEntity.getInlineDatas();
+        if (inlineDatas == null) {
+            return;
+        }
+        if (inlineDatas.size() > RequestPayloadLimits.MAX_INLINE_DATA_COUNT) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
+        }
+
+        long totalBytes = 0;
+        for (ChatCommandEntity.Content.InlineData inlineData : inlineDatas) {
+            if (inlineData == null || inlineData.getBytes() == null
+                    || inlineData.getBytes().length > RequestPayloadLimits.MAX_INLINE_DATA_BYTES) {
+                throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
+            }
+            totalBytes += inlineData.getBytes().length;
+            if (totalBytes > RequestPayloadLimits.MAX_INLINE_DATA_TOTAL_BYTES) {
+                throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
+            }
+        }
     }
 
     @Override

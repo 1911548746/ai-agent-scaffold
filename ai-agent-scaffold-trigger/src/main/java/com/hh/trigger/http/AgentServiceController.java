@@ -7,6 +7,7 @@ import com.hh.domain.agent.model.legacyconfig.AgentInfo;
 import com.hh.domain.agent.service.IChatService;
 import com.hh.types.support.SensitiveDataRedactor;
 import io.reactivex.rxjava3.disposables.Disposable;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -102,7 +103,7 @@ public class AgentServiceController implements IAgentService {
      */
     @PostMapping("/create-session")
     @Override
-    public Response<CreateSessionResponseDTO> createSession(@RequestBody CreateSessionRequestDTO requestDTO) {
+    public Response<CreateSessionResponseDTO> createSession(@Valid @RequestBody CreateSessionRequestDTO requestDTO) {
 
         log.info("创建会话 agentId:{} userId:{}",
                 requestDTO.agentId(), requestDTO.userId());
@@ -144,7 +145,7 @@ public class AgentServiceController implements IAgentService {
      */
     @PostMapping("/chat")
     @Override
-    public Response<ChatResponseDTO> chat(@RequestBody ChatRequestDTO requestDTO) {
+    public Response<ChatResponseDTO> chat(@Valid @RequestBody ChatRequestDTO requestDTO) {
 
         log.info("智能体对话 agentId:{} userId:{} sessionId:{}",
                 requestDTO.agentId(), requestDTO.userId(), requestDTO.sessionId());
@@ -234,7 +235,7 @@ public class AgentServiceController implements IAgentService {
      */
     @PostMapping(value = "/chat-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Override
-    public SseEmitter chatStream(@RequestBody ChatRequestDTO requestDTO) {
+    public SseEmitter chatStream(@Valid @RequestBody ChatRequestDTO requestDTO) {
 
         log.info("智能体对话流式输出 agentId:{} userId:{} sessionId:{}",
                 requestDTO.agentId(), requestDTO.userId(), requestDTO.sessionId());

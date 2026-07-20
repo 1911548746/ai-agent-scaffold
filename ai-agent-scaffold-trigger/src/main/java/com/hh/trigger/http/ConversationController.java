@@ -11,6 +11,7 @@ import com.hh.domain.agent.model.valobj.MessageVO;
 import com.hh.domain.agent.service.IChatService;
 import com.hh.domain.agent.service.IConversationArchiveService;
 import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
@@ -155,7 +156,7 @@ public class ConversationController implements IConversationService {
      */
     @DeleteMapping("/delete")
     @Override
-    public Response<Void> deleteConversation(@RequestBody ConversationDeleteRequestDTO requestDTO) {
+    public Response<Void> deleteConversation(@Valid @RequestBody ConversationDeleteRequestDTO requestDTO) {
         log.info("删除会话 conversationId:{}", requestDTO.conversationId());
 
         chatService.deleteSession(requestDTO.agentId(), requestDTO.userId(), requestDTO.sessionId());
