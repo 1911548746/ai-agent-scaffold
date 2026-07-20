@@ -2,7 +2,6 @@ package com.hh.domain.agent.model.runtime;
 
 import com.google.adk.runner.Runner;
 import com.hh.domain.agent.model.legacyconfig.AgentInfo;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 
 import java.util.Objects;
 
@@ -25,18 +24,6 @@ public record AgentRuntime(
         Objects.requireNonNull(agentName, "agentName must not be null");
         Objects.requireNonNull(agentDesc, "agentDesc must not be null");
         Objects.requireNonNull(runner, "runner must not be null");
-    }
-
-    /**
-     * 将旧策略树的装配结果转换为运行时快照；该兼容类型不会再注册为 Spring Bean。
-     */
-    public static AgentRuntime from(AiAgentRegisterVO registerVO) {
-        return new AgentRuntime(
-                registerVO.getAppName(),
-                registerVO.getAgentId(),
-                registerVO.getAgentName(),
-                registerVO.getAgentDesc(),
-                registerVO.getRunner());
     }
 
     /**

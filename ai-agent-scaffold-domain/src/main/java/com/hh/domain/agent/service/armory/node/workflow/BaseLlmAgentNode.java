@@ -5,7 +5,7 @@ import com.google.adk.agents.BaseAgent;
 import com.google.adk.agents.LlmAgent;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
+import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +19,7 @@ public class BaseLlmAgentNode extends AbstractArmorySupport {
 
 
     @Override
-    protected AiAgentRegisterVO doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
+    protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         log.info("Ai Agent 装配操作 - BaseLlmAgentNode");
 
         AgentWorkflow currentAgentWorkflowConfig = dynamicContext.getCurrentAgentWorkflow();
@@ -40,7 +40,7 @@ public class BaseLlmAgentNode extends AbstractArmorySupport {
     }
 
     @Override
-    public StrategyHandler<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AiAgentRegisterVO> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
+    public StrategyHandler<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AgentRuntime> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         return getBean("agentWorkflowNode");
     }
 

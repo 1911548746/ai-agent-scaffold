@@ -3,7 +3,7 @@ package com.hh.domain.agent.service.armory;
 
 import cn.bugstack.wrench.design.framework.tree.AbstractMultiThreadStrategyRouter;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
+import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +13,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 @Slf4j
-public abstract class AbstractArmorySupport extends AbstractMultiThreadStrategyRouter<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AiAgentRegisterVO> {
+public abstract class AbstractArmorySupport extends AbstractMultiThreadStrategyRouter<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AgentRuntime> {
 
     @Resource
     protected ApplicationContext applicationContext;

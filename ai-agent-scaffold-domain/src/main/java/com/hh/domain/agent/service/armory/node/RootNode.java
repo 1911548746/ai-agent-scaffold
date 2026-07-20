@@ -2,7 +2,7 @@ package com.hh.domain.agent.service.armory.node;
 
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
+import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import jakarta.annotation.Resource;
@@ -17,12 +17,12 @@ public class RootNode extends AbstractArmorySupport {
     private ChatModelNode chatModelNode;
 
     @Override
-    protected AiAgentRegisterVO doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
+    protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         return router(requestParameter, dynamicContext);
     }
 
     @Override
-    public StrategyHandler<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AiAgentRegisterVO> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
+    public StrategyHandler<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AgentRuntime> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         return chatModelNode;
     }
 

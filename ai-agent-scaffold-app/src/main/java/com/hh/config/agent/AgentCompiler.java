@@ -3,7 +3,6 @@ package com.hh.config.agent;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import com.hh.domain.agent.service.IArmoryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -38,12 +37,9 @@ public class AgentCompiler {
 
         try {
             // Armory 为每个定义创建独立 DynamicContext，返回值在此之前均不可被请求访问。
-            List<AiAgentRegisterVO> registers = armoryService.acceptArmoryAgents(definitions.stream()
+            List<AgentRuntime> runtimes = armoryService.acceptArmoryAgents(definitions.stream()
                     .map(AgentDefinition::toLegacyConfig)
                     .toList());
-            List<AgentRuntime> runtimes = registers.stream()
-                    .map(AgentRuntime::from)
-                    .toList();
 
             // 唯一的发布点：candidate 完整后才替换当前 Registry 快照。
             runtimeRegistry.publish(runtimes);

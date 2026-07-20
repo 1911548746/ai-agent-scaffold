@@ -5,7 +5,7 @@ import com.google.adk.agents.BaseAgent;
 import com.google.adk.models.BaseLlm;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
+import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.armory.node.RootNode;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
@@ -22,7 +22,7 @@ public class DefaultArmoryFactory {
     @Resource
     private RootNode rootNode;
 
-    public StrategyHandler<ArmoryCommandEntity, DynamicContext, AiAgentRegisterVO> armoryStrategyHandler() {
+    public StrategyHandler<ArmoryCommandEntity, DynamicContext, AgentRuntime> armoryStrategyHandler() {
         return rootNode;
     }
 

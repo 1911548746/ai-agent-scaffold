@@ -7,7 +7,6 @@ import com.hh.domain.agent.model.legacyconfig.ChatModel;
 import com.hh.domain.agent.model.legacyconfig.Module;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import com.hh.domain.agent.service.IArmoryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,7 +52,7 @@ class AgentCompilerTest {
         AgentRuntimeRegistry registry = new AgentRuntimeRegistry();
         AgentCompiler compiler = new AgentCompiler(armoryService, registry);
         when(armoryService.acceptArmoryAgents(anyList()))
-                .thenReturn(List.of(register("agent-a"), register("agent-b")));
+                .thenReturn(List.of(runtime("agent-a"), runtime("agent-b")));
 
         compiler.compileAndPublish(List.of(
                 definition("agent-a", "agent-a.yml"),
@@ -100,16 +99,6 @@ class AgentCompilerTest {
                 .rootAgentName(agentId)
                 .chatModel(new ChatModel())
                 .runner(runner)
-                .build();
-    }
-
-    private AiAgentRegisterVO register(String agentId) {
-        return AiAgentRegisterVO.builder()
-                .appName(agentId)
-                .agentId(agentId)
-                .agentName(agentId)
-                .agentDesc(agentId)
-                .runner(mock(Runner.class))
                 .build();
     }
 

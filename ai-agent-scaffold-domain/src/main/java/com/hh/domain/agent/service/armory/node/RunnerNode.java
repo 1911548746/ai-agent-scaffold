@@ -14,8 +14,8 @@ import com.google.adk.summarizer.LlmEventSummarizer;
 import com.hh.domain.agent.adapter.repository.IMySqlSessionServiceRepository;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
-import com.hh.domain.agent.model.valobj.AiAgentRegisterVO;
 import com.hh.domain.agent.model.legacyconfig.Module;
+import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import com.hh.types.enums.ContextCompressTypeEnum;
@@ -34,7 +34,7 @@ public class RunnerNode  extends AbstractArmorySupport {
     private IMySqlSessionServiceRepository mySqlSessionService;
 
     @Override
-    protected AiAgentRegisterVO doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
+    protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         log.info("Ai Agent 装配操作 - RunnerNode");
 
         AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
@@ -51,20 +51,15 @@ public class RunnerNode  extends AbstractArmorySupport {
         // 创建Runner
         Runner runner = createRunner(aiAgentConfigTableVO, app);
 
-        AiAgentRegisterVO aiAgentRegisterVO = AiAgentRegisterVO.builder()
-                .appName(appName)
-                .agentId(agentId)
-                .agentName(agentName)
-                .agentDesc(agentDesc)
-                .runner(runner)
-                .build();
+        // 策略树到此才产生完整运行时；在 AgentCompiler 发布前它仍是私有候选对象。
+        AgentRuntime runtime = new AgentRuntime(appName, agentId, agentName, agentDesc, runner);
 
         // 返回临时构建结果；AgentCompiler 在所有 Agent 成功后统一发布 Registry 快照。
-        return aiAgentRegisterVO;
+        return runtime;
     }
 
     @Override
-    public StrategyHandler<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AiAgentRegisterVO> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
+    public StrategyHandler<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AgentRuntime> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         return defaultStrategyHandler;
     }
 
