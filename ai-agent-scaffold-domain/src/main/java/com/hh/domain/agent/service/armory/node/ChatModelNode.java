@@ -8,6 +8,7 @@ import com.hh.domain.agent.model.definition.ChatModelDefinition;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -19,7 +20,7 @@ import java.time.Duration;
 public class ChatModelNode extends AbstractArmorySupport {
 
     @Resource
-    private StreamingChatModelNode streamingChatModelNode;
+    private LlmModelNode llmModelNode;
 
     @Override
     protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
@@ -38,6 +39,8 @@ public class ChatModelNode extends AbstractArmorySupport {
          * 	at java.net.http/jdk.internal.net.http.HttpClientFacade.send(HttpClientFacade.java:123)
          * 	at dev.langchain4j.http.client.jdk.JdkHttpClient.execute(JdkHttpClient.java:51)
          */
+
+        // ChatModel
         OpenAiChatModel chatModel = OpenAiChatModel.builder()
                 .baseUrl(chatModelDefinition.getBaseUrl())
                 .apiKey(chatModelDefinition.getApiKey())
@@ -45,15 +48,24 @@ public class ChatModelNode extends AbstractArmorySupport {
                 .timeout(Duration.ofSeconds(chatModelDefinition.getTimeout()))
                 .maxRetries(chatModelDefinition.getMaxRetries())
                 .build();
-
         dynamicContext.setChatModel(chatModel);
+
+        // StreamingChatModel
+        OpenAiStreamingChatModel streamingChatModel = OpenAiStreamingChatModel.builder()
+                .baseUrl(chatModelDefinition.getBaseUrl())
+                .apiKey(chatModelDefinition.getApiKey())
+                .modelName(chatModelDefinition.getModelName())
+                .timeout(Duration.ofSeconds(chatModelDefinition.getTimeout()))
+                .build();
+
+        dynamicContext.setStreamingChatModel(streamingChatModel);
 
         return router(requestParameter, dynamicContext);
     }
 
     @Override
     public StrategyHandler<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AgentRuntime> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
-        return streamingChatModelNode;
+        return llmModelNode;
     }
 
 }
