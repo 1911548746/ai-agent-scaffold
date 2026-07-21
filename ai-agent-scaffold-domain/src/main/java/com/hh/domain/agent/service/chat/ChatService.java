@@ -9,7 +9,7 @@ import com.google.genai.types.Part;
 import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
 import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
-import com.hh.domain.agent.model.legacyconfig.AgentInfo;
+import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
 import com.hh.domain.agent.model.enums.MessageStatus;
@@ -42,12 +42,12 @@ public class ChatService implements IChatService {
      * 获取智能体列表
      */
     @Override
-    public List<AgentInfo> queryAgentList() {
-        List<AgentInfo> agentList = new ArrayList<>();
+    public List<AgentDescriptor> queryAgentList() {
+        List<AgentDescriptor> agentList = new ArrayList<>();
 
         // Registry 快照不可变，列表查询不会与启动发布过程交叉看到半成品配置。
         for (AgentRuntime runtime : runtimeRegistry.snapshot().values()) {
-            agentList.add(runtime.toAgentInfo());
+            agentList.add(runtime.toAgentDescriptor());
         }
 
         return agentList;

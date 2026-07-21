@@ -2,9 +2,10 @@ package com.hh.config.agent;
 
 import com.google.adk.runner.Runner;
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.domain.agent.model.legacyconfig.AgentInfo;
-import com.hh.domain.agent.model.legacyconfig.ChatModel;
-import com.hh.domain.agent.model.legacyconfig.Module;
+import com.hh.domain.agent.model.definition.ChatModelDefinition;
+import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
+import com.hh.domain.agent.model.definition.RunnerDefinition;
+import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
 import com.hh.domain.agent.service.IArmoryService;
@@ -90,23 +91,23 @@ class AgentCompilerTest {
     }
 
     private AgentDefinition definition(String agentId, String sourcePath) {
-        AgentInfo agentInfo = new AgentInfo();
-        agentInfo.setAgentId(agentId);
-        agentInfo.setAgentName(agentId);
-        agentInfo.setAgentDesc(agentId);
+        AgentDescriptor agentDescriptor = new AgentDescriptor();
+        agentDescriptor.setAgentId(agentId);
+        agentDescriptor.setAgentName(agentId);
+        agentDescriptor.setAgentDesc(agentId);
 
-        Module.Runner runner = new Module.Runner();
+        RunnerDefinition runner = new RunnerDefinition();
         runner.setAgentName(agentId);
-        runner.setContextCompress(new Module.ContextCompress());
+        runner.setContextCompress(new ContextCompressionDefinition());
 
         return AgentDefinition.builder()
                 .id(sourcePath)
                 .enabled(true)
                 .sourcePath(sourcePath)
                 .appName(agentId)
-                .agentInfo(agentInfo)
+                .agentDescriptor(agentDescriptor)
                 .rootAgentName(agentId)
-                .chatModel(new ChatModel())
+                .chatModel(new ChatModelDefinition())
                 .runner(runner)
                 .build();
     }

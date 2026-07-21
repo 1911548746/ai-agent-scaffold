@@ -1,12 +1,15 @@
-package com.hh.domain.agent.model.legacyconfig;
+package com.hh.domain.agent.model.definition;
 
 import lombok.Data;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 已完成 transport 互斥校验的 MCP 工具定义。
+ */
 @Data
-public class McpTool {
+public class McpToolDefinition {
 
     private SSEServerParameters sse;
     private HttpServerParameters http;
@@ -37,7 +40,6 @@ public class McpTool {
         private String command;
         private List<String> args;
         private Map<String, String> env;
-
     }
 
     @Data
@@ -45,5 +47,4 @@ public class McpTool {
         private String beanName;
         private String methodName;
     }
-
 }

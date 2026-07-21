@@ -56,31 +56,31 @@ class AiAgentAutoConfigUnitTest {
                 .afterSingletonsInstantiated();
 
         verify(agentCompiler).compileAndPublish(argThat(definitions ->
-                definitions.size() == 1 && "100000".equals(definitions.get(0).getAgentInfo().getAgentId())));
+                definitions.size() == 1 && "100000".equals(definitions.get(0).getAgentDescriptor().getAgentId())));
     }
 
     /**
      * 构造最小定义作为桥接测试夹具，不需要初始化 ADK Runner。
      */
     private AgentDefinition definition(String id, boolean enabled, String agentId) {
-        com.hh.domain.agent.model.legacyconfig.AgentInfo agentInfo = new com.hh.domain.agent.model.legacyconfig.AgentInfo();
-        agentInfo.setAgentId(agentId);
-        agentInfo.setAgentName(id);
-        agentInfo.setAgentDesc(id);
+        com.hh.domain.agent.model.runtime.AgentDescriptor agentDescriptor = new com.hh.domain.agent.model.runtime.AgentDescriptor();
+        agentDescriptor.setAgentId(agentId);
+        agentDescriptor.setAgentName(id);
+        agentDescriptor.setAgentDesc(id);
 
-        com.hh.domain.agent.model.legacyconfig.ChatModel model = new com.hh.domain.agent.model.legacyconfig.ChatModel();
-        com.hh.domain.agent.model.legacyconfig.Module.Runner runner = new com.hh.domain.agent.model.legacyconfig.Module.Runner();
+        com.hh.domain.agent.model.definition.ChatModelDefinition model = new com.hh.domain.agent.model.definition.ChatModelDefinition();
+        com.hh.domain.agent.model.definition.RunnerDefinition runner = new com.hh.domain.agent.model.definition.RunnerDefinition();
         runner.setAgentName(id);
         runner.setPersistence(false);
         runner.setPluginNameList(List.of());
-        runner.setContextCompress(new com.hh.domain.agent.model.legacyconfig.Module.ContextCompress());
+        runner.setContextCompress(new com.hh.domain.agent.model.definition.ContextCompressionDefinition());
 
         return AgentDefinition.builder()
                 .id(id)
                 .enabled(enabled)
                 .sourcePath("test:" + id)
                 .appName(id)
-                .agentInfo(agentInfo)
+                .agentDescriptor(agentDescriptor)
                 .rootAgentName(id)
                 .chatModel(model)
                 .runner(runner)

@@ -1,7 +1,7 @@
 package com.hh.domain.agent.service.armory.matter.mcp.client.impl;
 import com.google.adk.tools.mcp.McpToolset;
 import com.google.adk.tools.mcp.SseServerParameters;
-import com.hh.domain.agent.model.legacyconfig.McpTool;
+import com.hh.domain.agent.model.definition.McpToolDefinition;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
 import org.springframework.stereotype.Service;
 
@@ -11,9 +11,9 @@ import java.util.Map;
 @Service
 public class SSEMcpToolCreateService implements McpToolCreateService<McpToolset> {
     @Override
-    public McpToolset buildMcpToolset(McpTool mcpToolConfig) {
+    public McpToolset buildMcpToolset(McpToolDefinition mcpToolConfig) {
 
-        McpTool.SSEServerParameters toolConfigSse = mcpToolConfig.getSse();
+        McpToolDefinition.SSEServerParameters toolConfigSse = mcpToolConfig.getSse();
 
         SseServerParameters sseServer = SseServerParameters.builder()
                 .url(toolConfigSse.getUrl())

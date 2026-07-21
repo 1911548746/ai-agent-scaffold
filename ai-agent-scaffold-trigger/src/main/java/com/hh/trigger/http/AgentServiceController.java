@@ -3,7 +3,7 @@ package com.hh.trigger.http;
 import com.hh.api.IAgentService;
 import com.hh.api.dto.*;
 import com.hh.api.response.Response;
-import com.hh.domain.agent.model.legacyconfig.AgentInfo;
+import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.domain.agent.service.IChatService;
 import com.hh.types.support.SensitiveDataRedactor;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -62,7 +62,7 @@ public class AgentServiceController implements IAgentService {
 
         log.info("查询智能体配置列表");
 
-        List<AgentInfo> agentInfoList = chatService.queryAgentList();
+        List<AgentDescriptor> agentInfoList = chatService.queryAgentList();
 
         // 转换数据对象
         List<AiAgentConfigResponseDTO> responseDTOS = agentInfoList.stream()

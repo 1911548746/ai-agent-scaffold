@@ -2,14 +2,14 @@ package com.hh.domain.agent.service;
 
 import com.google.adk.events.Event;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
-import com.hh.domain.agent.model.legacyconfig.AgentInfo;
+import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import io.reactivex.rxjava3.core.Flowable;
 
 import java.util.List;
 
 public interface IChatService {
 
-    List<AgentInfo> queryAgentList();
+    List<AgentDescriptor> queryAgentList();
 
     String createSession(String agentId, String userId);
 

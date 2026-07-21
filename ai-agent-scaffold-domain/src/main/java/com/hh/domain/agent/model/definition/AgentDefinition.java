@@ -1,10 +1,6 @@
 package com.hh.domain.agent.model.definition;
 
-import com.hh.domain.agent.model.legacyconfig.AgentInfo;
-import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
-import com.hh.domain.agent.model.legacyconfig.ChatModel;
-import com.hh.domain.agent.model.legacyconfig.LlmAgent;
-import com.hh.domain.agent.model.legacyconfig.Module;
+import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -25,13 +21,13 @@ public class AgentDefinition {
     // 保留来源便于诊断 catalog 条目，运行时装配不依赖该字段。
     private final String sourcePath;
     private final String appName;
-    private final AgentInfo agentInfo;
+    private final AgentDescriptor agentDescriptor;
     private final String rootAgentName;
-    private final ChatModel chatModel;
+    private final ChatModelDefinition chatModel;
     @Builder.Default
-    private final List<LlmAgent> agents = List.of();
+    private final List<LlmAgentDefinition> agents = List.of();
     @Builder.Default
-    private final List<AgentWorkflow> agentWorkflows = List.of();
-    private final Module.Runner runner;
+    private final List<AgentWorkflowDefinition> agentWorkflows = List.of();
+    private final RunnerDefinition runner;
 
 }

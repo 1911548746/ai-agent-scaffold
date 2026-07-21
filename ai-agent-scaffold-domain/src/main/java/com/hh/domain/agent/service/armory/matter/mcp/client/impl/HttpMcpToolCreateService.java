@@ -1,7 +1,7 @@
 package com.hh.domain.agent.service.armory.matter.mcp.client.impl;
 import com.google.adk.tools.mcp.McpToolset;
 import com.google.adk.tools.mcp.StreamableHttpServerParameters;
-import com.hh.domain.agent.model.legacyconfig.McpTool;
+import com.hh.domain.agent.model.definition.McpToolDefinition;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
 import org.springframework.stereotype.Service;
 
@@ -10,9 +10,9 @@ import java.time.Duration;
 @Service
 public class HttpMcpToolCreateService implements McpToolCreateService<McpToolset> {
     @Override
-    public McpToolset buildMcpToolset(McpTool mcpToolConfig) {
+    public McpToolset buildMcpToolset(McpToolDefinition mcpToolConfig) {
 
-        McpTool.HttpServerParameters toolConfigHttp = mcpToolConfig.getHttp();
+        McpToolDefinition.HttpServerParameters toolConfigHttp = mcpToolConfig.getHttp();
 
         StreamableHttpServerParameters httpServer = StreamableHttpServerParameters.builder()
                 .url(toolConfigHttp.getUrl())

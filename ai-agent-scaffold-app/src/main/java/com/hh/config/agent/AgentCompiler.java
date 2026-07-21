@@ -56,7 +56,7 @@ public class AgentCompiler {
     private void validateRuntimeAgentIds(List<AgentDefinition> definitions) {
         Map<String, AgentDefinition> definitionsByAgentId = new HashMap<>();
         for (AgentDefinition definition : definitions) {
-            String agentId = definition.getAgentInfo().getAgentId();
+            String agentId = definition.getAgentDescriptor().getAgentId();
             AgentDefinition previous = definitionsByAgentId.putIfAbsent(agentId, definition);
             if (previous != null) {
                 throw new AgentConfigurationException(definition.getSourcePath()

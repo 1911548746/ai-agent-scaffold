@@ -7,8 +7,9 @@ import com.google.adk.skills.SkillSource;
 import com.google.adk.tools.skills.SkillToolset;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.definition.AgentDefinition;
+import com.hh.domain.agent.model.definition.LlmAgentDefinition;
+import com.hh.domain.agent.model.definition.McpToolDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
-import com.hh.domain.agent.model.legacyconfig.McpTool;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
@@ -41,39 +42,39 @@ public class LlmAgentNode extends AbstractArmorySupport {
         BaseLlm llmModel = dynamicContext.getLlmModel();
 
         AgentDefinition definition = requestParameter.getAgentDefinition();
-        List<com.hh.domain.agent.model.legacyconfig.LlmAgent> agentsConfig = definition.getAgents();
+        List<LlmAgentDefinition> agentDefinitionList = definition.getAgents();
 
-        for (com.hh.domain.agent.model.legacyconfig.LlmAgent agentConfig : agentsConfig) {
+        for (LlmAgentDefinition agentDefinition : agentDefinitionList) {
 
             List<Object> toolsets = new ArrayList<>();
 
             // 判断是否配置了mcp工具列表
-            if (agentConfig.getMcpToolList() != null && !agentConfig.getMcpToolList().isEmpty()) {
+            if (agentDefinition.getMcpToolList() != null && !agentDefinition.getMcpToolList().isEmpty()) {
                 // 构建mcp服务
-                for (McpTool mcpToolConfig : agentConfig.getMcpToolList()) {
+                for (McpToolDefinition mcpToolConfig : agentDefinition.getMcpToolList()) {
                     McpToolCreateService mcpToolCreateService = mcpClientFactory.getMcpToolCreateService(mcpToolConfig);
                     toolsets.add(mcpToolCreateService.buildMcpToolset(mcpToolConfig));
                 }
             }
 
             // 判断是否配置了skills
-            if (agentConfig.getSkillsDir() != null) {
+            if (agentDefinition.getSkillsDir() != null) {
                 // 构建skills
-                SkillSource skillSource = skillSourceFactory.createSkillSource(agentConfig.getSkillsDir());
+                SkillSource skillSource = skillSourceFactory.createSkillSource(agentDefinition.getSkillsDir());
                 toolsets.add(new SkillToolset(skillSource));
             }
 
             // 构建LlmAgent
             LlmAgent llmAgent = LlmAgent.builder()
-                    .name(agentConfig.getName())
-                    .description(agentConfig.getDescription())
+                    .name(agentDefinition.getName())
+                    .description(agentDefinition.getDescription())
                     .model(llmModel)
-                    .instruction(agentConfig.getInstruction())
-                    .outputKey(agentConfig.getOutputKey())
+                    .instruction(agentDefinition.getInstruction())
+                    .outputKey(agentDefinition.getOutputKey())
                     .tools(toolsets)
                     .build();
 
-            dynamicContext.getAgentGroup().put(agentConfig.getName(), llmAgent);
+            dynamicContext.getAgentGroup().put(agentDefinition.getName(), llmAgent);
         }
 
         return router(requestParameter, dynamicContext);

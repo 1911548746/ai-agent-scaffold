@@ -1,16 +1,16 @@
 package com.hh.domain.agent.service.armory.matter.mcp.client.impl;
 import com.google.adk.tools.mcp.McpToolset;
 import com.google.adk.tools.mcp.StdioServerParameters;
-import com.hh.domain.agent.model.legacyconfig.McpTool;
+import com.hh.domain.agent.model.definition.McpToolDefinition;
 import com.hh.domain.agent.service.armory.matter.mcp.client.McpToolCreateService;
 import org.springframework.stereotype.Service;
 
 @Service
 public class StdioMcpToolCreateService implements McpToolCreateService<McpToolset> {
     @Override
-    public McpToolset buildMcpToolset(McpTool mcpToolConfig) {
+    public McpToolset buildMcpToolset(McpToolDefinition mcpToolConfig) {
 
-        McpTool.StdioServerParameters toolConfigStdio = mcpToolConfig.getStdio();
+        McpToolDefinition.StdioServerParameters toolConfigStdio = mcpToolConfig.getStdio();
 
         StdioServerParameters stdioServer = StdioServerParameters.builder()
                 .command(toolConfigStdio.getCommand())

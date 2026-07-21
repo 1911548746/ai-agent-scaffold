@@ -56,7 +56,7 @@ public class AiAgentAutoConfig implements SmartInitializingSingleton {
                 "Ai Agent 配置编译完成 id={}, appName={}, agentId={}, root={}",
                 definition.getId(),
                 definition.getAppName(),
-                definition.getAgentInfo().getAgentId(),
+                definition.getAgentDescriptor().getAgentId(),
                 definition.getRootAgentName()));
 
         // AgentCompiler 在临时上下文完成全部 ADK 装配，最后单次替换 Registry 快照。

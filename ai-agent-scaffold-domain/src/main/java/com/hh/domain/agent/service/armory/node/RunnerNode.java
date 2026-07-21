@@ -14,7 +14,8 @@ import com.google.adk.summarizer.LlmEventSummarizer;
 import com.hh.domain.agent.adapter.repository.IMySqlSessionServiceRepository;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.domain.agent.model.legacyconfig.Module;
+import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
+import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
@@ -37,19 +38,19 @@ public class RunnerNode  extends AbstractArmorySupport {
     protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         log.info("Ai Agent 装配操作 - RunnerNode");
 
-        AgentDefinition definition = requestParameter.getAgentDefinition();
-        String appName = definition.getAppName();
+        AgentDefinition agentDefinition = requestParameter.getAgentDefinition();
+        String appName = agentDefinition.getAppName();
 
-        // agentInfo 智能体信息 - 对外展示的(应用名称)
-        String agentId = definition.getAgentInfo().getAgentId();
-        String agentName = definition.getAgentInfo().getAgentName();
-        String agentDesc = definition.getAgentInfo().getAgentDesc();
+        // descriptor 仅携带对外展示元数据，不让运行时依赖配置聚合对象。
+        String agentId = agentDefinition.getAgentDescriptor().getAgentId();
+        String agentName = agentDefinition.getAgentDescriptor().getAgentName();
+        String agentDesc = agentDefinition.getAgentDescriptor().getAgentDesc();
 
         // 创建App
-        App app = createApp(definition, dynamicContext);
+        App app = createApp(agentDefinition, dynamicContext);
 
         // 创建Runner
-        Runner runner = createRunner(definition, app);
+        Runner runner = createRunner(agentDefinition, app);
 
         // 策略树到此才产生完整运行时；在 AgentCompiler 发布前它仍是私有候选对象。
         AgentRuntime runtime = new AgentRuntime(appName, agentId, agentName, agentDesc, runner);
@@ -67,14 +68,14 @@ public class RunnerNode  extends AbstractArmorySupport {
     private App createApp(AgentDefinition definition, DefaultArmoryFactory.DynamicContext dynamicContext) {
 
         String appName = definition.getAppName();
-        Module.Runner runnerConfig = definition.getRunner();
+        RunnerDefinition runnerConfig = definition.getRunner();
 
         // runnerAgentName 运行时用的智能体名称
         String runnerAgentName = runnerConfig.getAgentName();
         BaseAgent baseAgent = dynamicContext.getAgentGroup().get(runnerAgentName);
 
         // 上下文压缩
-        Module.ContextCompress contextCompressConfig = runnerConfig.getContextCompress();
+        ContextCompressionDefinition contextCompressConfig = runnerConfig.getContextCompress();
         EventsCompactionConfig compactionConfig;
 
         // 根据上下文压缩类型进行不同的配置
@@ -130,7 +131,7 @@ public class RunnerNode  extends AbstractArmorySupport {
     // 创建Runner
     private Runner createRunner(AgentDefinition definition, App app) {
 
-        Module.Runner runnerConfig = definition.getRunner();
+        RunnerDefinition runnerConfig = definition.getRunner();
 
         // 默认存储在内存
         BaseSessionService sessionService = new InMemorySessionService();

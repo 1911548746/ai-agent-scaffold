@@ -121,7 +121,7 @@ public class AiAgentAutoConfigProperties {
     }
 
     /**
-     * 上下文压缩的默认参数，与旧 Module.ContextCompress 保持一致以避免迁移后改变对话行为。
+     * 上下文压缩的默认参数，与运行定义保持一致以避免迁移后改变对话行为。
      */
     @Data
     public static class ContextCompressDefinition {

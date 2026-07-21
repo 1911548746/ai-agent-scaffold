@@ -4,7 +4,7 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
-import com.hh.domain.agent.model.legacyconfig.ChatModel;
+import com.hh.domain.agent.model.definition.ChatModelDefinition;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -26,7 +26,7 @@ public class ChatModelNode extends AbstractArmorySupport {
         log.info("Ai Agent 装配操作 - ChatModelNode");
 
         AgentDefinition definition = requestParameter.getAgentDefinition();
-        ChatModel chatModelConfig = definition.getChatModel();
+        ChatModelDefinition chatModelDefinition = definition.getChatModel();
 
         // TODO 超时重试优化
         /*
@@ -39,11 +39,11 @@ public class ChatModelNode extends AbstractArmorySupport {
          * 	at dev.langchain4j.http.client.jdk.JdkHttpClient.execute(JdkHttpClient.java:51)
          */
         OpenAiChatModel chatModel = OpenAiChatModel.builder()
-                .baseUrl(chatModelConfig.getBaseUrl())
-                .apiKey(chatModelConfig.getApiKey())
-                .modelName(chatModelConfig.getModelName())
-                .timeout(Duration.ofSeconds(chatModelConfig.getTimeout()))
-                .maxRetries(chatModelConfig.getMaxRetries())
+                .baseUrl(chatModelDefinition.getBaseUrl())
+                .apiKey(chatModelDefinition.getApiKey())
+                .modelName(chatModelDefinition.getModelName())
+                .timeout(Duration.ofSeconds(chatModelDefinition.getTimeout()))
+                .maxRetries(chatModelDefinition.getMaxRetries())
                 .build();
 
         dynamicContext.setChatModel(chatModel);

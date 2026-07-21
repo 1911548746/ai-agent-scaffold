@@ -1,7 +1,6 @@
 package com.hh.domain.agent.model.runtime;
 
 import com.google.adk.runner.Runner;
-import com.hh.domain.agent.model.legacyconfig.AgentInfo;
 
 import java.util.Objects;
 
@@ -27,13 +26,13 @@ public record AgentRuntime(
     }
 
     /**
-     * 对外列表接口仍使用历史 DTO，因此每次返回独立副本，避免调用方修改 Registry 元数据。
+     * 对外列表接口返回独立展示副本，避免调用方修改 Registry 元数据。
      */
-    public AgentInfo toAgentInfo() {
-        AgentInfo agentInfo = new AgentInfo();
-        agentInfo.setAgentId(agentId);
-        agentInfo.setAgentName(agentName);
-        agentInfo.setAgentDesc(agentDesc);
-        return agentInfo;
+    public AgentDescriptor toAgentDescriptor() {
+        AgentDescriptor descriptor = new AgentDescriptor();
+        descriptor.setAgentId(agentId);
+        descriptor.setAgentName(agentName);
+        descriptor.setAgentDesc(agentDesc);
+        return descriptor;
     }
 }

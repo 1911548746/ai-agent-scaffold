@@ -45,7 +45,7 @@ class AgentDefinitionLoaderTest {
         AgentDefinition hello = definition(definitions, "hello-agent");
         assertThat(hello.isEnabled()).isTrue();
         assertThat(hello.getAppName()).isEqualTo("HelloAgent");
-        assertThat(hello.getAgentInfo().getAgentId()).isEqualTo("100000");
+        assertThat(hello.getAgentDescriptor().getAgentId()).isEqualTo("100000");
         assertThat(hello.getRootAgentName()).isEqualTo("HelloAgent");
         assertThat(hello.getChatModel().getBaseUrl()).isEqualTo("https://api.siliconflow.cn");
         assertThat(hello.getChatModel().getApiKey()).isEqualTo(OFFLINE_MODEL_VALUE);
@@ -68,7 +68,7 @@ class AgentDefinitionLoaderTest {
         AgentDefinition pipeline = definition(definitions, "pipeline-agent");
         assertThat(pipeline.isEnabled()).isTrue();
         assertThat(pipeline.getAppName()).isEqualTo("PipelineAgent");
-        assertThat(pipeline.getAgentInfo().getAgentId()).isEqualTo("100001");
+        assertThat(pipeline.getAgentDescriptor().getAgentId()).isEqualTo("100001");
         assertThat(pipeline.getAgents()).extracting(agent -> agent.getName())
                 .containsExactly("CodeWriterAgent", "CodeReviewerAgent", "CodeRefactorerAgent");
         assertThat(pipeline.getAgents()).extracting(agent -> agent.getOutputKey())
@@ -86,7 +86,7 @@ class AgentDefinitionLoaderTest {
         AgentDefinition chrome = definition(definitions, "chrome-devtools-agent");
         assertThat(chrome.isEnabled()).isFalse();
         assertThat(chrome.getAppName()).isEqualTo("ChromeDevtoolsAgent");
-        assertThat(chrome.getAgentInfo().getAgentId()).isEqualTo("100002");
+        assertThat(chrome.getAgentDescriptor().getAgentId()).isEqualTo("100002");
         assertThat(chrome.getAgents()).singleElement().satisfies(agent -> {
             assertThat(agent.getName()).isEqualTo("ChromeDevtoolsAgent");
             assertThat(agent.getInstruction()).contains("通过工具真实操作浏览器完成任务");

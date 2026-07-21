@@ -1,12 +1,13 @@
 package com.hh.config.agent;
 
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.domain.agent.model.legacyconfig.AgentInfo;
-import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
-import com.hh.domain.agent.model.legacyconfig.ChatModel;
-import com.hh.domain.agent.model.legacyconfig.LlmAgent;
-import com.hh.domain.agent.model.legacyconfig.McpTool;
-import com.hh.domain.agent.model.legacyconfig.Module;
+import com.hh.domain.agent.model.definition.AgentWorkflowDefinition;
+import com.hh.domain.agent.model.definition.ChatModelDefinition;
+import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
+import com.hh.domain.agent.model.definition.LlmAgentDefinition;
+import com.hh.domain.agent.model.definition.McpToolDefinition;
+import com.hh.domain.agent.model.definition.RunnerDefinition;
+import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.domain.agent.model.enums.AgentWorkflowTypeEnum;
 import com.hh.domain.agent.model.valobj.properties.AiAgentAutoConfigProperties;
 import jakarta.validation.ConstraintViolation;
@@ -264,12 +265,12 @@ public class AgentDefinitionLoader {
             throw error(applicationPath + ".root", "current ADK assembly requires all referenced agents to use one model-ref");
         }
 
-        List<LlmAgent> compiledAgents = reachableAgents.stream()
+        List<LlmAgentDefinition> compiledAgents = reachableAgents.stream()
                 .map(agents::get)
                 .map(agent -> compileAgent(agent, tools))
                 .toList();
         // 使用全局拓扑序过滤可达工作流，保证父工作流引用其子工作流时子节点已经创建。
-        List<AgentWorkflow> compiledWorkflows = workflowOrder.stream()
+        List<AgentWorkflowDefinition> compiledWorkflows = workflowOrder.stream()
                 .filter(reachableWorkflows::contains)
                 .map(workflows::get)
                 .map(workflow -> compileWorkflow(workflow, agents, workflows))
@@ -285,7 +286,7 @@ public class AgentDefinitionLoader {
                 .enabled(application.isEnabled())
                 .sourcePath(applicationPath)
                 .appName(application.getAppName())
-                .agentInfo(toAgentInfo(application))
+                .agentDescriptor(toAgentDescriptor(application))
                 .rootAgentName(rootAgentName)
                 .chatModel(toChatModel(model))
                 .agents(List.copyOf(compiledAgents))
@@ -312,21 +313,21 @@ public class AgentDefinitionLoader {
     }
 
     /**
-     * 将稳定的 tool-ref 列表转换为旧 LlmAgent 的 MCP 列表和单个 Skill 目录字段。
+     * 将稳定的 tool-ref 列表转换为 LLM Agent 定义的 MCP 列表和单个 Skill 目录字段。
      */
-    private LlmAgent compileAgent(AgentModuleConfig agent, Map<String, ToolModuleConfig> tools) {
-        LlmAgent result = new LlmAgent();
+    private LlmAgentDefinition compileAgent(AgentModuleConfig agent, Map<String, ToolModuleConfig> tools) {
+        LlmAgentDefinition result = new LlmAgentDefinition();
         result.setName(agent.getName());
         result.setDescription(agent.getDescription());
         result.setInstruction(agent.getInstruction());
         result.setOutputKey(agent.getOutputKey());
 
-        List<McpTool> mcpTools = new ArrayList<>();
+        List<McpToolDefinition> mcpTools = new ArrayList<>();
         String skillsDirectory = null;
         for (int i = 0; i < agent.getToolRefs().size(); i++) {
             ToolModuleConfig tool = tools.get(agent.getToolRefs().get(i));
             if ("skill".equalsIgnoreCase(tool.getType())) {
-                // 旧模型只有 skillsDir 一个字段，多个 Skill 目录不能被悄悄丢弃。
+                // 当前定义只有 skillsDir 一个字段，多个 Skill 目录不能被悄悄丢弃。
                 if (skillsDirectory != null) {
                     throw error(agent.getSourcePath() + ".tool-refs[" + i + "]", "current ADK assembly supports one skill directory per agent");
                 }
@@ -343,11 +344,11 @@ public class AgentDefinitionLoader {
     /**
      * 将已经通过 transport 互斥校验的工具映射到现有 MCP 工厂使用的值对象。
      */
-    private McpTool toMcpTool(ToolModuleConfig tool) {
-        McpTool result = new McpTool();
+    private McpToolDefinition toMcpTool(ToolModuleConfig tool) {
+        McpToolDefinition result = new McpToolDefinition();
         ToolModuleConfig.McpDefinition source = tool.getMcp();
         if (source.getSse() != null) {
-            McpTool.SSEServerParameters target = new McpTool.SSEServerParameters();
+            McpToolDefinition.SSEServerParameters target = new McpToolDefinition.SSEServerParameters();
             target.setName(source.getSse().getName());
             target.setUrl(resolveRequired(source.getSse().getUrl(), tool.getSourcePath() + ".mcp.sse.url"));
             target.setSseEndpoint(source.getSse().getSseEndpoint());
@@ -356,7 +357,7 @@ public class AgentDefinitionLoader {
             result.setSse(target);
         }
         if (source.getHttp() != null) {
-            McpTool.HttpServerParameters target = new McpTool.HttpServerParameters();
+            McpToolDefinition.HttpServerParameters target = new McpToolDefinition.HttpServerParameters();
             target.setName(source.getHttp().getName());
             target.setUrl(resolveRequired(source.getHttp().getUrl(), tool.getSourcePath() + ".mcp.http.url"));
             Map<String, String> headers = new LinkedHashMap<>();
@@ -370,7 +371,7 @@ public class AgentDefinitionLoader {
             result.setHttp(target);
         }
         if (source.getStdio() != null) {
-            McpTool.StdioServerParameters target = new McpTool.StdioServerParameters();
+            McpToolDefinition.StdioServerParameters target = new McpToolDefinition.StdioServerParameters();
             target.setName(source.getStdio().getName());
             target.setCommand(resolveRequired(source.getStdio().getCommand(), tool.getSourcePath() + ".mcp.stdio.command"));
             target.setArgs(new ArrayList<>(source.getStdio().getArgs()));
@@ -382,7 +383,7 @@ public class AgentDefinitionLoader {
             result.setStdio(target);
         }
         if (source.getLocal() != null) {
-            McpTool.LocalServerParameters target = new McpTool.LocalServerParameters();
+            McpToolDefinition.LocalServerParameters target = new McpToolDefinition.LocalServerParameters();
             target.setBeanName(source.getLocal().getBeanName());
             target.setMethodName(source.getLocal().getMethodName());
             result.setLocal(target);
@@ -391,20 +392,20 @@ public class AgentDefinitionLoader {
     }
 
     /**
-     * 将工作流稳定 ID 引用转换为 ADK/旧策略树识别的运行时 agent name。
+     * 将工作流稳定 ID 引用转换为 ADK 装配识别的运行时 agent name。
      */
-    private AgentWorkflow compileWorkflow(
+    private AgentWorkflowDefinition compileWorkflow(
             WorkflowModuleConfig workflow,
             Map<String, AgentModuleConfig> agents,
             Map<String, WorkflowModuleConfig> workflows) {
-        AgentWorkflow result = new AgentWorkflow();
+        AgentWorkflowDefinition result = new AgentWorkflowDefinition();
         result.setType(workflow.getType());
         result.setName(workflow.getName());
         result.setDescription(workflow.getDescription());
         result.setInstruction(workflow.getInstruction());
         result.setMaxIterations(workflow.getMaxIterations());
         List<String> children = new ArrayList<>();
-        // 旧 AgentWorkflow 只提供一个 subAgents 字段，因此在这里合并两类已解析子节点。
+        // 当前工作流定义只提供一个 subAgents 字段，因此在这里合并两类已解析子节点。
         workflow.getSubAgentRefs().stream().map(agents::get).map(AgentModuleConfig::getName).forEach(children::add);
         workflow.getSubWorkflowRefs().stream().map(workflows::get).map(WorkflowModuleConfig::getName).forEach(children::add);
         result.setSubAgents(children);
@@ -414,8 +415,8 @@ public class AgentDefinitionLoader {
     /**
      * 对外展示信息只来自 catalog application，不从内部 Agent 名称反推，避免 API 契约被工作流重命名影响。
      */
-    private AgentInfo toAgentInfo(AiAgentAutoConfigProperties.ApplicationDefinition source) {
-        AgentInfo result = new AgentInfo();
+    private AgentDescriptor toAgentDescriptor(AiAgentAutoConfigProperties.ApplicationDefinition source) {
+        AgentDescriptor result = new AgentDescriptor();
         result.setAgentId(source.getAgentId());
         result.setAgentName(source.getAgentName());
         result.setAgentDesc(source.getAgentDesc());
@@ -425,8 +426,8 @@ public class AgentDefinitionLoader {
     /**
      * 复制已解析的模型参数；apiKey 只在内存中传递，任何调用方都不得将该对象整体记录到日志。
      */
-    private ChatModel toChatModel(ModelModuleConfig source) {
-        ChatModel result = new ChatModel();
+    private ChatModelDefinition toChatModel(ModelModuleConfig source) {
+        ChatModelDefinition result = new ChatModelDefinition();
         result.setBaseUrl(source.getBaseUrl());
         result.setApiKey(source.getApiKey());
         result.setModelName(source.getModelName());
@@ -436,17 +437,17 @@ public class AgentDefinitionLoader {
     }
 
     /**
-     * 将 catalog Runner 配置转为旧 Module.Runner，并以解析后的 root 名称覆盖 YAML 输入。
+     * 将 catalog Runner 配置转为运行定义，并以解析后的 root 名称覆盖 YAML 输入。
      */
-    private Module.Runner toRunner(AiAgentAutoConfigProperties.RunnerDefinition source, String rootAgentName) {
-        Module.Runner result = new Module.Runner();
+    private RunnerDefinition toRunner(AiAgentAutoConfigProperties.RunnerDefinition source, String rootAgentName) {
+        RunnerDefinition result = new RunnerDefinition();
         result.setAgentName(rootAgentName);
         result.setPersistence(source.isPersistence());
         result.setPluginNameList(new ArrayList<>(source.getPluginNameList()));
 
         // 显式复制全部压缩参数，避免迁移后因 null 或默认值差异改变上下文保留策略。
         AiAgentAutoConfigProperties.ContextCompressDefinition compression = source.getContextCompress();
-        Module.ContextCompress targetCompression = new Module.ContextCompress();
+        ContextCompressionDefinition targetCompression = new ContextCompressionDefinition();
         targetCompression.setType(compression.getType());
         targetCompression.setCompactionInterval(compression.getCompactionInterval());
         targetCompression.setOverlapSize(compression.getOverlapSize());

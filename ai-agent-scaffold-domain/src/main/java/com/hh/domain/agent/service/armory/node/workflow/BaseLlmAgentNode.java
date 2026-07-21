@@ -4,7 +4,7 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.BaseAgent;
 import com.google.adk.agents.LlmAgent;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
+import com.hh.domain.agent.model.definition.AgentWorkflowDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
@@ -22,19 +22,19 @@ public class BaseLlmAgentNode extends AbstractArmorySupport {
     protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         log.info("Ai Agent 装配操作 - BaseLlmAgentNode");
 
-        AgentWorkflow currentAgentWorkflowConfig = dynamicContext.getCurrentAgentWorkflow();
+        AgentWorkflowDefinition baseLlmAgentDefinition = dynamicContext.getCurrentAgentWorkflow();
 
         // 查询子智能体列表
-        List<BaseAgent> subAgents = dynamicContext.queryAgentList(currentAgentWorkflowConfig.getSubAgents());
+        List<BaseAgent> subAgents = dynamicContext.queryAgentList(baseLlmAgentDefinition.getSubAgents());
 
         LlmAgent llmAgent = LlmAgent.builder()
-                .name(currentAgentWorkflowConfig.getName())
-                .description(currentAgentWorkflowConfig.getDescription())
-                .instruction(currentAgentWorkflowConfig.getInstruction())
+                .name(baseLlmAgentDefinition.getName())
+                .description(baseLlmAgentDefinition.getDescription())
+                .instruction(baseLlmAgentDefinition.getInstruction())
                 .subAgents(subAgents)
                 .build();
 
-        dynamicContext.getAgentGroup().put(currentAgentWorkflowConfig.getName(), llmAgent);
+        dynamicContext.getAgentGroup().put(baseLlmAgentDefinition.getName(), llmAgent);
 
         return router(requestParameter, dynamicContext);
     }

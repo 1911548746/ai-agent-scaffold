@@ -4,7 +4,7 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.BaseAgent;
 import com.google.adk.agents.SequentialAgent;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
+import com.hh.domain.agent.model.definition.AgentWorkflowDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
@@ -22,18 +22,18 @@ public class SequentialAgentNode extends AbstractArmorySupport {
     protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         log.info("Ai Agent 装配操作 - SequentialAgentNode");
 
-        AgentWorkflow currentAgentWorkflowConfig = dynamicContext.getCurrentAgentWorkflow();
+        AgentWorkflowDefinition sequentialAgentDefinition = dynamicContext.getCurrentAgentWorkflow();
 
         // 查询子智能体列表
-        List<BaseAgent> subAgents = dynamicContext.queryAgentList(currentAgentWorkflowConfig.getSubAgents());
+        List<BaseAgent> subAgents = dynamicContext.queryAgentList(sequentialAgentDefinition.getSubAgents());
 
         SequentialAgent sequentialAgent = SequentialAgent.builder()
-                .name(currentAgentWorkflowConfig.getName())
-                .description(currentAgentWorkflowConfig.getDescription())
+                .name(sequentialAgentDefinition.getName())
+                .description(sequentialAgentDefinition.getDescription())
                 .subAgents(subAgents)
                 .build();
 
-        dynamicContext.getAgentGroup().put(currentAgentWorkflowConfig.getName(), sequentialAgent);
+        dynamicContext.getAgentGroup().put(sequentialAgentDefinition.getName(), sequentialAgent);
 
         return router(requestParameter, dynamicContext);
     }

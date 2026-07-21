@@ -2,8 +2,8 @@ package com.hh.domain.agent.service.armory.node;
 
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
 import com.hh.domain.agent.model.definition.AgentDefinition;
+import com.hh.domain.agent.model.definition.AgentWorkflowDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.model.enums.AgentWorkflowTypeEnum;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
@@ -40,16 +40,16 @@ public class AgentWorkflowNode extends AbstractArmorySupport {
         log.info("Ai Agent 装配操作 - AgentWorkflowNode");
 
         AgentDefinition definition = requestParameter.getAgentDefinition();
-        List<AgentWorkflow> agentWorkflowsConfig = definition.getAgentWorkflows();
+        List<AgentWorkflowDefinition> agentWorkflowDefinitionList = definition.getAgentWorkflows();
 
         // 如果未配置 agentWorkflows, 或者当前步骤索引超出 agentWorkflows 范围, 则直接流转到 RunnerNode
-        if (null == agentWorkflowsConfig || agentWorkflowsConfig.isEmpty() || dynamicContext.getCurrentStepIndex().get() >= agentWorkflowsConfig.size()) {
+        if (null == agentWorkflowDefinitionList || agentWorkflowDefinitionList.isEmpty() || dynamicContext.getCurrentStepIndex().get() >= agentWorkflowDefinitionList.size()) {
             dynamicContext.setCurrentAgentWorkflow(null);
             return router(requestParameter, dynamicContext);
         }
 
         // 设置当前步骤的 agentWorkflow
-        dynamicContext.setCurrentAgentWorkflow(agentWorkflowsConfig.get(dynamicContext.getCurrentStepIndex().get()));
+        dynamicContext.setCurrentAgentWorkflow(agentWorkflowDefinitionList.get(dynamicContext.getCurrentStepIndex().get()));
         // 增加当前步骤索引
         dynamicContext.getCurrentStepIndex().incrementAndGet();
 
@@ -59,7 +59,7 @@ public class AgentWorkflowNode extends AbstractArmorySupport {
     @Override
     public StrategyHandler<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AgentRuntime> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
 
-        AgentWorkflow currentAgentWorkflow = dynamicContext.getCurrentAgentWorkflow();
+        AgentWorkflowDefinition currentAgentWorkflow = dynamicContext.getCurrentAgentWorkflow();
 
         if (null == currentAgentWorkflow) {
             // 如果未配置 agentWorkflows 则直接流转到 RunnerNode

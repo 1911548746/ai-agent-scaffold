@@ -1,7 +1,7 @@
 package com.hh.test.service;
 
 import com.alibaba.fastjson.JSON;
-import com.hh.domain.agent.model.legacyconfig.AgentInfo;
+import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.domain.agent.service.chat.ChatService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ public class ChatServiceTest {
 
     @Test
     public void queryAgentListTest() {
-        List<AgentInfo> agentInfoList = chatService.queryAgentList();
+        List<AgentDescriptor> agentInfoList = chatService.queryAgentList();
         log.info("agentInfoList: {}", agentInfoList);
     }
 
