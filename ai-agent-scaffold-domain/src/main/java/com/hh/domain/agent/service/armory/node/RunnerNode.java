@@ -11,7 +11,7 @@ import com.google.adk.sessions.BaseSessionService;
 import com.google.adk.sessions.InMemorySessionService;
 import com.google.adk.summarizer.EventsCompactionConfig;
 import com.google.adk.summarizer.LlmEventSummarizer;
-import com.hh.domain.agent.adapter.repository.IMySqlSessionServiceRepository;
+import com.hh.domain.agent.adapter.port.SessionStore;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
@@ -32,7 +32,7 @@ import java.util.List;
 public class RunnerNode  extends AbstractArmorySupport {
 
     @Resource
-    private IMySqlSessionServiceRepository mySqlSessionService;
+    private SessionStore sessionStore;
 
     @Override
     protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
@@ -137,7 +137,8 @@ public class RunnerNode  extends AbstractArmorySupport {
         BaseSessionService sessionService = new InMemorySessionService();
         // 配置event持久化
         if (runnerConfig != null && runnerConfig.getPersistence()) {
-            sessionService = mySqlSessionService;
+            // Runner 只依赖会话存储能力，不能感知底层是否为 MySQL。
+            sessionService = sessionStore;
         }
 
         // 会话运行节点

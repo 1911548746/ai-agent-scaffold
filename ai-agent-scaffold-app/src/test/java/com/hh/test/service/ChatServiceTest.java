@@ -1,8 +1,8 @@
 package com.hh.test.service;
 
 import com.alibaba.fastjson.JSON;
+import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
-import com.hh.domain.agent.service.chat.ChatService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -15,7 +15,8 @@ import java.util.List;
 public class ChatServiceTest {
 
     @Resource
-    private ChatService chatService;
+    // Spring Context 中暴露的是 application 入站用例，测试不能再依赖已删除的 domain 编排类。
+    private ChatUseCase chatService;
 
 
     @Test

@@ -1,7 +1,7 @@
 package com.hh.infrastructure.adapter.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.hh.domain.agent.adapter.repository.IMySqlSessionServiceRepository;
+import com.hh.domain.agent.adapter.port.SessionStore;
 import com.hh.infrastructure.dao.SessionDao;
 import com.hh.infrastructure.dao.SessionEventDao;
 import com.hh.infrastructure.dao.po.SessionEventPO;
@@ -32,8 +32,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * 基于 MySQL 的 ADK 会话存储适配器。
+ *
+ * <p>类名保留 MySQL，明确其基础设施实现角色；调用方通过 {@link SessionStore} 访问，避免将
+ * 数据库技术名称传播到领域装配代码。</p>
+ */
 @Service
-public class MySqlSessionServiceRepository implements IMySqlSessionServiceRepository {
+public class MySqlSessionStore implements SessionStore {
 
     @Resource
     private SessionDao sessionDao;
