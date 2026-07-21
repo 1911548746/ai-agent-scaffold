@@ -9,7 +9,7 @@ import com.hh.domain.agent.model.definition.McpToolDefinition;
 import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.domain.agent.model.enums.AgentWorkflowTypeEnum;
-import com.hh.domain.agent.model.valobj.properties.AiAgentAutoConfigProperties;
+import com.hh.config.agent.properties.AgentCatalogProperties;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.springframework.boot.context.properties.bind.Bindable;
@@ -65,10 +65,10 @@ public class AgentDefinitionLoader {
      * 从 classpath/file 资源直接加载 catalog，主要供离线编译测试和非 Spring 调用方使用。
      */
     public List<AgentDefinition> load(String catalogLocation) {
-        AiAgentAutoConfigProperties catalog = bind(
+        AgentCatalogProperties catalog = bind(
                 catalogLocation,
                 "ai.agent.config",
-                AiAgentAutoConfigProperties.class);
+                AgentCatalogProperties.class);
         catalog.setCatalogPath(catalogLocation);
         return load(catalog);
     }
@@ -78,7 +78,7 @@ public class AgentDefinitionLoader {
      *
      * <p>所有模块会先完整校验，再生成定义列表；不能因为前几个资源可用就发布半成品配置。</p>
      */
-    public List<AgentDefinition> load(AiAgentAutoConfigProperties catalog) {
+    public List<AgentDefinition> load(AgentCatalogProperties catalog) {
         String catalogPath = displayPath(catalog.getCatalogPath(), "ai.agent.config");
         validate(catalog, catalogPath);
         requireSchemaVersion(catalog.getSchemaVersion(), catalogPath + ".schema-version");
@@ -224,7 +224,7 @@ public class AgentDefinitionLoader {
      * 从一个对外 application 入口收集其可达的 Agent/Workflow，并适配为旧装配链所需的完整定义。
      */
     private AgentDefinition compileApplication(
-            AiAgentAutoConfigProperties.ApplicationDefinition application,
+            AgentCatalogProperties.ApplicationDefinition application,
             String applicationPath,
             Map<String, ModelModuleConfig> models,
             Map<String, ToolModuleConfig> tools,
@@ -415,7 +415,7 @@ public class AgentDefinitionLoader {
     /**
      * 对外展示信息只来自 catalog application，不从内部 Agent 名称反推，避免 API 契约被工作流重命名影响。
      */
-    private AgentDescriptor toAgentDescriptor(AiAgentAutoConfigProperties.ApplicationDefinition source) {
+    private AgentDescriptor toAgentDescriptor(AgentCatalogProperties.ApplicationDefinition source) {
         AgentDescriptor result = new AgentDescriptor();
         result.setAgentId(source.getAgentId());
         result.setAgentName(source.getAgentName());
@@ -439,14 +439,14 @@ public class AgentDefinitionLoader {
     /**
      * 将 catalog Runner 配置转为运行定义，并以解析后的 root 名称覆盖 YAML 输入。
      */
-    private RunnerDefinition toRunner(AiAgentAutoConfigProperties.RunnerDefinition source, String rootAgentName) {
+    private RunnerDefinition toRunner(AgentCatalogProperties.RunnerDefinition source, String rootAgentName) {
         RunnerDefinition result = new RunnerDefinition();
         result.setAgentName(rootAgentName);
         result.setPersistence(source.isPersistence());
         result.setPluginNameList(new ArrayList<>(source.getPluginNameList()));
 
         // 显式复制全部压缩参数，避免迁移后因 null 或默认值差异改变上下文保留策略。
-        AiAgentAutoConfigProperties.ContextCompressDefinition compression = source.getContextCompress();
+        AgentCatalogProperties.ContextCompressDefinition compression = source.getContextCompress();
         ContextCompressionDefinition targetCompression = new ContextCompressionDefinition();
         targetCompression.setType(compression.getType());
         targetCompression.setCompactionInterval(compression.getCompactionInterval());
@@ -511,7 +511,7 @@ public class AgentDefinitionLoader {
     /**
      * 校验 catalog application 的稳定 ID 唯一，避免两个对外入口覆盖同一个运行时表项。
      */
-    private void validateApplicationIds(AiAgentAutoConfigProperties catalog, String catalogPath) {
+    private void validateApplicationIds(AgentCatalogProperties catalog, String catalogPath) {
         Map<String, String> paths = new LinkedHashMap<>();
         for (int i = 0; i < catalog.getApplications().size(); i++) {
             String id = catalog.getApplications().get(i).getId();

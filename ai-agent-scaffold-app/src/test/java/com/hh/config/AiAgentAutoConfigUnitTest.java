@@ -1,10 +1,10 @@
 package com.hh.config;
 
 import com.hh.config.agent.AgentDefinitionLoader;
+import com.hh.config.agent.properties.AgentCatalogProperties;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.config.agent.AgentCompiler;
 import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
-import com.hh.domain.agent.model.valobj.properties.AiAgentAutoConfigProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -32,7 +32,7 @@ class AiAgentAutoConfigUnitTest {
 
     @Test
     void disabledCatalogDoesNotLoadOrAssembleAgents() {
-        AiAgentAutoConfigProperties properties = new AiAgentAutoConfigProperties();
+        AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setEnabled(false);
 
         // enabled=false 必须在读取任意模块资源前返回，避免禁用配置仍创建外部工具。
@@ -45,7 +45,7 @@ class AiAgentAutoConfigUnitTest {
 
     @Test
     void compilesOnlyEnabledDefinitions() {
-        AiAgentAutoConfigProperties properties = new AiAgentAutoConfigProperties();
+        AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setEnabled(true);
         AgentDefinition enabled = definition("enabled-agent", true, "100000");
         AgentDefinition disabled = definition("disabled-agent", false, "100002");

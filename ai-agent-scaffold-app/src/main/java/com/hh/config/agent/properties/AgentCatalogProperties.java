@@ -1,5 +1,4 @@
-package com.hh.domain.agent.model.valobj.properties;
-
+package com.hh.config.agent.properties;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
@@ -14,26 +13,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * TODO 迁移至 app 包
- * <p>AiAgentAutoConfigProperties 带有 @ConfigurationProperties、@Validated 和 Spring 绑定注解，
- * 且描述的是新版 catalog 的配置绑定入口，不是旧的嵌套配置表。它放在 domain 已经不太合适
- * <br>
- * 但是 AiAgentAutoConfigProperties 不能只改包直接迁到 app：当前 ChatService.java 直接依赖它读取 tables，会形成 domain 依赖 app 的反向依赖。
- * 正确做法是后续先让 ChatService 依赖一个领域查询端口（例如 AgentCatalog / AgentDefinitionQuery），
- * 再由 app 用配置对象实现该端口，最后迁移 Properties
- * </p>
- */
-
-/**
  * catalog 文件在 Spring Environment 中的绑定入口。
  *
- * <p>该对象只保存模块资源位置和 application 描述。已编译的 ADK Runtime 由
- * AgentRuntimeRegistry 管理，不能写回可变的 ConfigurationProperties。</p>
+ * <p>该对象属于 app 启动配置层：只保存模块资源位置和 application 描述，不承载领域定义或
+ * ADK Runtime。已编译的运行时由 AgentRuntimeRegistry 管理，不能写回此可变绑定对象。</p>
  */
 @Data
 @Validated
 @ConfigurationProperties(prefix = "ai.agent.config", ignoreUnknownFields = false)
-public class AiAgentAutoConfigProperties {
+public class AgentCatalogProperties {
 
     // 全局开关关闭时不读取模块资源，也不创建任何 Runner。
     private boolean enabled = false;
@@ -83,7 +71,7 @@ public class AiAgentAutoConfigProperties {
     /**
      * catalog 中一个可对外发布的 application。
      *
- * <p>agentRef 与 workflowRef 的“二选一”规则需要访问全局 ID 表，因此由 Loader 校验。</p>
+     * <p>agentRef 与 workflowRef 的二选一规则需要访问全局 ID 表，因此由 Loader 校验。</p>
      */
     @Data
     public static class ApplicationDefinition {
@@ -121,7 +109,7 @@ public class AiAgentAutoConfigProperties {
     }
 
     /**
-     * 上下文压缩的默认参数，与运行定义保持一致以避免迁移后改变对话行为。
+     * 上下文压缩的默认参数，必须与运行定义保持一致以避免迁移后改变对话行为。
      */
     @Data
     public static class ContextCompressDefinition {
@@ -136,5 +124,4 @@ public class AiAgentAutoConfigProperties {
         @Min(1)
         private Integer eventRetentionSize = 30;
     }
-
 }

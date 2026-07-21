@@ -2,9 +2,9 @@ package com.hh.config;
 
 import com.hh.config.agent.AgentCompiler;
 import com.hh.config.agent.AgentDefinitionLoader;
+import com.hh.config.agent.properties.AgentCatalogProperties;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
-import com.hh.domain.agent.model.valobj.properties.AiAgentAutoConfigProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.beans.factory.SmartInitializingSingleton;
@@ -17,16 +17,16 @@ import java.util.List;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties(AiAgentAutoConfigProperties.class)
+@EnableConfigurationProperties(AgentCatalogProperties.class)
 public class AiAgentAutoConfig implements SmartInitializingSingleton {
 
-    private final AiAgentAutoConfigProperties properties;
+    private final AgentCatalogProperties properties;
     private final AgentDefinitionLoader definitionLoader;
     private final AgentCompiler agentCompiler;
     private final AgentRuntimeRegistry runtimeRegistry;
 
     public AiAgentAutoConfig(
-            AiAgentAutoConfigProperties properties,
+            AgentCatalogProperties properties,
             AgentDefinitionLoader definitionLoader,
             AgentCompiler agentCompiler,
             AgentRuntimeRegistry runtimeRegistry) {
