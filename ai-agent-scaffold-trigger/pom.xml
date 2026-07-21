@@ -33,6 +33,12 @@
             <artifactId>ai-agent-scaffold-api</artifactId>
         </dependency>
 
+        <!-- 入站适配器只能依赖 application 用例，不直接调用 domain service。 -->
+        <dependency>
+            <groupId>com.hh</groupId>
+            <artifactId>ai-agent-scaffold-application</artifactId>
+        </dependency>
+
         <!-- 类型定义模块 -->
         <dependency>
             <groupId>com.hh</groupId>

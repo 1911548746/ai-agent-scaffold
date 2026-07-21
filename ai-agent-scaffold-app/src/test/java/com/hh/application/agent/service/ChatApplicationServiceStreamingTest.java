@@ -1,4 +1,4 @@
-package com.hh.domain.agent.service.chat;
+package com.hh.application.agent.service;
 
 import com.google.adk.agents.RunConfig;
 import com.google.adk.events.Event;
@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
  * 流式消息状态机的离线回归测试，不创建 Spring Context，也不会连接模型或数据库。
  */
 @ExtendWith(MockitoExtension.class)
-class ChatServiceStreamingTest {
+class ChatApplicationServiceStreamingTest {
 
     @Mock
     private AgentRuntimeRegistry runtimeRegistry;
@@ -41,7 +41,7 @@ class ChatServiceStreamingTest {
     private IMessageArchiveRepository messageArchiveRepository;
 
     @InjectMocks
-    private ChatService chatService;
+    private ChatApplicationService chatService;
 
     @Test
     void streamCompletedWithFinalResponse_marksAssistantMessageCompleted() {

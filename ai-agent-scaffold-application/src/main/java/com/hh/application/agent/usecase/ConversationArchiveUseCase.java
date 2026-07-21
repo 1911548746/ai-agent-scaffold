@@ -1,11 +1,14 @@
-package com.hh.domain.agent.service;
+package com.hh.application.agent.usecase;
 
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
 
 import java.util.List;
 
-public interface IConversationArchiveService {
+/**
+ * 会话归档查询与删除的入站用例。
+ */
+public interface ConversationArchiveUseCase {
 
     List<ConversationVO> listConversations(String userId);
 
@@ -14,5 +17,4 @@ public interface IConversationArchiveService {
     List<MessageVO> listMessages(Long conversationId);
 
     void deleteConversation(Long conversationId);
-
 }

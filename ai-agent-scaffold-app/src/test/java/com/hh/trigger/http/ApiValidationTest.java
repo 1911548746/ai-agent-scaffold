@@ -1,9 +1,9 @@
 package com.hh.trigger.http;
 
 import com.hh.api.dto.ChatRequestDTO;
+import com.hh.application.agent.usecase.ChatUseCase;
+import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
-import com.hh.domain.agent.service.IChatService;
-import com.hh.domain.agent.service.IConversationArchiveService;
 import com.hh.handler.GlobalExceptionHandler;
 import com.hh.types.validation.RequestPayloadLimits;
 import jakarta.validation.Validation;
@@ -48,8 +48,8 @@ class ApiValidationTest {
 
     @Test
     void chatRejectsBlankMessageWithConsistentBadRequestAndSkipsService() throws Exception {
-        IChatService chatService = mock(IChatService.class);
-        MockMvc mvc = agentMvc(chatService);
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        MockMvc mvc = agentMvc(chatUseCase);
 
         mvc.perform(post("/api/v1/chat")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -59,13 +59,13 @@ class ApiValidationTest {
                 .andExpect(jsonPath("$.info").value("请求参数不合法"))
                 .andExpect(jsonPath("$.data").doesNotExist());
 
-        verifyNoInteractions(chatService);
+        verifyNoInteractions(chatUseCase);
     }
 
     @Test
     void chatRejectsOversizedTextBeforeCallingModelService() throws Exception {
-        IChatService chatService = mock(IChatService.class);
-        MockMvc mvc = agentMvc(chatService);
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        MockMvc mvc = agentMvc(chatUseCase);
         String oversizedMessage = "x".repeat(RequestPayloadLimits.MAX_TEXT_LENGTH + 1);
 
         mvc.perform(post("/api/v1/chat")
@@ -74,13 +74,13 @@ class ApiValidationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("0002"));
 
-        verifyNoInteractions(chatService);
+        verifyNoInteractions(chatUseCase);
     }
 
     @Test
     void malformedJsonUsesSameSafeBadRequestContract() throws Exception {
-        IChatService chatService = mock(IChatService.class);
-        MockMvc mvc = agentMvc(chatService);
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        MockMvc mvc = agentMvc(chatUseCase);
 
         mvc.perform(post("/api/v1/create-session")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -89,13 +89,13 @@ class ApiValidationTest {
                 .andExpect(jsonPath("$.code").value("0002"))
                 .andExpect(jsonPath("$.info").value("请求参数不合法"));
 
-        verifyNoInteractions(chatService);
+        verifyNoInteractions(chatUseCase);
     }
 
     @Test
     void createSessionRejectsBlankAgentIdBeforeCreatingSession() throws Exception {
-        IChatService chatService = mock(IChatService.class);
-        MockMvc mvc = agentMvc(chatService);
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        MockMvc mvc = agentMvc(chatUseCase);
 
         mvc.perform(post("/api/v1/create-session")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -103,14 +103,14 @@ class ApiValidationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("0002"));
 
-        verifyNoInteractions(chatService);
+        verifyNoInteractions(chatUseCase);
     }
 
     @Test
     void deleteRejectsMissingConversationIdBeforeTouchingServices() throws Exception {
-        IChatService chatService = mock(IChatService.class);
-        IConversationArchiveService archiveService = mock(IConversationArchiveService.class);
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(conversationController(chatService, archiveService))
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        ConversationArchiveUseCase archiveUseCase = mock(ConversationArchiveUseCase.class);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(conversationController(chatUseCase, archiveUseCase))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -120,7 +120,7 @@ class ApiValidationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("0002"));
 
-        verifyNoInteractions(chatService, archiveService);
+        verifyNoInteractions(chatUseCase, archiveUseCase);
     }
 
     @Test
@@ -151,17 +151,14 @@ class ApiValidationTest {
                 .anyMatch(violation -> violation.getPropertyPath().toString().equals("inlineDataTotalSizeValid"));
     }
 
-    private MockMvc agentMvc(IChatService chatService) {
-        return MockMvcBuilders.standaloneSetup(new AgentServiceController(chatService))
+    private MockMvc agentMvc(ChatUseCase chatUseCase) {
+        return MockMvcBuilders.standaloneSetup(new AgentServiceController(chatUseCase))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
 
     private ConversationController conversationController(
-            IChatService chatService, IConversationArchiveService archiveService) {
-        ConversationController controller = new ConversationController();
-        org.springframework.test.util.ReflectionTestUtils.setField(controller, "chatService", chatService);
-        org.springframework.test.util.ReflectionTestUtils.setField(controller, "conversationArchiveService", archiveService);
-        return controller;
+            ChatUseCase chatUseCase, ConversationArchiveUseCase archiveUseCase) {
+        return new ConversationController(archiveUseCase, chatUseCase);
     }
 }

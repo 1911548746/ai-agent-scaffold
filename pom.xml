@@ -9,6 +9,7 @@
 
     <modules>
         <module>ai-agent-scaffold-api</module>
+        <module>ai-agent-scaffold-application</module>
         <module>ai-agent-scaffold-app</module>
         <module>ai-agent-scaffold-domain</module>
         <module>ai-agent-scaffold-trigger</module>
@@ -155,6 +156,11 @@
             <dependency>
                 <groupId>com.hh</groupId>
                 <artifactId>ai-agent-scaffold-api</artifactId>
+                <version>1.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.hh</groupId>
+                <artifactId>ai-agent-scaffold-application</artifactId>
                 <version>1.0</version>
             </dependency>
             <dependency>

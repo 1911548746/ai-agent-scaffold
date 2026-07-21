@@ -86,6 +86,10 @@
         <!-- 工程模块；启动依赖 trigger->domain, infrastructure-->
         <dependency>
             <groupId>com.hh</groupId>
+            <artifactId>ai-agent-scaffold-application</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.hh</groupId>
             <artifactId>ai-agent-scaffold-trigger</artifactId>
         </dependency>
         <dependency>

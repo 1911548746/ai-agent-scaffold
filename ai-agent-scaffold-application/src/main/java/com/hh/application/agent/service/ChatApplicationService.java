@@ -1,4 +1,4 @@
-package com.hh.domain.agent.service.chat;
+package com.hh.application.agent.service;
 
 import com.google.adk.agents.RunConfig;
 import com.google.adk.events.Event;
@@ -6,41 +6,44 @@ import com.google.adk.runner.Runner;
 import com.google.adk.sessions.Session;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
+import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
 import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
+import com.hh.domain.agent.model.enums.MessageStatus;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
-import com.hh.domain.agent.model.enums.MessageStatus;
-import com.hh.domain.agent.service.IChatService;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import com.hh.types.validation.RequestPayloadLimits;
 import io.reactivex.rxjava3.core.Flowable;
-import jakarta.annotation.Resource;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@Slf4j
-@Service
-public class ChatService implements IChatService {
+/**
+ * 对话用例编排。
+ *
+ * <p>该类不使用 Spring 注解，依赖由 app 层显式提供，便于离线测试替换为 fake 或 mock。
+ * ADK 的运行时调用将在 ARC-05 迁移至 infrastructure runtime port。</p>
+ */
+public class ChatApplicationService implements ChatUseCase {
 
-    @Resource
-    private AgentRuntimeRegistry runtimeRegistry;
+    private final AgentRuntimeRegistry runtimeRegistry;
+    private final IConversationArchiveRepository conversationArchiveRepository;
+    private final IMessageArchiveRepository messageArchiveRepository;
 
-    @Resource
-    private IConversationArchiveRepository conversationArchiveRepository;
-    @Resource
-    private IMessageArchiveRepository messageArchiveRepository;
+    public ChatApplicationService(
+            AgentRuntimeRegistry runtimeRegistry,
+            IConversationArchiveRepository conversationArchiveRepository,
+            IMessageArchiveRepository messageArchiveRepository) {
+        this.runtimeRegistry = runtimeRegistry;
+        this.conversationArchiveRepository = conversationArchiveRepository;
+        this.messageArchiveRepository = messageArchiveRepository;
+    }
 
-    /**
-     * 获取智能体列表
-     */
     @Override
     public List<AgentDescriptor> queryAgentList() {
         List<AgentDescriptor> agentList = new ArrayList<>();
@@ -53,46 +56,37 @@ public class ChatService implements IChatService {
         return agentList;
     }
 
-    /**
-     * 创建会话
-     */
     @Override
     public String createSession(String agentId, String userId) {
-
         AgentRuntime runtime = requireRuntime(agentId);
         String appName = runtime.appName();
         Runner runner = runtime.runner();
 
-        // 会话身份由 appName、userId、sessionId 共同确定，不能按 userId 缓存；
+        // 会话身份由 appName、userId、sessionId 共同确定，不能按 userId 缓存。
         // 否则同一用户切换 Agent 或创建第二个会话时会错误复用旧会话。
         Session session = runner.sessionService()
                 .createSession(appName, userId)
                 .blockingGet();
         String sessionId = session.id();
 
-        // 创建对应的会话归档记录；后续对话只能使用调用方显式传入的 sessionId。
+        // 创建对应归档记录；后续对话必须携带调用方明确传入的 sessionId。
         conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
-
         return sessionId;
     }
 
     @Override
     public List<String> handleMessage(String agentId, String userId, String sessionId, String message) {
-
         AgentRuntime runtime = requireRuntime(agentId);
         String appName = runtime.appName();
         Runner runner = runtime.runner();
 
         // 查找或创建会话记录，拿到 conversationId
         Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
-
         // 保存用户消息
         messageArchiveRepository.saveUserMessage(conversationId, appName, userId, sessionId, message);
 
         Content userMessage = Content.fromParts(Part.fromText(message));
-
         List<String> outputs = new ArrayList<>();
-
         runner.runAsync(userId, sessionId, userMessage)
                 .blockingForEach(event -> {
                     if (event.finalResponse()) {
@@ -100,18 +94,15 @@ public class ChatService implements IChatService {
                     }
                 });
 
-        String content = String.join("\n", outputs);
         // 保存AI回复
-        messageArchiveRepository.saveAssistantMessage(conversationId, appName, userId, sessionId, content);
-
+        messageArchiveRepository.saveAssistantMessage(
+                conversationId, appName, userId, sessionId, String.join("\n", outputs));
         return outputs;
     }
 
     @Override
     public Flowable<Event> handleMessageStream(String agentId, String userId, String sessionId, String message) {
-
         AgentRuntime runtime = requireRuntime(agentId);
-
         RunConfig runConfig = RunConfig.builder()
                 .streamingMode(RunConfig.StreamingMode.SSE)
                 .build();
@@ -124,14 +115,13 @@ public class ChatService implements IChatService {
         // 保存用户消息
         messageArchiveRepository.saveUserMessage(conversationId, appName, userId, sessionId, message);
 
-        Content userMessage = Content.fromParts(Part.fromText(message));
-
-        // 在订阅前创建 pending 消息，确保取消和异常不会被误存为 completed 回复。
+        // 订阅前创建 pending 消息，避免取消或异常产生的片段被标记为成功回复。
         Long assistantMessageId = messageArchiveRepository.createPendingAssistantMessage(
                 conversationId, appName, userId, sessionId);
 
-        // TODO 流式输出时 events 表中一个 token 存一条记录
-        Flowable<Event> events = runner.runAsync(userId, sessionId, userMessage, runConfig);
+        // TODO 待解决：流式输出时会存在 events 表中一个 token 存一条记录
+        Flowable<Event> events = runner.runAsync(
+                userId, sessionId, Content.fromParts(Part.fromText(message)), runConfig);
 
         // 只有拿到 ADK 明确标记的最终响应，正常完成时才允许写入完整 assistant 内容。
         StringBuilder assistantBuffer = new StringBuilder();
@@ -159,8 +149,6 @@ public class ChatService implements IChatService {
 
     @Override
     public List<String> handleMessage(ChatCommandEntity chatCommandEntity) {
-
-        // 此入口可被未来的非 HTTP 适配器调用，不能只依赖 Web 层的 Bean Validation。
         validateInlineDataSize(chatCommandEntity);
 
         AgentRuntime runtime = requireRuntime(chatCommandEntity.getAgentId());
@@ -169,9 +157,8 @@ public class ChatService implements IChatService {
         String sessionId = chatCommandEntity.getSessionId();
 
         // 查找或创建会话记录，拿到 conversationId
-        Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, chatCommandEntity.getUserId(), chatCommandEntity.getSessionId());
+        Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
 
-        // 构建参数
         List<Part> parts = new ArrayList<>();
 
         // 文本内容
@@ -183,7 +170,7 @@ public class ChatService implements IChatService {
             // 保存用户文本消息
             String userText = texts.stream()
                     .map(ChatCommandEntity.Content.Text::getMessage)
-                    .reduce("", (a, b) -> a + b);
+                    .reduce("", (left, right) -> left + right);
             messageArchiveRepository.saveUserMessage(conversationId, appName, userId, sessionId, userText);
         }
 
@@ -203,29 +190,21 @@ public class ChatService implements IChatService {
             }
         }
 
-        Content userMessage = Content.builder()
-                .parts(parts)
-                .build();
-
-        // 获取运行体
-        Runner runner = runtime.runner();
-
         List<String> outputs = new ArrayList<>();
-        runner.runAsync(chatCommandEntity.getUserId(), chatCommandEntity.getSessionId(), userMessage)
+        runtime.runner().runAsync(userId, sessionId, Content.builder().parts(parts).build())
                 .blockingForEach(event -> {
                     if (event.finalResponse()) {
                         String content = event.stringifyContent();
                         outputs.add(content);
-                        messageArchiveRepository.saveAssistantMessage(conversationId, appName, chatCommandEntity.getUserId(), chatCommandEntity.getSessionId(), content);
+                        messageArchiveRepository.saveAssistantMessage(
+                                conversationId, appName, userId, sessionId, content);
                     }
                 });
-
         return outputs;
     }
 
     /**
-     * 在构造 ADK Part 前检查内联字节总量。Bean Validation 适合 HTTP 绑定，但这里还要
-     * 覆盖直接调用领域服务的场景，避免大字节数组已经交给模型 SDK 后才失败。
+     * 在构造 ADK Part 前检查内联字节总量，覆盖绕过 HTTP Bean Validation 的直接调用。
      */
     private void validateInlineDataSize(ChatCommandEntity chatCommandEntity) {
         List<ChatCommandEntity.Content.InlineData> inlineDatas = chatCommandEntity.getInlineDatas();
@@ -251,18 +230,14 @@ public class ChatService implements IChatService {
 
     @Override
     public void deleteSession(String agentId, String userId, String sessionId) {
-
         AgentRuntime runtime = requireRuntime(agentId);
-        String appName = runtime.appName();
-        Runner runner = runtime.runner();
-
-        runner.sessionService()
-                .deleteSession(appName, userId, sessionId)
+        runtime.runner().sessionService()
+                .deleteSession(runtime.appName(), userId, sessionId)
                 .blockingAwait();
     }
 
     /**
-     * 所有请求统一从 Registry 查找已发布快照，缺失时返回稳定业务错误而不是 Spring Bean 查找异常。
+     * 所有请求统一从 Registry 查找已发布快照，缺失时返回稳定业务错误而不是 Bean 查找异常。
      */
     private AgentRuntime requireRuntime(String agentId) {
         return runtimeRegistry.find(agentId)

@@ -3,8 +3,8 @@ package com.hh.trigger.http;
 import com.hh.api.IAgentService;
 import com.hh.api.dto.*;
 import com.hh.api.response.Response;
+import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
-import com.hh.domain.agent.service.IChatService;
 import com.hh.types.support.SensitiveDataRedactor;
 import io.reactivex.rxjava3.disposables.Disposable;
 import jakarta.validation.Valid;
@@ -25,10 +25,10 @@ public class AgentServiceController implements IAgentService {
 
     private static final long STREAM_TIMEOUT_MILLIS = 5 * 60 * 1000L;
 
-    private final IChatService chatService;
+    private final ChatUseCase chatUseCase;
 
-    public AgentServiceController(IChatService chatService) {
-        this.chatService = chatService;
+    public AgentServiceController(ChatUseCase chatUseCase) {
+        this.chatUseCase = chatUseCase;
     }
 
     /**
@@ -62,7 +62,7 @@ public class AgentServiceController implements IAgentService {
 
         log.info("查询智能体配置列表");
 
-        List<AgentDescriptor> agentInfoList = chatService.queryAgentList();
+        List<AgentDescriptor> agentInfoList = chatUseCase.queryAgentList();
 
         // 转换数据对象
         List<AiAgentConfigResponseDTO> responseDTOS = agentInfoList.stream()
@@ -108,7 +108,7 @@ public class AgentServiceController implements IAgentService {
         log.info("创建会话 agentId:{} userId:{}",
                 requestDTO.agentId(), requestDTO.userId());
 
-        String sessionId = chatService.createSession(requestDTO.agentId(), requestDTO.userId());
+        String sessionId = chatUseCase.createSession(requestDTO.agentId(), requestDTO.userId());
 
         CreateSessionResponseDTO createSessionResponseDTO = new CreateSessionResponseDTO(sessionId);
 
@@ -150,7 +150,7 @@ public class AgentServiceController implements IAgentService {
         log.info("智能体对话 agentId:{} userId:{} sessionId:{}",
                 requestDTO.agentId(), requestDTO.userId(), requestDTO.sessionId());
 
-        List<String> messages = chatService.handleMessage(
+        List<String> messages = chatUseCase.handleMessage(
                 requestDTO.agentId(),
                 requestDTO.userId(),
                 requestDTO.sessionId(),
@@ -264,7 +264,7 @@ public class AgentServiceController implements IAgentService {
         });
 
         // 保留 Disposable，才能将 HTTP 生命周期的取消信号传递给 ADK/RxJava 上游。
-        Disposable subscription = chatService.handleMessageStream(
+        Disposable subscription = chatUseCase.handleMessageStream(
                 requestDTO.agentId(),
                 requestDTO.userId(),
                 requestDTO.sessionId(),

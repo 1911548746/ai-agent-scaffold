@@ -1,4 +1,4 @@
-package com.hh.domain.agent.service.chat;
+package com.hh.application.agent.service;
 
 import com.google.adk.runner.Runner;
 import com.google.adk.sessions.BaseSessionService;
@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
  * 会话创建只验证本地编排逻辑，所有 ADK 依赖均用 Mock 替代，避免测试连接模型或数据库。
  */
 @ExtendWith(MockitoExtension.class)
-class ChatServiceSessionTest {
+class ChatApplicationServiceSessionTest {
 
     @Mock
     private AgentRuntimeRegistry runtimeRegistry;
@@ -38,7 +38,7 @@ class ChatServiceSessionTest {
     private IMessageArchiveRepository messageArchiveRepository;
 
     @InjectMocks
-    private ChatService chatService;
+    private ChatApplicationService chatService;
 
     @Test
     void createSession_sameUserAndAgent_createsIndependentSessions() {

@@ -6,11 +6,10 @@ import com.hh.api.dto.ConversationDetailResponseDTO;
 import com.hh.api.dto.ConversationListResponseDTO;
 import com.hh.api.dto.MessageItemDTO;
 import com.hh.api.response.Response;
+import com.hh.application.agent.usecase.ChatUseCase;
+import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
-import com.hh.domain.agent.service.IChatService;
-import com.hh.domain.agent.service.IConversationArchiveService;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -22,11 +21,15 @@ import java.util.List;
 @Slf4j
 public class ConversationController implements IConversationService {
 
-    @Resource
-    private IConversationArchiveService conversationArchiveService;
+    private final ConversationArchiveUseCase conversationArchiveUseCase;
+    private final ChatUseCase chatUseCase;
 
-    @Resource
-    private IChatService chatService;
+    public ConversationController(
+            ConversationArchiveUseCase conversationArchiveUseCase,
+            ChatUseCase chatUseCase) {
+        this.conversationArchiveUseCase = conversationArchiveUseCase;
+        this.chatUseCase = chatUseCase;
+    }
 
     /**
      * 查询会话列表
@@ -56,7 +59,7 @@ public class ConversationController implements IConversationService {
     public Response<List<ConversationListResponseDTO>> listConversations(@RequestParam String userId) {
         log.info("查询会话列表 userId:{}", userId);
 
-        List<ConversationVO> conversations = conversationArchiveService.listConversations(userId);
+        List<ConversationVO> conversations = conversationArchiveUseCase.listConversations(userId);
 
         List<ConversationListResponseDTO> dtoList = conversations.stream()
                 .map(c -> new ConversationListResponseDTO(
@@ -114,8 +117,8 @@ public class ConversationController implements IConversationService {
     public Response<ConversationDetailResponseDTO> getConversationDetail(@PathVariable Long conversationId) {
         log.info("查询会话详情 conversationId:{}", conversationId);
 
-        ConversationVO conversation = conversationArchiveService.getConversation(conversationId);
-        List<MessageVO> messages = conversationArchiveService.listMessages(conversationId);
+        ConversationVO conversation = conversationArchiveUseCase.getConversation(conversationId);
+        List<MessageVO> messages = conversationArchiveUseCase.listMessages(conversationId);
 
         List<MessageItemDTO> messageDTOs = messages.stream()
                 .map(m -> new MessageItemDTO(
@@ -159,9 +162,9 @@ public class ConversationController implements IConversationService {
     public Response<Void> deleteConversation(@Valid @RequestBody ConversationDeleteRequestDTO requestDTO) {
         log.info("删除会话 conversationId:{}", requestDTO.conversationId());
 
-        chatService.deleteSession(requestDTO.agentId(), requestDTO.userId(), requestDTO.sessionId());
+        chatUseCase.deleteSession(requestDTO.agentId(), requestDTO.userId(), requestDTO.sessionId());
 
-        conversationArchiveService.deleteConversation(requestDTO.conversationId());
+        conversationArchiveUseCase.deleteConversation(requestDTO.conversationId());
 
         return Response.success(null);
     }

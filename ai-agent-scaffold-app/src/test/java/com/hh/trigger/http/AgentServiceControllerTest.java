@@ -6,7 +6,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.google.adk.events.Event;
 import com.hh.api.dto.ChatRequestDTO;
 import com.hh.api.dto.StreamErrorResponseDTO;
-import com.hh.domain.agent.service.IChatService;
+import com.hh.application.agent.usecase.ChatUseCase;
 import io.reactivex.rxjava3.core.Flowable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,10 +46,10 @@ class AgentServiceControllerTest {
     @Test
     void streamErrorSendsStablePayloadAndRedactsProviderDetails() {
         String sensitiveValue = "must-not-reach-client-or-log";
-        IChatService chatService = mock(IChatService.class);
-        when(chatService.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(Flowable.error(new IllegalStateException("provider rejected apiKey=" + sensitiveValue)));
-        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatService);
+        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
         controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
 
@@ -77,10 +77,10 @@ class AgentServiceControllerTest {
      */
     private void assertLifecycleCancelsUpstream(Consumer<TrackingSseEmitter> lifecycleEvent) {
         AtomicInteger cancellations = new AtomicInteger();
-        IChatService chatService = mock(IChatService.class);
-        when(chatService.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(Flowable.<Event>never().doOnCancel(cancellations::incrementAndGet));
-        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatService);
+        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
         controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
         lifecycleEvent.accept(controller.emitter);
@@ -97,8 +97,8 @@ class AgentServiceControllerTest {
         private String eventName;
         private Object eventData;
 
-        private CapturingAgentServiceController(IChatService chatService) {
-            super(chatService);
+        private CapturingAgentServiceController(ChatUseCase chatUseCase) {
+            super(chatUseCase);
         }
 
         @Override
