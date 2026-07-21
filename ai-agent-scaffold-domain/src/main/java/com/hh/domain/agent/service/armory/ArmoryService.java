@@ -2,7 +2,7 @@ package com.hh.domain.agent.service.armory;
 
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.IArmoryService;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
@@ -18,18 +18,17 @@ public class ArmoryService implements IArmoryService {
     @Resource
     private DefaultArmoryFactory defaultArmoryFactory;
 
-    // TODO 迁移至新装配链
     @Override
-    public List<AgentRuntime> acceptArmoryAgents(List<AiAgentConfigTableVO> tables) throws Exception {
+    public List<AgentRuntime> acceptArmoryAgents(List<AgentDefinition> definitions) throws Exception {
 
         List<AgentRuntime> runtimes = new ArrayList<>();
 
-        for (AiAgentConfigTableVO table : tables) {
+        for (AgentDefinition definition : definitions) {
             StrategyHandler<ArmoryCommandEntity, DefaultArmoryFactory.DynamicContext, AgentRuntime> strategyHandler = defaultArmoryFactory.armoryStrategyHandler();
             // 每个 Agent 使用独立上下文构建；返回值由 AgentCompiler 统一原子发布。
             AgentRuntime runtime = strategyHandler.apply(
                     ArmoryCommandEntity.builder()
-                            .aiAgentConfigTableVO(table)
+                            .agentDefinition(definition)
                             .build(),
                     new DefaultArmoryFactory.DynamicContext()
             );

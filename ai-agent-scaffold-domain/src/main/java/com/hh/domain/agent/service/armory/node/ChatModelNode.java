@@ -2,7 +2,7 @@ package com.hh.domain.agent.service.armory.node;
 
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.model.legacyconfig.ChatModel;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
@@ -25,8 +25,8 @@ public class ChatModelNode extends AbstractArmorySupport {
     protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         log.info("Ai Agent 装配操作 - ChatModelNode");
 
-        AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
-        ChatModel chatModelConfig = aiAgentConfigTableVO.getModule().getChatModel();
+        AgentDefinition definition = requestParameter.getAgentDefinition();
+        ChatModel chatModelConfig = definition.getChatModel();
 
         // TODO 超时重试优化
         /*

@@ -3,7 +3,7 @@ package com.hh.domain.agent.service.armory.node;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
 import com.hh.domain.agent.model.legacyconfig.AgentWorkflow;
-import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.model.enums.AgentWorkflowTypeEnum;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
@@ -39,8 +39,8 @@ public class AgentWorkflowNode extends AbstractArmorySupport {
     protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         log.info("Ai Agent 装配操作 - AgentWorkflowNode");
 
-        AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
-        List<AgentWorkflow> agentWorkflowsConfig = aiAgentConfigTableVO.getModule().getAgentWorkflows();
+        AgentDefinition definition = requestParameter.getAgentDefinition();
+        List<AgentWorkflow> agentWorkflowsConfig = definition.getAgentWorkflows();
 
         // 如果未配置 agentWorkflows, 或者当前步骤索引超出 agentWorkflows 范围, 则直接流转到 RunnerNode
         if (null == agentWorkflowsConfig || agentWorkflowsConfig.isEmpty() || dynamicContext.getCurrentStepIndex().get() >= agentWorkflowsConfig.size()) {

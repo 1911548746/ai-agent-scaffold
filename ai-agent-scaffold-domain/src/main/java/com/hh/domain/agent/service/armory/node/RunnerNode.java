@@ -13,7 +13,7 @@ import com.google.adk.summarizer.EventsCompactionConfig;
 import com.google.adk.summarizer.LlmEventSummarizer;
 import com.hh.domain.agent.adapter.repository.IMySqlSessionServiceRepository;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.legacyconfig.Module;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
@@ -37,19 +37,19 @@ public class RunnerNode  extends AbstractArmorySupport {
     protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         log.info("Ai Agent 装配操作 - RunnerNode");
 
-        AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
-        String appName = aiAgentConfigTableVO.getAppName();
+        AgentDefinition definition = requestParameter.getAgentDefinition();
+        String appName = definition.getAppName();
 
         // agentInfo 智能体信息 - 对外展示的(应用名称)
-        String agentId = aiAgentConfigTableVO.getAgentInfo().getAgentId();
-        String agentName = aiAgentConfigTableVO.getAgentInfo().getAgentName();
-        String agentDesc = aiAgentConfigTableVO.getAgentInfo().getAgentDesc();
+        String agentId = definition.getAgentInfo().getAgentId();
+        String agentName = definition.getAgentInfo().getAgentName();
+        String agentDesc = definition.getAgentInfo().getAgentDesc();
 
         // 创建App
-        App app = createApp(aiAgentConfigTableVO, dynamicContext);
+        App app = createApp(definition, dynamicContext);
 
         // 创建Runner
-        Runner runner = createRunner(aiAgentConfigTableVO, app);
+        Runner runner = createRunner(definition, app);
 
         // 策略树到此才产生完整运行时；在 AgentCompiler 发布前它仍是私有候选对象。
         AgentRuntime runtime = new AgentRuntime(appName, agentId, agentName, agentDesc, runner);
@@ -64,10 +64,10 @@ public class RunnerNode  extends AbstractArmorySupport {
     }
 
     // 创建App
-    private App createApp(AiAgentConfigTableVO aiAgentConfigTableVO, DefaultArmoryFactory.DynamicContext dynamicContext) {
+    private App createApp(AgentDefinition definition, DefaultArmoryFactory.DynamicContext dynamicContext) {
 
-        String appName = aiAgentConfigTableVO.getAppName();
-        Module.Runner runnerConfig = aiAgentConfigTableVO.getModule().getRunner();
+        String appName = definition.getAppName();
+        Module.Runner runnerConfig = definition.getRunner();
 
         // runnerAgentName 运行时用的智能体名称
         String runnerAgentName = runnerConfig.getAgentName();
@@ -128,9 +128,9 @@ public class RunnerNode  extends AbstractArmorySupport {
     }
 
     // 创建Runner
-    private Runner createRunner(AiAgentConfigTableVO aiAgentConfigTableVO, App app) {
+    private Runner createRunner(AgentDefinition definition, App app) {
 
-        Module.Runner runnerConfig = aiAgentConfigTableVO.getModule().getRunner();
+        Module.Runner runnerConfig = definition.getRunner();
 
         // 默认存储在内存
         BaseSessionService sessionService = new InMemorySessionService();

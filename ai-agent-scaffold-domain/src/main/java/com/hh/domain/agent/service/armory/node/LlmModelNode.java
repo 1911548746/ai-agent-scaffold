@@ -3,7 +3,7 @@ package com.hh.domain.agent.service.armory.node;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.models.langchain4j.LangChain4j;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
 import com.hh.domain.agent.service.armory.factory.DefaultArmoryFactory;
@@ -24,8 +24,8 @@ public class LlmModelNode extends AbstractArmorySupport {
     protected AgentRuntime doApply(ArmoryCommandEntity requestParameter, DefaultArmoryFactory.DynamicContext dynamicContext) throws Exception {
         log.info("Ai Agent 装配操作 - LlmModelNode");
 
-        AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
-        String modelName = aiAgentConfigTableVO.getModule().getChatModel().getModelName();
+        AgentDefinition definition = requestParameter.getAgentDefinition();
+        String modelName = definition.getChatModel().getModelName();
 
         OpenAiChatModel chatModel = dynamicContext.getChatModel();
         OpenAiStreamingChatModel streamingChatModel = dynamicContext.getStreamingChatModel();

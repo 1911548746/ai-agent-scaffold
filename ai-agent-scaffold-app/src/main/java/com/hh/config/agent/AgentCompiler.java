@@ -37,9 +37,7 @@ public class AgentCompiler {
 
         try {
             // Armory 为每个定义创建独立 DynamicContext，返回值在此之前均不可被请求访问。
-            List<AgentRuntime> runtimes = armoryService.acceptArmoryAgents(definitions.stream()
-                    .map(AgentDefinition::toLegacyConfig)
-                    .toList());
+            List<AgentRuntime> runtimes = armoryService.acceptArmoryAgents(definitions);
 
             // 唯一的发布点：candidate 完整后才替换当前 Registry 快照。
             runtimeRegistry.publish(runtimes);

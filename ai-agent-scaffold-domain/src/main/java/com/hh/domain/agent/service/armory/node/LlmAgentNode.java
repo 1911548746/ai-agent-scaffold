@@ -6,7 +6,7 @@ import com.google.adk.models.BaseLlm;
 import com.google.adk.skills.SkillSource;
 import com.google.adk.tools.skills.SkillToolset;
 import com.hh.domain.agent.model.entity.ArmoryCommandEntity;
-import com.hh.domain.agent.model.legacyconfig.AiAgentConfigTableVO;
+import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.runtime.AgentRuntime;
 import com.hh.domain.agent.model.legacyconfig.McpTool;
 import com.hh.domain.agent.service.armory.AbstractArmorySupport;
@@ -40,8 +40,8 @@ public class LlmAgentNode extends AbstractArmorySupport {
 
         BaseLlm llmModel = dynamicContext.getLlmModel();
 
-        AiAgentConfigTableVO aiAgentConfigTableVO = requestParameter.getAiAgentConfigTableVO();
-        List<com.hh.domain.agent.model.legacyconfig.LlmAgent> agentsConfig = aiAgentConfigTableVO.getModule().getAgents();
+        AgentDefinition definition = requestParameter.getAgentDefinition();
+        List<com.hh.domain.agent.model.legacyconfig.LlmAgent> agentsConfig = definition.getAgents();
 
         for (com.hh.domain.agent.model.legacyconfig.LlmAgent agentConfig : agentsConfig) {
 

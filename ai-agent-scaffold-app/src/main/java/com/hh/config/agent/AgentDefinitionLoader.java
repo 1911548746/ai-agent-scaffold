@@ -259,7 +259,7 @@ public class AgentDefinitionLoader {
                 .map(agents::get)
                 .map(AgentModuleConfig::getModelRef)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        // 旧 AiAgentConfigTableVO 只有一个 ChatModel，跨模型工作流需要 Provider SPI 后再支持。
+        // 当前装配模型只有一个 ChatModel，跨模型工作流需要 Provider SPI 后再支持。
         if (modelRefs.size() != 1) {
             throw error(applicationPath + ".root", "current ADK assembly requires all referenced agents to use one model-ref");
         }
