@@ -10,6 +10,23 @@
     <artifactId>ai-agent-scaffold-infrastructure</artifactId>
 
     <dependencies>
+        <!-- ADK/LangChain4j 装配实现属于基础设施，不能再通过 domain 传递。 -->
+        <dependency>
+            <groupId>com.google.adk</groupId>
+            <artifactId>google-adk</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.adk</groupId>
+            <artifactId>google-adk-langchain4j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>cn.bugstack.wrench</groupId>
+            <artifactId>xfg-wrench-starter-design-framework</artifactId>
+        </dependency>
 <!--        <dependency>-->
 <!--            <groupId>org.mybatis.spring.boot</groupId>-->
 <!--            <artifactId>mybatis-spring-boot-starter</artifactId>-->
@@ -29,6 +46,10 @@
         <dependency>
             <groupId>com.hh</groupId>
             <artifactId>ai-agent-scaffold-domain</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.hh</groupId>
+            <artifactId>ai-agent-scaffold-application</artifactId>
         </dependency>
     </dependencies>
 

@@ -4,7 +4,7 @@ import com.hh.config.agent.AgentCompiler;
 import com.hh.config.agent.AgentDefinitionLoader;
 import com.hh.config.agent.properties.AgentCatalogProperties;
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
+import com.hh.application.agent.port.AgentRuntimeCompiler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.beans.factory.SmartInitializingSingleton;
@@ -23,24 +23,24 @@ public class AiAgentAutoConfig implements SmartInitializingSingleton {
     private final AgentCatalogProperties properties;
     private final AgentDefinitionLoader definitionLoader;
     private final AgentCompiler agentCompiler;
-    private final AgentRuntimeRegistry runtimeRegistry;
+    private final AgentRuntimeCompiler runtimeCompiler;
 
     public AiAgentAutoConfig(
             AgentCatalogProperties properties,
             AgentDefinitionLoader definitionLoader,
             AgentCompiler agentCompiler,
-            AgentRuntimeRegistry runtimeRegistry) {
+            AgentRuntimeCompiler runtimeCompiler) {
         this.properties = properties;
         this.definitionLoader = definitionLoader;
         this.agentCompiler = agentCompiler;
-        this.runtimeRegistry = runtimeRegistry;
+        this.runtimeCompiler = runtimeCompiler;
     }
 
     @Override
     public void afterSingletonsInstantiated() {
         if (!properties.isEnabled()) {
             // enabled 关闭时发布空快照，避免同一 Spring Context 中残留旧运行时。
-            runtimeRegistry.publish(List.of());
+            runtimeCompiler.clear();
             log.info("Ai Agent 自动装配已关闭");
             return;
         }

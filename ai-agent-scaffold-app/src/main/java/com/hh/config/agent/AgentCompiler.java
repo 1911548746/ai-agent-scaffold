@@ -1,9 +1,7 @@
 package com.hh.config.agent;
 
+import com.hh.application.agent.port.AgentRuntimeCompiler;
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.domain.agent.model.runtime.AgentRuntime;
-import com.hh.domain.agent.model.runtime.AgentRuntimeRegistry;
-import com.hh.domain.agent.service.IArmoryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -21,12 +19,10 @@ import java.util.Map;
 @Slf4j
 public class AgentCompiler {
 
-    private final IArmoryService armoryService;
-    private final AgentRuntimeRegistry runtimeRegistry;
+    private final AgentRuntimeCompiler runtimeCompiler;
 
-    public AgentCompiler(IArmoryService armoryService, AgentRuntimeRegistry runtimeRegistry) {
-        this.armoryService = armoryService;
-        this.runtimeRegistry = runtimeRegistry;
+    public AgentCompiler(AgentRuntimeCompiler runtimeCompiler) {
+        this.runtimeCompiler = runtimeCompiler;
     }
 
     /**
@@ -36,11 +32,8 @@ public class AgentCompiler {
         validateRuntimeAgentIds(definitions);
 
         try {
-            // Armory 为每个定义创建独立 DynamicContext，返回值在此之前均不可被请求访问。
-            List<AgentRuntime> runtimes = armoryService.acceptArmoryAgents(definitions);
-
-            // 唯一的发布点：candidate 完整后才替换当前 Registry 快照。
-            runtimeRegistry.publish(runtimes);
+            // 基础设施先完成所有 ADK 资源构建，再由其 Registry 一次性替换快照。
+            runtimeCompiler.compileAndPublish(definitions);
         } catch (AgentConfigurationException exception) {
             throw exception;
         } catch (Exception exception) {
