@@ -1,8 +1,8 @@
 package com.hh.application.agent.service;
 
 import com.hh.application.agent.port.AgentRuntimePort;
-import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
-import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
+import com.hh.application.agent.port.ConversationArchivePort;
+import com.hh.application.agent.port.MessageArchivePort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,9 +23,9 @@ class ChatApplicationServiceSessionTest {
     @Mock
     private AgentRuntimePort agentRuntimePort;
     @Mock
-    private IConversationArchiveRepository conversationArchiveRepository;
+    private ConversationArchivePort conversationArchivePort;
     @Mock
-    private IMessageArchiveRepository messageArchiveRepository;
+    private MessageArchivePort messageArchivePort;
 
     @InjectMocks
     private ChatApplicationService chatService;
@@ -42,8 +42,8 @@ class ChatApplicationServiceSessionTest {
         // 每次显式创建的 ID 都要独立归档，不能由 application 以 userId 缓存复用。
         assertThat(secondSessionId).isNotEqualTo(firstSessionId);
         verify(agentRuntimePort, times(2)).createSession("agent-a", "user-1");
-        verify(conversationArchiveRepository).findOrCreateConversation("app-a", "user-1", firstSessionId);
-        verify(conversationArchiveRepository).findOrCreateConversation("app-a", "user-1", secondSessionId);
+        verify(conversationArchivePort).findOrCreateConversation("app-a", "user-1", firstSessionId);
+        verify(conversationArchivePort).findOrCreateConversation("app-a", "user-1", secondSessionId);
     }
 
     @Test
@@ -56,8 +56,8 @@ class ChatApplicationServiceSessionTest {
         assertThat(chatService.createSession("agent-a", "user-1")).isEqualTo("session-a");
         assertThat(chatService.createSession("agent-b", "user-1")).isEqualTo("session-b");
 
-        verify(conversationArchiveRepository).findOrCreateConversation("app-a", "user-1", "session-a");
-        verify(conversationArchiveRepository).findOrCreateConversation("app-b", "user-1", "session-b");
+        verify(conversationArchivePort).findOrCreateConversation("app-a", "user-1", "session-a");
+        verify(conversationArchivePort).findOrCreateConversation("app-b", "user-1", "session-b");
     }
 
     @Test

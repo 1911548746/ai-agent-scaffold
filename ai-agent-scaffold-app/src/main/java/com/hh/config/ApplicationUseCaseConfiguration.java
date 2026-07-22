@@ -3,10 +3,10 @@ package com.hh.config;
 import com.hh.application.agent.service.ChatApplicationService;
 import com.hh.application.agent.service.ConversationArchiveApplicationService;
 import com.hh.application.agent.port.AgentRuntimePort;
+import com.hh.application.agent.port.ConversationArchivePort;
+import com.hh.application.agent.port.MessageArchivePort;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
-import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
-import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -22,14 +22,14 @@ public class ApplicationUseCaseConfiguration {
     @Bean
     public ChatUseCase chatUseCase(
             AgentRuntimePort agentRuntimePort,
-            IConversationArchiveRepository conversationArchiveRepository,
-            IMessageArchiveRepository messageArchiveRepository) {
-        return new ChatApplicationService(agentRuntimePort, conversationArchiveRepository, messageArchiveRepository);
+            ConversationArchivePort conversationArchivePort,
+            MessageArchivePort messageArchivePort) {
+        return new ChatApplicationService(agentRuntimePort, conversationArchivePort, messageArchivePort);
     }
 
     @Bean
     public ConversationArchiveUseCase conversationArchiveUseCase(
-            IConversationArchiveRepository conversationArchiveRepository) {
-        return new ConversationArchiveApplicationService(conversationArchiveRepository);
+            ConversationArchivePort conversationArchivePort) {
+        return new ConversationArchiveApplicationService(conversationArchivePort);
     }
 }

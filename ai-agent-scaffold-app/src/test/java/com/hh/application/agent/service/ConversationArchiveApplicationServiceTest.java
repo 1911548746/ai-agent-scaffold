@@ -1,6 +1,6 @@
 package com.hh.application.agent.service;
 
-import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
+import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
 import com.hh.types.enums.ResponseCode;
@@ -47,7 +47,7 @@ class ConversationArchiveApplicationServiceTest {
     /**
      * 用于验证用例和端口协作的最小内存实现，不模拟 MyBatis 或数据库行为。
      */
-    private static final class InMemoryConversationArchiveRepository implements IConversationArchiveRepository {
+    private static final class InMemoryConversationArchiveRepository implements ConversationArchivePort {
 
         private final AtomicLong sequence = new AtomicLong();
         private final List<ConversationVO> conversations = new ArrayList<>();

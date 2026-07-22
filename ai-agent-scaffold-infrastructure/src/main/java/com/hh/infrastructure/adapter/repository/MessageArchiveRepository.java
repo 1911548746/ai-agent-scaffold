@@ -3,7 +3,7 @@ package com.hh.infrastructure.adapter.repository;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
-import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
+import com.hh.application.agent.port.MessageArchivePort;
 import com.hh.domain.agent.model.enums.MessageStatus;
 import com.hh.infrastructure.dao.ConversationDao;
 import com.hh.infrastructure.dao.MessageDao;
@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 @Service
-public class MessageArchiveRepository implements IMessageArchiveRepository {
+public class MessageArchiveRepository implements MessageArchivePort {
 
     @Resource
     private ConversationDao conversationMapper;

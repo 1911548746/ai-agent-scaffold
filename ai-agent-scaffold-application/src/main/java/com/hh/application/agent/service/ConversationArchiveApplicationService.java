@@ -1,7 +1,7 @@
 package com.hh.application.agent.service;
 
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
-import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
+import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
 import com.hh.types.enums.ResponseCode;
@@ -14,20 +14,20 @@ import java.util.List;
  */
 public class ConversationArchiveApplicationService implements ConversationArchiveUseCase {
 
-    private final IConversationArchiveRepository conversationArchiveRepository;
+    private final ConversationArchivePort conversationArchivePort;
 
-    public ConversationArchiveApplicationService(IConversationArchiveRepository conversationArchiveRepository) {
-        this.conversationArchiveRepository = conversationArchiveRepository;
+    public ConversationArchiveApplicationService(ConversationArchivePort conversationArchivePort) {
+        this.conversationArchivePort = conversationArchivePort;
     }
 
     @Override
     public List<ConversationVO> listConversations(String userId) {
-        return conversationArchiveRepository.listConversations(userId);
+        return conversationArchivePort.listConversations(userId);
     }
 
     @Override
     public ConversationVO getConversation(Long conversationId) {
-        ConversationVO conversation = conversationArchiveRepository.getConversation(conversationId);
+        ConversationVO conversation = conversationArchivePort.getConversation(conversationId);
         if (conversation == null) {
             // 保持现有接口错误码语义，避免迁移 application 层时改变客户端可见行为。
             throw new AppException(ResponseCode.AGENT_NOT_FOUND);
@@ -37,11 +37,11 @@ public class ConversationArchiveApplicationService implements ConversationArchiv
 
     @Override
     public List<MessageVO> listMessages(Long conversationId) {
-        return conversationArchiveRepository.listMessages(conversationId);
+        return conversationArchivePort.listMessages(conversationId);
     }
 
     @Override
     public void deleteConversation(Long conversationId) {
-        conversationArchiveRepository.deleteConversation(conversationId);
+        conversationArchivePort.deleteConversation(conversationId);
     }
 }

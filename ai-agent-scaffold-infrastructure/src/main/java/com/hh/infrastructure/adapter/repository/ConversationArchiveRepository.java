@@ -3,7 +3,7 @@ package com.hh.infrastructure.adapter.repository;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
-import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
+import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
 import com.hh.infrastructure.dao.ConversationDao;
@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-public class ConversationArchiveRepository implements IConversationArchiveRepository {
+public class ConversationArchiveRepository implements ConversationArchivePort {
 
     @Resource
     private ConversationDao conversationMapper;

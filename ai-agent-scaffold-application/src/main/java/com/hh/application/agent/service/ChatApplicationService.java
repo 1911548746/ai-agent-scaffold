@@ -2,9 +2,9 @@ package com.hh.application.agent.service;
 
 import com.google.adk.events.Event;
 import com.hh.application.agent.port.AgentRuntimePort;
+import com.hh.application.agent.port.ConversationArchivePort;
+import com.hh.application.agent.port.MessageArchivePort;
 import com.hh.application.agent.usecase.ChatUseCase;
-import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
-import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.enums.MessageStatus;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
@@ -25,16 +25,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ChatApplicationService implements ChatUseCase {
 
     private final AgentRuntimePort agentRuntimePort;
-    private final IConversationArchiveRepository conversationArchiveRepository;
-    private final IMessageArchiveRepository messageArchiveRepository;
+    private final ConversationArchivePort conversationArchivePort;
+    private final MessageArchivePort messageArchivePort;
 
     public ChatApplicationService(
             AgentRuntimePort agentRuntimePort,
-            IConversationArchiveRepository conversationArchiveRepository,
-            IMessageArchiveRepository messageArchiveRepository) {
+            ConversationArchivePort conversationArchivePort,
+            MessageArchivePort messageArchivePort) {
         this.agentRuntimePort = agentRuntimePort;
-        this.conversationArchiveRepository = conversationArchiveRepository;
-        this.messageArchiveRepository = messageArchiveRepository;
+        this.conversationArchivePort = conversationArchivePort;
+        this.messageArchivePort = messageArchivePort;
     }
 
     @Override
@@ -51,7 +51,7 @@ public class ChatApplicationService implements ChatUseCase {
         String sessionId = agentRuntimePort.createSession(agentId, userId);
 
         // 创建对应归档记录；后续对话必须携带调用方明确传入的 sessionId。
-        conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
+        conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
         return sessionId;
     }
 
@@ -60,14 +60,14 @@ public class ChatApplicationService implements ChatUseCase {
         String appName = agentRuntimePort.appName(agentId);
 
         // 查找或创建会话记录，拿到 conversationId
-        Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
+        Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
         // 保存用户消息
-        messageArchiveRepository.saveUserMessage(conversationId, appName, userId, sessionId, message);
+        messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, message);
 
         List<String> outputs = agentRuntimePort.run(agentId, userId, sessionId, message);
 
         // 保存AI回复
-        messageArchiveRepository.saveAssistantMessage(
+        messageArchivePort.saveAssistantMessage(
                 conversationId, appName, userId, sessionId, String.join("\n", outputs));
         return outputs;
     }
@@ -77,12 +77,12 @@ public class ChatApplicationService implements ChatUseCase {
         String appName = agentRuntimePort.appName(agentId);
 
         // 查找或创建会话记录，拿到 conversationId
-        Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
+        Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
         // 保存用户消息
-        messageArchiveRepository.saveUserMessage(conversationId, appName, userId, sessionId, message);
+        messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, message);
 
         // 订阅前创建 pending 消息，避免取消或异常产生的片段被标记为成功回复。
-        Long assistantMessageId = messageArchiveRepository.createPendingAssistantMessage(
+        Long assistantMessageId = messageArchivePort.createPendingAssistantMessage(
                 conversationId, appName, userId, sessionId);
 
         // TODO 待解决：流式输出时会存在 events 表中一个 token 存一条记录
@@ -98,16 +98,16 @@ public class ChatApplicationService implements ChatUseCase {
             }
         }).doOnComplete(() -> {
             if (finalResponseReceived.get()) {
-                messageArchiveRepository.completeAssistantMessage(
+                messageArchivePort.completeAssistantMessage(
                         conversationId, assistantMessageId, assistantBuffer.toString());
             } else {
                 // 上游没有返回最终响应却结束时，不能把空或部分内容当作成功消息。
-                messageArchiveRepository.updateAssistantMessageStatus(
+                messageArchivePort.updateAssistantMessageStatus(
                         conversationId, assistantMessageId, MessageStatus.FAILED);
             }
-        }).doOnError(error -> messageArchiveRepository.updateAssistantMessageStatus(
+        }).doOnError(error -> messageArchivePort.updateAssistantMessageStatus(
                 conversationId, assistantMessageId, MessageStatus.FAILED
-        )).doOnCancel(() -> messageArchiveRepository.updateAssistantMessageStatus(
+        )).doOnCancel(() -> messageArchivePort.updateAssistantMessageStatus(
                 conversationId, assistantMessageId, MessageStatus.CANCELLED
         ));
     }
@@ -121,7 +121,7 @@ public class ChatApplicationService implements ChatUseCase {
         String sessionId = chatCommandEntity.getSessionId();
 
         // 查找或创建会话记录，拿到 conversationId
-        Long conversationId = conversationArchiveRepository.findOrCreateConversation(appName, userId, sessionId);
+        Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
 
         // 文本内容
         List<ChatCommandEntity.Content.Text> texts = chatCommandEntity.getTexts();
@@ -130,11 +130,11 @@ public class ChatApplicationService implements ChatUseCase {
             String userText = texts.stream()
                     .map(ChatCommandEntity.Content.Text::getMessage)
                     .reduce("", (left, right) -> left + right);
-            messageArchiveRepository.saveUserMessage(conversationId, appName, userId, sessionId, userText);
+            messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, userText);
         }
 
         List<String> outputs = agentRuntimePort.run(chatCommandEntity.getAgentId(), chatCommandEntity);
-        outputs.forEach(content -> messageArchiveRepository.saveAssistantMessage(
+        outputs.forEach(content -> messageArchivePort.saveAssistantMessage(
                 conversationId, appName, userId, sessionId, content));
         return outputs;
     }

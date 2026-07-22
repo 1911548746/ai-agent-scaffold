@@ -2,8 +2,8 @@ package com.hh.application.agent.service;
 
 import com.google.adk.events.Event;
 import com.hh.application.agent.port.AgentRuntimePort;
-import com.hh.domain.agent.adapter.repository.IConversationArchiveRepository;
-import com.hh.domain.agent.adapter.repository.IMessageArchiveRepository;
+import com.hh.application.agent.port.ConversationArchivePort;
+import com.hh.application.agent.port.MessageArchivePort;
 import com.hh.domain.agent.model.enums.MessageStatus;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -30,9 +30,9 @@ class ChatApplicationServiceStreamingTest {
     @Mock
     private AgentRuntimePort agentRuntimePort;
     @Mock
-    private IConversationArchiveRepository conversationArchiveRepository;
+    private ConversationArchivePort conversationArchivePort;
     @Mock
-    private IMessageArchiveRepository messageArchiveRepository;
+    private MessageArchivePort messageArchivePort;
 
     @InjectMocks
     private ChatApplicationService chatService;
@@ -44,8 +44,8 @@ class ChatApplicationServiceStreamingTest {
         chatService.handleMessageStream("agent-a", "user-1", "session-1", "hello")
                 .blockingSubscribe();
 
-        verify(messageArchiveRepository).completeAssistantMessage(1L, 2L, "完整回复");
-        verify(messageArchiveRepository, never()).updateAssistantMessageStatus(
+        verify(messageArchivePort).completeAssistantMessage(1L, 2L, "完整回复");
+        verify(messageArchivePort, never()).updateAssistantMessageStatus(
                 eq(1L), eq(2L), any(MessageStatus.class));
     }
 
@@ -59,8 +59,8 @@ class ChatApplicationServiceStreamingTest {
                 .blockingSubscribe())
                 .isInstanceOf(IllegalStateException.class);
 
-        verify(messageArchiveRepository).updateAssistantMessageStatus(1L, 2L, MessageStatus.FAILED);
-        verify(messageArchiveRepository, never()).completeAssistantMessage(any(), any(), any());
+        verify(messageArchivePort).updateAssistantMessageStatus(1L, 2L, MessageStatus.FAILED);
+        verify(messageArchivePort, never()).completeAssistantMessage(any(), any(), any());
     }
 
     @Test
@@ -71,16 +71,16 @@ class ChatApplicationServiceStreamingTest {
                 .subscribe();
         subscription.dispose();
 
-        verify(messageArchiveRepository).updateAssistantMessageStatus(1L, 2L, MessageStatus.CANCELLED);
-        verify(messageArchiveRepository, never()).completeAssistantMessage(any(), any(), any());
+        verify(messageArchivePort).updateAssistantMessageStatus(1L, 2L, MessageStatus.CANCELLED);
+        verify(messageArchivePort, never()).completeAssistantMessage(any(), any(), any());
     }
 
     private void prepareStream(Flowable<Event> events) {
         when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
         when(agentRuntimePort.runStream("agent-a", "user-1", "session-1", "hello")).thenReturn(events);
-        when(conversationArchiveRepository.findOrCreateConversation("app-a", "user-1", "session-1"))
+        when(conversationArchivePort.findOrCreateConversation("app-a", "user-1", "session-1"))
                 .thenReturn(1L);
-        when(messageArchiveRepository.createPendingAssistantMessage(1L, "app-a", "user-1", "session-1"))
+        when(messageArchivePort.createPendingAssistantMessage(1L, "app-a", "user-1", "session-1"))
                 .thenReturn(2L);
     }
 
