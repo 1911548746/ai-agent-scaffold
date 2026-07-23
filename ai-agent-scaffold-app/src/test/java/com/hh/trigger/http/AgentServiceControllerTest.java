@@ -3,11 +3,11 @@ package com.hh.trigger.http;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.google.adk.events.Event;
 import com.hh.api.dto.ChatRequestDTO;
 import com.hh.api.dto.StreamErrorResponseDTO;
+import com.hh.application.agent.model.ChatEvent;
+import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.usecase.ChatUseCase;
-import io.reactivex.rxjava3.core.Flowable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +48,10 @@ class AgentServiceControllerTest {
         String sensitiveValue = "must-not-reach-client-or-log";
         ChatUseCase chatUseCase = mock(ChatUseCase.class);
         when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
-                .thenReturn(Flowable.error(new IllegalStateException("provider rejected apiKey=" + sensitiveValue)));
+                .thenReturn(observer -> {
+                    observer.onError(new IllegalStateException("provider rejected apiKey=" + sensitiveValue));
+                    return () -> { };
+                });
         CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
         controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
@@ -72,6 +75,24 @@ class AgentServiceControllerTest {
         assertLifecycleCancelsUpstream(emitter -> emitter.triggerError(new IOException("client disconnected")));
     }
 
+    @Test
+    void streamEventIsMappedToExistingMessageSseContract() {
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(observer -> {
+                    observer.onEvent(new ChatEvent("回复片段"));
+                    observer.onComplete();
+                    return () -> { };
+                });
+        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
+
+        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+
+        assertThat(controller.eventName).isEqualTo("message");
+        assertThat(controller.eventData).isEqualTo("回复片段");
+        assertThat(controller.emitter.completed).isTrue();
+    }
+
     /**
      * 三种 Servlet 生命周期信号都必须 dispose 同一个订阅，避免上游模型在客户端离开后继续生成。
      */
@@ -79,13 +100,17 @@ class AgentServiceControllerTest {
         AtomicInteger cancellations = new AtomicInteger();
         ChatUseCase chatUseCase = mock(ChatUseCase.class);
         when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
-                .thenReturn(Flowable.<Event>never().doOnCancel(cancellations::incrementAndGet));
+                .thenReturn(neverEndingStream(cancellations));
         CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
         controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
         lifecycleEvent.accept(controller.emitter);
 
         assertThat(cancellations).hasValue(1);
+    }
+
+    private ChatStream neverEndingStream(AtomicInteger cancellations) {
+        return observer -> cancellations::incrementAndGet;
     }
 
     /**

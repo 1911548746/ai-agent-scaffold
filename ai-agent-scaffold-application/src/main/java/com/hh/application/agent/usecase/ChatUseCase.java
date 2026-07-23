@@ -1,17 +1,17 @@
 package com.hh.application.agent.usecase;
 
-import com.google.adk.events.Event;
+import com.hh.application.agent.model.ChatResult;
+import com.hh.application.agent.model.ChatStream;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
-import io.reactivex.rxjava3.core.Flowable;
 
 import java.util.List;
 
 /**
  * Agent 对话的入站用例。
  *
- * <p>当前流式签名暂保留 ADK 与 RxJava 类型以维持现有 HTTP 行为；ARC-03 会替换为项目自有
- * ChatStream 和 ChatEvent。</p>
+ * <p>入站适配器通过项目内 {@link ChatResult} 与 {@link ChatStream} 调用本用例；SSE、RxJava
+ * 和 ADK 等技术细节只允许停留在各自的适配层。</p>
  */
 public interface ChatUseCase {
 
@@ -19,11 +19,11 @@ public interface ChatUseCase {
 
     String createSession(String agentId, String userId);
 
-    List<String> handleMessage(String agentId, String userId, String sessionId, String message);
+    ChatResult handleMessage(String agentId, String userId, String sessionId, String message);
 
-    Flowable<Event> handleMessageStream(String agentId, String userId, String sessionId, String message);
+    ChatStream handleMessageStream(String agentId, String userId, String sessionId, String message);
 
-    List<String> handleMessage(ChatCommandEntity chatCommandEntity);
+    ChatResult handleMessage(ChatCommandEntity chatCommandEntity);
 
     void deleteSession(String agentId, String userId, String sessionId);
 }

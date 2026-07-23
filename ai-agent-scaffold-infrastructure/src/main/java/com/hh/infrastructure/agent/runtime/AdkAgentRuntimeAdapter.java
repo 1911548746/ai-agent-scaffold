@@ -5,6 +5,9 @@ import com.google.adk.agents.RunConfig;
 import com.google.adk.sessions.Session;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
+import com.hh.application.agent.model.ChatEvent;
+import com.hh.application.agent.model.ChatResult;
+import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
@@ -53,25 +56,36 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
     }
 
     @Override
-    public List<String> run(String agentId, String userId, String sessionId, String message) {
+    public ChatResult run(String agentId, String userId, String sessionId, String message) {
         List<String> outputs = new ArrayList<>();
         requireRuntime(agentId).runner()
                 .runAsync(userId, sessionId, Content.fromParts(Part.fromText(message)))
                 .blockingForEach(event -> appendFinalResponse(outputs, event));
-        return outputs;
+        return new ChatResult(outputs);
     }
 
     @Override
-    public Flowable<Event> runStream(String agentId, String userId, String sessionId, String message) {
+    public ChatStream runStream(String agentId, String userId, String sessionId, String message) {
         RunConfig runConfig = RunConfig.builder()
                 .streamingMode(RunConfig.StreamingMode.SSE)
                 .build();
-        return requireRuntime(agentId).runner().runAsync(
+        Flowable<Event> events = requireRuntime(agentId).runner().runAsync(
                 userId, sessionId, Content.fromParts(Part.fromText(message)), runConfig);
+        return observer -> events.subscribe(
+                // TODO 后期可以加入 思考过程、工具调用 等 trace，在前端展示
+                event -> {
+                    // FunctionCall、FunctionResponse 等 SDK 内部事件不是对话协议的一部分。
+                    if (event.finalResponse()) {
+                        observer.onEvent(new ChatEvent(event.stringifyContent()));
+                    }
+                },
+                observer::onError,
+                observer::onComplete
+        )::dispose;
     }
 
     @Override
-    public List<String> run(String agentId, ChatCommandEntity command) {
+    public ChatResult run(String agentId, ChatCommandEntity command) {
         List<Part> parts = new ArrayList<>();
         if (command.getTexts() != null) {
             command.getTexts().forEach(text -> parts.add(Part.fromText(text.getMessage())));
@@ -87,7 +101,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         requireRuntime(agentId).runner()
                 .runAsync(command.getUserId(), command.getSessionId(), Content.builder().parts(parts).build())
                 .blockingForEach(event -> appendFinalResponse(outputs, event));
-        return outputs;
+        return new ChatResult(outputs);
     }
 
     @Override

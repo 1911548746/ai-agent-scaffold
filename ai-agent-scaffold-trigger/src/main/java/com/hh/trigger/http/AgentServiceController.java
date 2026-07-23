@@ -3,10 +3,13 @@ package com.hh.trigger.http;
 import com.hh.api.IAgentService;
 import com.hh.api.dto.*;
 import com.hh.api.response.Response;
+import com.hh.application.agent.model.ChatEvent;
+import com.hh.application.agent.model.ChatResult;
+import com.hh.application.agent.model.ChatStreamObserver;
+import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.types.support.SensitiveDataRedactor;
-import io.reactivex.rxjava3.disposables.Disposable;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -150,14 +153,14 @@ public class AgentServiceController implements IAgentService {
         log.info("智能体对话 agentId:{} userId:{} sessionId:{}",
                 requestDTO.agentId(), requestDTO.userId(), requestDTO.sessionId());
 
-        List<String> messages = chatUseCase.handleMessage(
+        ChatResult result = chatUseCase.handleMessage(
                 requestDTO.agentId(),
                 requestDTO.userId(),
                 requestDTO.sessionId(),
                 requestDTO.message()
         );
 
-        ChatResponseDTO chatResponseDTO = new ChatResponseDTO(String.join("\n", messages));
+        ChatResponseDTO chatResponseDTO = new ChatResponseDTO(result.joinContents());
 
         return Response.success(chatResponseDTO);
     }
@@ -234,7 +237,6 @@ public class AgentServiceController implements IAgentService {
      * </ul>
      */
     @PostMapping(value = "/chat-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @Override
     public SseEmitter chatStream(@Valid @RequestBody ChatRequestDTO requestDTO) {
 
         log.info("智能体对话流式输出 agentId:{} userId:{} sessionId:{}",
@@ -242,7 +244,7 @@ public class AgentServiceController implements IAgentService {
 
         SseEmitter emitter = createEmitter();
 
-        AtomicReference<Disposable> subscriptionReference = new AtomicReference<>();
+        AtomicReference<ChatSubscription> subscriptionReference = new AtomicReference<>();
         AtomicBoolean cancellationRequested = new AtomicBoolean(false);
         Runnable cancelUpstream = () -> cancelSubscription(subscriptionReference, cancellationRequested);
 
@@ -263,61 +265,64 @@ public class AgentServiceController implements IAgentService {
             log.info("SSE 连接已关闭");
         });
 
-        // 保留 Disposable，才能将 HTTP 生命周期的取消信号传递给 ADK/RxJava 上游。
-        Disposable subscription = chatUseCase.handleMessageStream(
-                requestDTO.agentId(),
-                requestDTO.userId(),
-                requestDTO.sessionId(),
-                requestDTO.message()
-        ).subscribe(
-                event -> {
+        try {
+            // trigger 只把项目 ChatEvent 编码为 SSE，不接触 ADK Event 或 RxJava Disposable。
+            ChatSubscription subscription = chatUseCase.handleMessageStream(
+                    requestDTO.agentId(),
+                    requestDTO.userId(),
+                    requestDTO.sessionId(),
+                    requestDTO.message()
+            ).subscribe(new ChatStreamObserver() {
+                @Override
+                public void onEvent(ChatEvent event) {
                     try {
-
-                        // 忽略 FunctionCall 和 FunctionResponse
-                        if (!event.finalResponse())
-                            return;
-
-                        // 发送标准 SSE 格式数据
-                        emitter.send(SseEmitter.event()
-                                .name("message")
-                                .data(event.stringifyContent()));
+                        sendEvent(emitter, "message", event.content());
                     } catch (IOException e) {
-                        // 写入失败通常表示客户端已断开；记录脱敏日志后关闭流，不能再将异常交给 MVC 输出。
+                        // 写入失败通常表示客户端已断开；关闭项目流会由 infrastructure 继续取消 SDK 上游。
                         log.warn("智能体对话流式输出失败，异常类型: {}，异常详情: {}",
                                 e.getClass().getName(), SensitiveDataRedactor.formatStackTrace(e));
                         cancelUpstream.run();
                         emitter.complete();
                     }
-                },
-                error -> {
+                }
+
+                @Override
+                public void onError(Throwable error) {
                     cancelUpstream.run();
                     completeWithSafeError(emitter, error);
-                },
-                () -> {
+                }
+
+                @Override
+                public void onComplete() {
                     log.info("流式消息处理完成");
                     emitter.complete();
                 }
-        );
+            });
 
-        subscriptionReference.set(subscription);
-        // 如果回调发生在 subscribe 返回之前，这里补偿执行 dispose，避免建立竞态泄漏上游任务。
-        if (cancellationRequested.get()) {
-            cancelSubscription(subscriptionReference, cancellationRequested);
+            subscriptionReference.set(subscription);
+            // 如果回调发生在 subscribe 返回之前，这里补偿执行取消，避免建立竞态泄漏上游任务。
+            if (cancellationRequested.get()) {
+                cancelSubscription(subscriptionReference, cancellationRequested);
+            }
+        } catch (RuntimeException error) {
+            // 适配器在建立订阅时直接失败，也必须使用已经开始 SSE 响应的安全错误协议。
+            cancelUpstream.run();
+            completeWithSafeError(emitter, error);
         }
 
         return emitter;
     }
 
     /**
-     * 请求取消可能早于 Disposable 创建；先记录状态，再在订阅可用时执行 dispose。
+     * 请求取消可能早于 ChatSubscription 创建；先记录状态，再在订阅可用时执行取消。
      */
     private void cancelSubscription(
-            AtomicReference<Disposable> subscriptionReference,
+            AtomicReference<ChatSubscription> subscriptionReference,
             AtomicBoolean cancellationRequested) {
         cancellationRequested.set(true);
-        Disposable subscription = subscriptionReference.get();
-        if (subscription != null && !subscription.isDisposed()) {
-            subscription.dispose();
+        ChatSubscription subscription = subscriptionReference.get();
+        if (subscription != null) {
+            subscription.cancel();
         }
     }
 

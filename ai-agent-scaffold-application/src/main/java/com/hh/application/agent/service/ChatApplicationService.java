@@ -1,6 +1,10 @@
 package com.hh.application.agent.service;
 
-import com.google.adk.events.Event;
+import com.hh.application.agent.model.ChatEvent;
+import com.hh.application.agent.model.ChatResult;
+import com.hh.application.agent.model.ChatStream;
+import com.hh.application.agent.model.ChatStreamObserver;
+import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.application.agent.port.MessageArchivePort;
@@ -11,10 +15,10 @@ import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import com.hh.types.validation.RequestPayloadLimits;
-import io.reactivex.rxjava3.core.Flowable;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 对话用例编排。
@@ -56,7 +60,7 @@ public class ChatApplicationService implements ChatUseCase {
     }
 
     @Override
-    public List<String> handleMessage(String agentId, String userId, String sessionId, String message) {
+    public ChatResult handleMessage(String agentId, String userId, String sessionId, String message) {
         String appName = agentRuntimePort.appName(agentId);
 
         // 查找或创建会话记录，拿到 conversationId
@@ -64,16 +68,16 @@ public class ChatApplicationService implements ChatUseCase {
         // 保存用户消息
         messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, message);
 
-        List<String> outputs = agentRuntimePort.run(agentId, userId, sessionId, message);
+        ChatResult result = agentRuntimePort.run(agentId, userId, sessionId, message);
 
         // 保存AI回复
         messageArchivePort.saveAssistantMessage(
-                conversationId, appName, userId, sessionId, String.join("\n", outputs));
-        return outputs;
+                conversationId, appName, userId, sessionId, result.joinContents());
+        return result;
     }
 
     @Override
-    public Flowable<Event> handleMessageStream(String agentId, String userId, String sessionId, String message) {
+    public ChatStream handleMessageStream(String agentId, String userId, String sessionId, String message) {
         String appName = agentRuntimePort.appName(agentId);
 
         // 查找或创建会话记录，拿到 conversationId
@@ -85,35 +89,73 @@ public class ChatApplicationService implements ChatUseCase {
         Long assistantMessageId = messageArchivePort.createPendingAssistantMessage(
                 conversationId, appName, userId, sessionId);
 
-        // TODO 待解决：流式输出时会存在 events 表中一个 token 存一条记录
-        Flowable<Event> events = agentRuntimePort.runStream(agentId, userId, sessionId, message);
+        ChatStream runtimeStream = agentRuntimePort.runStream(agentId, userId, sessionId, message);
 
-        // 只有拿到 ADK 明确标记的最终响应，正常完成时才允许写入完整 assistant 内容。
-        StringBuilder assistantBuffer = new StringBuilder();
-        AtomicBoolean finalResponseReceived = new AtomicBoolean(false);
-        return events.doOnNext(event -> {
-            if (event.finalResponse()) {
-                assistantBuffer.append(event.stringifyContent());
-                finalResponseReceived.set(true);
+        // 一个 pending 消息只能对应一次上游调用；重复订阅会造成重复归档或互相覆盖状态。
+        AtomicBoolean subscribed = new AtomicBoolean(false);
+        return observer -> {
+            if (!subscribed.compareAndSet(false, true)) {
+                throw new IllegalStateException("A chat stream can only be subscribed once");
             }
-        }).doOnComplete(() -> {
-            if (finalResponseReceived.get()) {
-                messageArchivePort.completeAssistantMessage(
-                        conversationId, assistantMessageId, assistantBuffer.toString());
-            } else {
-                // 上游没有返回最终响应却结束时，不能把空或部分内容当作成功消息。
-                messageArchivePort.updateAssistantMessageStatus(
-                        conversationId, assistantMessageId, MessageStatus.FAILED);
-            }
-        }).doOnError(error -> messageArchivePort.updateAssistantMessageStatus(
-                conversationId, assistantMessageId, MessageStatus.FAILED
-        )).doOnCancel(() -> messageArchivePort.updateAssistantMessageStatus(
-                conversationId, assistantMessageId, MessageStatus.CANCELLED
-        ));
+
+            StringBuilder assistantBuffer = new StringBuilder();
+            AtomicBoolean responseReceived = new AtomicBoolean(false);
+            AtomicBoolean terminal = new AtomicBoolean(false);
+            AtomicReference<ChatSubscription> upstreamReference = new AtomicReference<>();
+
+            ChatSubscription upstream = runtimeStream.subscribe(new ChatStreamObserver() {
+                @Override
+                public void onEvent(ChatEvent event) {
+                    // infrastructure 已过滤 SDK 内部事件；application 只归档可展示的助手文本。
+                    if (!terminal.get()) {
+                        assistantBuffer.append(event.content());
+                        responseReceived.set(true);
+                        observer.onEvent(event);
+                    }
+                }
+
+                @Override
+                public void onError(Throwable error) {
+                    if (terminal.compareAndSet(false, true)) {
+                        messageArchivePort.updateAssistantMessageStatus(
+                                conversationId, assistantMessageId, MessageStatus.FAILED);
+                        observer.onError(error);
+                    }
+                }
+
+                @Override
+                public void onComplete() {
+                    if (terminal.compareAndSet(false, true)) {
+                        if (responseReceived.get()) {
+                            messageArchivePort.completeAssistantMessage(
+                                    conversationId, assistantMessageId, assistantBuffer.toString());
+                        } else {
+                            // 没有任何可展示响应时不能把空消息标记为完成。
+                            messageArchivePort.updateAssistantMessageStatus(
+                                    conversationId, assistantMessageId, MessageStatus.FAILED);
+                        }
+                        observer.onComplete();
+                    }
+                }
+            });
+            upstreamReference.set(upstream);
+
+            return () -> {
+                if (terminal.compareAndSet(false, true)) {
+                    // 先落库再取消上游，确保取消回调与上游终止信号竞争时状态仍可预期。
+                    messageArchivePort.updateAssistantMessageStatus(
+                            conversationId, assistantMessageId, MessageStatus.CANCELLED);
+                    ChatSubscription currentUpstream = upstreamReference.get();
+                    if (currentUpstream != null) {
+                        currentUpstream.cancel();
+                    }
+                }
+            };
+        };
     }
 
     @Override
-    public List<String> handleMessage(ChatCommandEntity chatCommandEntity) {
+    public ChatResult handleMessage(ChatCommandEntity chatCommandEntity) {
         validateInlineDataSize(chatCommandEntity);
 
         String appName = agentRuntimePort.appName(chatCommandEntity.getAgentId());
@@ -133,10 +175,10 @@ public class ChatApplicationService implements ChatUseCase {
             messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, userText);
         }
 
-        List<String> outputs = agentRuntimePort.run(chatCommandEntity.getAgentId(), chatCommandEntity);
-        outputs.forEach(content -> messageArchivePort.saveAssistantMessage(
+        ChatResult result = agentRuntimePort.run(chatCommandEntity.getAgentId(), chatCommandEntity);
+        result.contents().forEach(content -> messageArchivePort.saveAssistantMessage(
                 conversationId, appName, userId, sessionId, content));
-        return outputs;
+        return result;
     }
 
     /**

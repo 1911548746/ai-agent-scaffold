@@ -13,12 +13,7 @@
     <artifactId>ai-agent-scaffold-application</artifactId>
 
     <dependencies>
-        <!-- ARC-03 前为兼容既有 SSE 契约暂保留 Event/Flowable；Runner 已不再暴露给 application。 -->
-        <dependency>
-            <groupId>com.google.adk</groupId>
-            <artifactId>google-adk</artifactId>
-        </dependency>
-        <!-- application 用例编排领域定义、运行时注册表和出站端口。 -->
+        <!-- application 用例编排领域定义、运行时端口和归档端口，不依赖 ADK 或 RxJava。 -->
         <dependency>
             <groupId>com.hh</groupId>
             <artifactId>ai-agent-scaffold-domain</artifactId>
