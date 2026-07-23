@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hh.infrastructure.dao.SessionEventDao">
+
+    <!-- 同一 eventId 重复投递时仅保留第一条事件快照。 -->
+    <insert id="upsertByEventIdentity" parameterType="com.hh.infrastructure.dao.po.SessionEventPO">
+        INSERT INTO session_events
+            (app_name, user_id, session_id, event_id, invocation_id, author, final_response,
+             partial, compaction_event, event_ts, content_text, event_json, created_at)
+        VALUES
+            (#{appName}, #{userId}, #{sessionId}, #{eventId}, #{invocationId}, #{author}, #{finalResponse},
+             #{partial}, #{compactionEvent}, #{eventTs}, #{contentText}, #{eventJson}, #{createdAt})
+        ON DUPLICATE KEY UPDATE id = id
+    </insert>
+
+</mapper>

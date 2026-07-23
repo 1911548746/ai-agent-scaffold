@@ -10,7 +10,6 @@ import com.hh.infrastructure.dao.ConversationDao;
 import com.hh.infrastructure.dao.MessageDao;
 import com.hh.infrastructure.dao.po.ConversationPO;
 import com.hh.infrastructure.dao.po.MessagePO;
-import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -20,22 +19,18 @@ import java.util.stream.Collectors;
 @Service
 public class ConversationArchiveRepository implements ConversationArchivePort {
 
-    @Resource
-    private ConversationDao conversationMapper;
+    private final ConversationDao conversationMapper;
+    private final MessageDao messageMapper;
 
-    @Resource
-    private MessageDao messageMapper;
+    public ConversationArchiveRepository(
+            ConversationDao conversationMapper,
+            MessageDao messageMapper) {
+        this.conversationMapper = conversationMapper;
+        this.messageMapper = messageMapper;
+    }
 
     @Override
     public Long findOrCreateConversation(String appName, String userId, String sessionId) {
-        ConversationPO existing = conversationMapper.selectOne(new LambdaQueryWrapper<ConversationPO>()
-                .eq(ConversationPO::getAppName, appName)
-                .eq(ConversationPO::getUserId, userId)
-                .eq(ConversationPO::getSessionId, sessionId));
-        if (existing != null) {
-            return existing.getId();
-        }
-
         LocalDateTime now = LocalDateTime.now();
         ConversationPO conversation = ConversationPO.builder()
                 .appName(appName)
@@ -45,8 +40,17 @@ public class ConversationArchiveRepository implements ConversationArchivePort {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        conversationMapper.insert(conversation);
-        return conversation.getId();
+
+        // 由 uk_conversations_session 裁决并发创建；不能在插入前做“是否存在”的预查询。
+        conversationMapper.upsertByIdentity(conversation);
+
+        // 无论本次插入还是并发请求已插入，均读取数据库最终记录获取稳定主键。
+        ConversationPO persisted = findConversation(appName, userId, sessionId);
+        if (persisted == null) {
+            // Upsert 成功后都应能读到记录；读不到说明底层写入未满足持久化契约。
+            throw new IllegalStateException("conversation idempotent write completed without persisted record");
+        }
+        return persisted.getId();
     }
 
 
@@ -89,6 +93,13 @@ public class ConversationArchiveRepository implements ConversationArchivePort {
                 .createdAt(po.getCreatedAt())
                 .updatedAt(po.getUpdatedAt())
                 .build();
+    }
+
+    private ConversationPO findConversation(String appName, String userId, String sessionId) {
+        return conversationMapper.selectOne(new LambdaQueryWrapper<ConversationPO>()
+                .eq(ConversationPO::getAppName, appName)
+                .eq(ConversationPO::getUserId, userId)
+                .eq(ConversationPO::getSessionId, sessionId));
     }
 
     private MessageVO toMessageVO(MessagePO po) {

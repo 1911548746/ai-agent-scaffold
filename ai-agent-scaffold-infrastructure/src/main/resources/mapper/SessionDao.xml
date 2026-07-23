@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hh.infrastructure.dao.SessionDao">
+
+    <!-- 不用 INSERT IGNORE，避免将非唯一键错误错误地降级为成功。 -->
+    <insert id="upsertByIdentity" parameterType="com.hh.infrastructure.dao.po.SessionPO">
+        INSERT INTO sessions
+            (app_name, user_id, session_id, state_json, created_at, updated_at)
+        VALUES
+            (#{appName}, #{userId}, #{sessionId}, #{stateJson}, #{createdAt}, #{updatedAt})
+        ON DUPLICATE KEY UPDATE id = id
+    </insert>
+
+</mapper>

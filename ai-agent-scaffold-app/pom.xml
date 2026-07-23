@@ -21,6 +21,17 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- DATA-01 的并发持久化验收使用一次性 MySQL 容器，不连接开发或生产数据库。 -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- 为 catalog 的 @Validated 绑定和 AgentDefinitionLoader 提供 Hibernate Validator 实现。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

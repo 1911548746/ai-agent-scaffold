@@ -7,7 +7,6 @@ import com.hh.infrastructure.dao.SessionEventDao;
 import com.hh.infrastructure.dao.po.SessionEventPO;
 import com.hh.infrastructure.dao.po.SessionPO;
 import com.hh.infrastructure.support.ADKJsonParseSupport;
-import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import com.google.adk.events.Event;
@@ -41,10 +40,13 @@ import java.util.concurrent.ConcurrentMap;
 @Service
 public class MySqlSessionStore implements AdkSessionStore {
 
-    @Resource
-    private SessionDao sessionDao;
-    @Resource
-    private SessionEventDao sessionEventDao;
+    private final SessionDao sessionDao;
+    private final SessionEventDao sessionEventDao;
+
+    public MySqlSessionStore(SessionDao sessionDao, SessionEventDao sessionEventDao) {
+        this.sessionDao = sessionDao;
+        this.sessionEventDao = sessionEventDao;
+    }
 
     @Override
     public Single<Session> createSession(
@@ -57,11 +59,6 @@ public class MySqlSessionStore implements AdkSessionStore {
                     ? UUID.randomUUID().toString()
                     : sessionId;
 
-            SessionPO existing = findSession(appName, userId, resolvedSessionId);
-            if (existing != null) {
-                return buildSession(existing, Optional.empty());
-            }
-
             LocalDateTime now = LocalDateTime.now();
             SessionPO sessionPO = SessionPO.builder()
                     .appName(appName)
@@ -71,9 +68,14 @@ public class MySqlSessionStore implements AdkSessionStore {
                     .createdAt(now)
                     .updatedAt(now)
                     .build();
-            sessionDao.insert(sessionPO);
 
-            return buildSession(sessionPO, Optional.empty());
+            // 联合唯一键负责并发仲裁；重复 createSession 取得已存在的 session，而不是抛重复键异常。
+            sessionDao.upsertByIdentity(sessionPO);
+            SessionPO persisted = findSession(appName, userId, resolvedSessionId);
+            if (persisted == null) {
+                throw new IllegalStateException("session idempotent write completed without persisted record");
+            }
+            return buildSession(persisted, Optional.empty());
         });
     }
 
@@ -231,15 +233,6 @@ public class MySqlSessionStore implements AdkSessionStore {
             event.setTimestamp(Instant.now().getEpochSecond());
         }
 
-        SessionEventPO existing = sessionEventDao.selectOne(new LambdaQueryWrapper<SessionEventPO>()
-                .eq(SessionEventPO::getAppName, appName)
-                .eq(SessionEventPO::getUserId, userId)
-                .eq(SessionEventPO::getSessionId, sessionId)
-                .eq(SessionEventPO::getEventId, event.id()));
-        if (existing != null) {
-            return;
-        }
-
         SessionEventPO row = SessionEventPO.builder()
                 .appName(appName)
                 .userId(userId)
@@ -255,7 +248,8 @@ public class MySqlSessionStore implements AdkSessionStore {
                 .eventJson(event.toJson())
                 .createdAt(LocalDateTime.now())
                 .build();
-        sessionEventDao.insert(row);
+        // ADK 可能因重试或回调竞争重复投递同一 eventId；保留第一条不可变快照即可。
+        sessionEventDao.upsertByEventIdentity(row);
     }
 
     private String eventContentText(Event event) {
