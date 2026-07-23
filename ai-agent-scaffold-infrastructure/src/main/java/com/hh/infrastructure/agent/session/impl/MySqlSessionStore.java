@@ -8,6 +8,8 @@ import com.hh.infrastructure.dao.po.SessionEventPO;
 import com.hh.infrastructure.dao.po.SessionPO;
 import com.hh.infrastructure.support.ADKJsonParseSupport;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.google.adk.events.Event;
 import com.google.adk.sessions.GetSessionConfig;
@@ -42,10 +44,16 @@ public class MySqlSessionStore implements AdkSessionStore {
 
     private final SessionDao sessionDao;
     private final SessionEventDao sessionEventDao;
+    private final TransactionTemplate transactionTemplate;
 
-    public MySqlSessionStore(SessionDao sessionDao, SessionEventDao sessionEventDao) {
+    public MySqlSessionStore(
+            SessionDao sessionDao,
+            SessionEventDao sessionEventDao,
+            PlatformTransactionManager transactionManager) {
         this.sessionDao = sessionDao;
         this.sessionEventDao = sessionEventDao;
+        // RxJava 的 Callable 在订阅时才执行；事务必须在 Callable 内显式开启，不能依赖方法注解。
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Override
@@ -145,19 +153,22 @@ public class MySqlSessionStore implements AdkSessionStore {
             String userId = session.userId();
             String sessionId = session.id();
 
-            // ADK 的 stateDelta 是运行时状态变更；这里必须先合并 state，再保存 session。
-            Map<String, Object> stateDelta = event.actions() == null ? Map.of() : event.actions().stateDelta();
-            if (stateDelta != null && !stateDelta.isEmpty()) {
-                stateDelta.forEach((key, value) -> applyStateDelta(session, key, value));
-            }
+            ensureEventIdentity(event);
 
-            persistEvent(appName, userId, sessionId, event);
-
-            SessionPO entity = findSession(appName, userId, sessionId);
-            if (entity != null) {
-                entity.setStateJson(ADKJsonParseSupport.toJson(sessionStateSnapshot(session.state())));
-                entity.setUpdatedAt(LocalDateTime.now());
-                sessionDao.updateById(entity);
+            // TODO(DATA-02): 当前 google-adk-langchain4j 的 OpenAI-compatible 流适配器没有为 token
+            // chunk 设置 partial=true，导致该判断会把它们当作终态 Event 持久化，逐 token 写入尚未解决。
+            // 后续需在 Provider/ADK 适配层补齐 partial + 终态 Event，或按 invocationId 缓冲并在流完成时 flush。
+            // 方案评估见 note/流式Event持久化问题与方案评估.md；在此之前不能把该分支视为可靠的降写策略。
+            boolean stateChanged = applyStateDeltas(session, event);
+            boolean persistEvent = !event.partial().orElse(false);
+            if (persistEvent || stateChanged) {
+                transactionTemplate.executeWithoutResult(status -> {
+                    if (persistEvent) {
+                        persistEvent(appName, userId, sessionId, event);
+                    }
+                    // 终态事件更新 lastUpdateTime；partial 事件仅在确有持久状态变化时更新快照。
+                    updateSessionSnapshot(session);
+                });
             }
 
             try {
@@ -223,16 +234,7 @@ public class MySqlSessionStore implements AdkSessionStore {
     }
 
     private void persistEvent(String appName, String userId, String sessionId, Event event) {
-
-        // 某些 ADK 后置事件（例如 compaction 相关事件）可能没有预先填充 eventId。
-        // 数据库把 event_id 设计为非空唯一键，因此这里统一补齐，避免插入阶段失败。
-        if (event.id() == null || event.id().isBlank()) {
-            event.setId(Event.generateEventId());
-        }
-        if (event.timestamp() <= 0) {
-            event.setTimestamp(Instant.now().getEpochSecond());
-        }
-
+        // 该方法在事务内调用，先写 Event，再写 Session 快照，任一步骤失败都会共同回滚。
         SessionEventPO row = SessionEventPO.builder()
                 .appName(appName)
                 .userId(userId)
@@ -252,6 +254,28 @@ public class MySqlSessionStore implements AdkSessionStore {
         sessionEventDao.upsertByEventIdentity(row);
     }
 
+    private void ensureEventIdentity(Event event) {
+        // 某些 ADK 后置事件（例如 compaction 相关事件）可能没有预先填充 eventId。
+        // 即使 partial event 不落库，也保持内存事件具有稳定 identity，便于后续链路关联。
+        if (event.id() == null || event.id().isBlank()) {
+            event.setId(Event.generateEventId());
+        }
+        if (event.timestamp() <= 0) {
+            event.setTimestamp(Instant.now().getEpochSecond());
+        }
+    }
+
+    private void updateSessionSnapshot(Session session) {
+        SessionPO snapshot = SessionPO.builder()
+                .appName(session.appName())
+                .userId(session.userId())
+                .sessionId(session.id())
+                .stateJson(ADKJsonParseSupport.toJson(sessionStateSnapshot(session.state())))
+                .updatedAt(LocalDateTime.now())
+                .build();
+        sessionDao.updateStateByIdentity(snapshot);
+    }
+
     private String eventContentText(Event event) {
         String text = event.stringifyContent();
         if (text != null && !text.isBlank()) {
@@ -266,19 +290,33 @@ public class MySqlSessionStore implements AdkSessionStore {
                 .orElse(text);
     }
 
-    private void applyStateDelta(
+    private boolean applyStateDeltas(Session session, Event event) {
+        Map<String, Object> stateDelta = event.actions() == null ? Map.of() : event.actions().stateDelta();
+        if (stateDelta == null || stateDelta.isEmpty()) {
+            return false;
+        }
+
+        boolean changed = false;
+        for (Map.Entry<String, Object> entry : stateDelta.entrySet()) {
+            changed |= applyStateDelta(session, entry.getKey(), entry.getValue());
+        }
+        return changed;
+    }
+
+    private boolean applyStateDelta(
             Session session,
             String key,
             Object value) {
         // 所有非 temp: 的 stateDelta 都只作为当前 Session 的 state 保存到 sessions.state_json。
         if (key.startsWith(State.TEMP_PREFIX)) {
-            return;
+            return false;
         }
         if (value == State.REMOVED) {
             session.state().remove(key);
         } else {
             session.state().put(key, value);
         }
+        return true;
     }
 
     private SessionPO findSession(String appName, String userId, String sessionId) {

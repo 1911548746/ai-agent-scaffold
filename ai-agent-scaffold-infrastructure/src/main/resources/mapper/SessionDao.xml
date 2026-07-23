@@ -13,4 +13,14 @@
         ON DUPLICATE KEY UPDATE id = id
     </insert>
 
+    <!-- 与 Event upsert 同一事务执行，保证事件和可恢复的 state 快照一致。 -->
+    <update id="updateStateByIdentity" parameterType="com.hh.infrastructure.dao.po.SessionPO">
+        UPDATE sessions
+        SET state_json = #{stateJson},
+            updated_at = #{updatedAt}
+        WHERE app_name = #{appName}
+          AND user_id = #{userId}
+          AND session_id = #{sessionId}
+    </update>
+
 </mapper>
