@@ -60,7 +60,9 @@ class IdempotentPersistenceAdapterTest {
     void duplicateConversationCreationReadsTheDatabaseWinnerInsteadOfUsingFindThenInsert() {
         ConversationDao conversationDao = mock(ConversationDao.class);
         MessageDao messageDao = mock(MessageDao.class);
-        ConversationArchiveRepository repository = new ConversationArchiveRepository(conversationDao, messageDao);
+        // DATA-04 将统一删除能力合并进该 Repository；幂等创建测试不触发 Session DAO。
+        ConversationArchiveRepository repository = new ConversationArchiveRepository(
+                conversationDao, messageDao, mock(SessionDao.class), mock(SessionEventDao.class));
         ConversationPO persisted = ConversationPO.builder().id(42L).build();
         when(conversationDao.selectOne(org.mockito.ArgumentMatchers.<Wrapper<ConversationPO>>any()))
                 .thenReturn(persisted);

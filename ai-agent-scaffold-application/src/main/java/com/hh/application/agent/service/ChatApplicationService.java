@@ -206,8 +206,4 @@ public class ChatApplicationService implements ChatUseCase {
         }
     }
 
-    @Override
-    public void deleteSession(String agentId, String userId, String sessionId) {
-        agentRuntimePort.deleteSession(agentId, userId, sessionId);
-    }
 }

@@ -6,7 +6,7 @@ import com.hh.api.dto.ConversationDetailResponseDTO;
 import com.hh.api.dto.ConversationListResponseDTO;
 import com.hh.api.dto.MessageItemDTO;
 import com.hh.api.response.Response;
-import com.hh.application.agent.usecase.ChatUseCase;
+import com.hh.application.agent.model.ConversationDeletionCommand;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
@@ -22,13 +22,8 @@ import java.util.List;
 public class ConversationController implements IConversationService {
 
     private final ConversationArchiveUseCase conversationArchiveUseCase;
-    private final ChatUseCase chatUseCase;
-
-    public ConversationController(
-            ConversationArchiveUseCase conversationArchiveUseCase,
-            ChatUseCase chatUseCase) {
+    public ConversationController(ConversationArchiveUseCase conversationArchiveUseCase) {
         this.conversationArchiveUseCase = conversationArchiveUseCase;
-        this.chatUseCase = chatUseCase;
     }
 
     /**
@@ -162,9 +157,12 @@ public class ConversationController implements IConversationService {
     public Response<Void> deleteConversation(@Valid @RequestBody ConversationDeleteRequestDTO requestDTO) {
         log.info("删除会话 conversationId:{}", requestDTO.conversationId());
 
-        chatUseCase.deleteSession(requestDTO.agentId(), requestDTO.userId(), requestDTO.sessionId());
-
-        conversationArchiveUseCase.deleteConversation(requestDTO.conversationId());
+        // 删除编排必须只有一个用例入口，避免 Controller 先后调用两个独立删除造成部分成功。
+        conversationArchiveUseCase.deleteConversation(new ConversationDeletionCommand(
+                requestDTO.conversationId(),
+                requestDTO.agentId(),
+                requestDTO.userId(),
+                requestDTO.sessionId()));
 
         return Response.success(null);
     }

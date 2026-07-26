@@ -104,14 +104,6 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         return new ChatResult(outputs);
     }
 
-    @Override
-    public void deleteSession(String agentId, String userId, String sessionId) {
-        AdkAgentRuntime runtime = requireRuntime(agentId);
-        runtime.runner().sessionService()
-                .deleteSession(runtime.appName(), userId, sessionId)
-                .blockingAwait();
-    }
-
     private void appendFinalResponse(List<String> outputs, Event event) {
         if (event.finalResponse()) {
             outputs.add(event.stringifyContent());

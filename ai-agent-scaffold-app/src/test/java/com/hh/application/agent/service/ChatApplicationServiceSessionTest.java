@@ -60,12 +60,4 @@ class ChatApplicationServiceSessionTest {
         verify(conversationArchivePort).findOrCreateConversation("app-b", "user-1", "session-b");
     }
 
-    @Test
-    void deleteSession_delegatesExplicitIdentityWithoutLocalCache() {
-        chatService.deleteSession("agent-a", "user-1", "session-1");
-        chatService.deleteSession("agent-a", "user-1", "session-1");
-
-        // 删除幂等性由实际 SessionStore 保障；application 不维护可过期的会话映射。
-        verify(agentRuntimePort, times(2)).deleteSession("agent-a", "user-1", "session-1");
-    }
 }

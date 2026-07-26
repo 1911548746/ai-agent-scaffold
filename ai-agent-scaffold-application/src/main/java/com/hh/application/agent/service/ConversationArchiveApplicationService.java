@@ -1,5 +1,7 @@
 package com.hh.application.agent.service;
 
+import com.hh.application.agent.model.ConversationDeletionCommand;
+import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.domain.agent.model.valobj.ConversationVO;
@@ -15,9 +17,13 @@ import java.util.List;
 public class ConversationArchiveApplicationService implements ConversationArchiveUseCase {
 
     private final ConversationArchivePort conversationArchivePort;
+    private final AgentRuntimePort agentRuntimePort;
 
-    public ConversationArchiveApplicationService(ConversationArchivePort conversationArchivePort) {
+    public ConversationArchiveApplicationService(
+            ConversationArchivePort conversationArchivePort,
+            AgentRuntimePort agentRuntimePort) {
         this.conversationArchivePort = conversationArchivePort;
+        this.agentRuntimePort = agentRuntimePort;
     }
 
     @Override
@@ -41,7 +47,19 @@ public class ConversationArchiveApplicationService implements ConversationArchiv
     }
 
     @Override
-    public void deleteConversation(Long conversationId) {
-        conversationArchivePort.deleteConversation(conversationId);
+    public void deleteConversation(ConversationDeletionCommand command) {
+        String appName = agentRuntimePort.appName(command.agentId());
+        ConversationVO conversation = conversationArchivePort.getConversation(command.conversationId());
+
+        if (conversation != null && (!appName.equals(conversation.getAppName())
+                || !command.userId().equals(conversation.getUserId())
+                || !command.sessionId().equals(conversation.getSessionId()))) {
+            // Conversation 主键与 Session 身份不一致时拒绝删除，避免错误请求跨会话清理运行时 Event。
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
+        }
+
+        // 记录不存在时仍执行一次按身份删除：重复请求返回成功，并可顺便清理历史遗留的孤儿数据。
+        conversationArchivePort.deleteConversationSession(
+                command.conversationId(), appName, command.userId(), command.sessionId());
     }
 }

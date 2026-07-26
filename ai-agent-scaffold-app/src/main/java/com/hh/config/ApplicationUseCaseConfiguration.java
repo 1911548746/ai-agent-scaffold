@@ -29,7 +29,8 @@ public class ApplicationUseCaseConfiguration {
 
     @Bean
     public ConversationArchiveUseCase conversationArchiveUseCase(
-            ConversationArchivePort conversationArchivePort) {
-        return new ConversationArchiveApplicationService(conversationArchivePort);
+            ConversationArchivePort conversationArchivePort,
+            AgentRuntimePort agentRuntimePort) {
+        return new ConversationArchiveApplicationService(conversationArchivePort, agentRuntimePort);
     }
 }

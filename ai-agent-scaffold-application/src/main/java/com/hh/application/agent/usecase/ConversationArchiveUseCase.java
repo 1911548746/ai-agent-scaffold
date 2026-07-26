@@ -1,5 +1,6 @@
 package com.hh.application.agent.usecase;
 
+import com.hh.application.agent.model.ConversationDeletionCommand;
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
 
@@ -16,5 +17,8 @@ public interface ConversationArchiveUseCase {
 
     List<MessageVO> listMessages(Long conversationId);
 
-    void deleteConversation(Long conversationId);
+    /**
+     * 删除归档 Conversation 与同一身份下的 ADK Session/Event。
+     */
+    void deleteConversation(ConversationDeletionCommand command);
 }

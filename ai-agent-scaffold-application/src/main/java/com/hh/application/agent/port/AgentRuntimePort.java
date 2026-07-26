@@ -27,5 +27,4 @@ public interface AgentRuntimePort {
 
     ChatResult run(String agentId, ChatCommandEntity command);
 
-    void deleteSession(String agentId, String userId, String sessionId);
 }

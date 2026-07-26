@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -108,9 +109,8 @@ class ApiValidationTest {
 
     @Test
     void deleteRejectsMissingConversationIdBeforeTouchingServices() throws Exception {
-        ChatUseCase chatUseCase = mock(ChatUseCase.class);
         ConversationArchiveUseCase archiveUseCase = mock(ConversationArchiveUseCase.class);
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(conversationController(chatUseCase, archiveUseCase))
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(conversationController(archiveUseCase))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -120,7 +120,25 @@ class ApiValidationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("0002"));
 
-        verifyNoInteractions(chatUseCase, archiveUseCase);
+        verifyNoInteractions(archiveUseCase);
+    }
+
+    @Test
+    void deleteDelegatesOnlyToUnifiedArchiveUseCase() throws Exception {
+        ConversationArchiveUseCase archiveUseCase = mock(ConversationArchiveUseCase.class);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(conversationController(archiveUseCase))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mvc.perform(delete("/api/v1/conversations/delete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"agentId\":\"hello\",\"userId\":\"user-1\","
+                                + "\"sessionId\":\"session-1\",\"conversationId\":10}"))
+                // Response<Void> 在 standalone MockMvc 下沿用历史空响应表现；这里仅固定删除编排入口。
+                .andExpect(status().isOk());
+
+        verify(archiveUseCase).deleteConversation(new com.hh.application.agent.model.ConversationDeletionCommand(
+                10L, "hello", "user-1", "session-1"));
     }
 
     @Test
@@ -157,8 +175,7 @@ class ApiValidationTest {
                 .build();
     }
 
-    private ConversationController conversationController(
-            ChatUseCase chatUseCase, ConversationArchiveUseCase archiveUseCase) {
-        return new ConversationController(archiveUseCase, chatUseCase);
+    private ConversationController conversationController(ConversationArchiveUseCase archiveUseCase) {
+        return new ConversationController(archiveUseCase);
     }
 }

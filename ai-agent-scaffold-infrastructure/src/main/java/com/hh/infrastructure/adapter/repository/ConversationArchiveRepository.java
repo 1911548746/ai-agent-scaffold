@@ -8,9 +8,14 @@ import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
 import com.hh.infrastructure.dao.ConversationDao;
 import com.hh.infrastructure.dao.MessageDao;
+import com.hh.infrastructure.dao.SessionDao;
+import com.hh.infrastructure.dao.SessionEventDao;
 import com.hh.infrastructure.dao.po.ConversationPO;
 import com.hh.infrastructure.dao.po.MessagePO;
+import com.hh.infrastructure.dao.po.SessionEventPO;
+import com.hh.infrastructure.dao.po.SessionPO;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,12 +26,18 @@ public class ConversationArchiveRepository implements ConversationArchivePort {
 
     private final ConversationDao conversationMapper;
     private final MessageDao messageMapper;
+    private final SessionDao sessionDao;
+    private final SessionEventDao sessionEventDao;
 
     public ConversationArchiveRepository(
             ConversationDao conversationMapper,
-            MessageDao messageMapper) {
+            MessageDao messageMapper,
+            SessionDao sessionDao,
+            SessionEventDao sessionEventDao) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
+        this.sessionDao = sessionDao;
+        this.sessionEventDao = sessionEventDao;
     }
 
     @Override
@@ -76,11 +87,36 @@ public class ConversationArchiveRepository implements ConversationArchivePort {
         return pos.stream().map(this::toMessageVO).collect(Collectors.toList());
     }
 
+    /**
+     * 归档与 ADK Session 分别落在四张表中，必须通过同一 Spring 事务共同提交或回滚。
+     *
+     * <p>该方法由 application 用例从 Spring 容器外部调用，会经过事务代理；不要在本类中通过
+     * {@code this} 调用它，否则 {@link Transactional} 不会生效。</p>
+     */
     @Override
-    public void deleteConversation(Long conversationId) {
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteConversationSession(Long conversationId, String appName, String userId, String sessionId) {
+        // 消息先于 Conversation 删除；即使历史库没有外键，也为后续补充外键保留正确顺序。
         messageMapper.delete(new LambdaQueryWrapper<MessagePO>()
-                .eq(MessagePO::getConversationId, conversationId));
-        conversationMapper.deleteById(conversationId);
+                .eq(MessagePO::getConversationId, conversationId)
+                .eq(MessagePO::getAppName, appName)
+                .eq(MessagePO::getUserId, userId)
+                .eq(MessagePO::getSessionId, sessionId));
+        conversationMapper.delete(new LambdaQueryWrapper<ConversationPO>()
+                .eq(ConversationPO::getId, conversationId)
+                .eq(ConversationPO::getAppName, appName)
+                .eq(ConversationPO::getUserId, userId)
+                .eq(ConversationPO::getSessionId, sessionId));
+
+        // SessionEvent 必须先删除，避免未来补充外键后删除 Session 时产生约束失败。
+        sessionEventDao.delete(new LambdaQueryWrapper<SessionEventPO>()
+                .eq(SessionEventPO::getAppName, appName)
+                .eq(SessionEventPO::getUserId, userId)
+                .eq(SessionEventPO::getSessionId, sessionId));
+        sessionDao.delete(new LambdaQueryWrapper<SessionPO>()
+                .eq(SessionPO::getAppName, appName)
+                .eq(SessionPO::getUserId, userId)
+                .eq(SessionPO::getSessionId, sessionId));
     }
 
     private ConversationVO toConversationVO(ConversationPO po) {

@@ -21,6 +21,9 @@ public interface ConversationArchivePort {
 
     List<MessageVO> listMessages(Long conversationId);
 
-    void deleteConversation(Long conversationId);
+    /**
+     * 原子删除 Conversation、Message 与同一 Session 身份下的 Event、Session。
+     */
+    void deleteConversationSession(Long conversationId, String appName, String userId, String sessionId);
 
 }

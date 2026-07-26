@@ -1,5 +1,7 @@
 package com.hh.application.agent.service;
 
+import com.hh.application.agent.model.ConversationDeletionCommand;
+import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
@@ -13,6 +15,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 通过内存 fake 验证 application 用例，不加载 Spring Context，也不会访问数据库。
@@ -20,28 +24,69 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ConversationArchiveApplicationServiceTest {
 
     @Test
-    void archiveUseCaseReadsAndDeletesConversationThroughPort() {
+    void deleteConversation_validatesIdentityAndDelegatesAtomicDeletion() {
         InMemoryConversationArchiveRepository repository = new InMemoryConversationArchiveRepository();
         Long conversationId = repository.findOrCreateConversation("app-a", "user-1", "session-1");
-        ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(repository);
+        AgentRuntimePort agentRuntimePort = mock(AgentRuntimePort.class);
+        when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
+        ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(repository, agentRuntimePort);
 
         assertThat(useCase.listConversations("user-1"))
                 .extracting(ConversationVO::getId)
                 .containsExactly(conversationId);
         assertThat(useCase.getConversation(conversationId).getSessionId()).isEqualTo("session-1");
 
-        useCase.deleteConversation(conversationId);
-        assertThat(useCase.listConversations("user-1")).isEmpty();
+        useCase.deleteConversation(new ConversationDeletionCommand(
+                conversationId, "agent-a", "user-1", "session-1"));
+
+        assertThat(repository.deletionRequests)
+                .containsExactly(new DeletionRequest(conversationId, "app-a", "user-1", "session-1"));
     }
 
     @Test
     void missingConversationKeepsExistingStableErrorCode() {
         ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(
-                new InMemoryConversationArchiveRepository());
+                new InMemoryConversationArchiveRepository(), mock(AgentRuntimePort.class));
 
         assertThatThrownBy(() -> useCase.getConversation(404L))
                 .isInstanceOfSatisfying(AppException.class,
                         error -> assertThat(error.getCode()).isEqualTo(ResponseCode.AGENT_NOT_FOUND.getCode()));
+    }
+
+    @Test
+    void deleteConversation_repeatedMissingArchiveStillDelegatesForIdempotentCleanup() {
+        AgentRuntimePort agentRuntimePort = mock(AgentRuntimePort.class);
+        when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
+        InMemoryConversationArchiveRepository repository = new InMemoryConversationArchiveRepository();
+        ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(
+                repository, agentRuntimePort);
+        ConversationDeletionCommand command = new ConversationDeletionCommand(
+                404L, "agent-a", "user-1", "session-1");
+
+        useCase.deleteConversation(command);
+        useCase.deleteConversation(command);
+
+        // 归档已不存在时仍按完整 Session 身份清理，客户端重试不会因为“零行删除”失败。
+        assertThat(repository.deletionRequests)
+                .containsExactly(
+                        new DeletionRequest(404L, "app-a", "user-1", "session-1"),
+                        new DeletionRequest(404L, "app-a", "user-1", "session-1"));
+    }
+
+    @Test
+    void deleteConversation_rejectsMismatchedSessionIdentity() {
+        InMemoryConversationArchiveRepository repository = new InMemoryConversationArchiveRepository();
+        Long conversationId = repository.findOrCreateConversation("app-a", "user-1", "session-1");
+        AgentRuntimePort agentRuntimePort = mock(AgentRuntimePort.class);
+        when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
+        ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(repository, agentRuntimePort);
+
+        assertThatThrownBy(() -> useCase.deleteConversation(new ConversationDeletionCommand(
+                conversationId, "agent-a", "user-1", "another-session")))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getCode()).isEqualTo(ResponseCode.ILLEGAL_PARAMETER.getCode()));
+
+        assertThat(repository.deletionRequests).isEmpty();
     }
 
     /**
@@ -51,6 +96,7 @@ class ConversationArchiveApplicationServiceTest {
 
         private final AtomicLong sequence = new AtomicLong();
         private final List<ConversationVO> conversations = new ArrayList<>();
+        private final List<DeletionRequest> deletionRequests = new ArrayList<>();
 
         @Override
         public Long findOrCreateConversation(String appName, String userId, String sessionId) {
@@ -93,8 +139,16 @@ class ConversationArchiveApplicationServiceTest {
         }
 
         @Override
-        public void deleteConversation(Long conversationId) {
-            conversations.removeIf(conversation -> conversation.getId().equals(conversationId));
+        public void deleteConversationSession(Long conversationId, String appName, String userId, String sessionId) {
+            deletionRequests.add(new DeletionRequest(conversationId, appName, userId, sessionId));
+            conversations.removeIf(conversation -> conversation.getId().equals(conversationId)
+                    && conversation.getAppName().equals(appName)
+                    && conversation.getUserId().equals(userId)
+                    && conversation.getSessionId().equals(sessionId));
         }
+
+    }
+
+    private record DeletionRequest(Long conversationId, String appName, String userId, String sessionId) {
     }
 }
