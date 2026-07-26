@@ -9,7 +9,7 @@ import lombok.Data;
 public class ContextCompressionDefinition {
 
     // sliding-window: 滑动窗口；fixed-size: 固定阈值压缩。
-    private String type = "sliding-window";
+    private String type = "fixed-size";
     private Integer compactionInterval = 12;
     private Integer overlapSize = 2;
     private Integer tokenThreshold = 12000;
