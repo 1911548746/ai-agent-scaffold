@@ -34,10 +34,14 @@
     <properties>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jackson-annotations.version>2.20</jackson-annotations.version>
+        <maven.compiler.release>${java.version}</maven.compiler.release>
+        <maven.enforcer.plugin.version>3.5.0</maven.enforcer.plugin.version>
+        <wrench.version>3.0.0</wrench.version>
+        <google.adk.version>1.4.0</google.adk.version>
+        <langchain4j.version>1.12.2</langchain4j.version>
+        <mybatis-plus.version>3.5.17</mybatis-plus.version>
+        <guava.version>32.1.3-jre</guava.version>
+        <archunit.version>1.4.2</archunit.version>
     </properties>
 
 
@@ -57,17 +61,11 @@
     <dependencyManagement>
         <dependencies>
 
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-annotations</artifactId>
-                <version>${jackson-annotations.version}</version>
-            </dependency>
-
             <!-- 扳手工程 -->
             <dependency>
                 <groupId>cn.bugstack.wrench</groupId>
                 <artifactId>xfg-wrench-starter-design-framework</artifactId>
-                <version>3.0.0</version>
+                <version>${wrench.version}</version>
             </dependency>
 
             <!-- AI相关 -->
@@ -75,113 +73,64 @@
             <dependency>
                 <groupId>com.google.adk</groupId>
                 <artifactId>google-adk</artifactId>
-                <version>1.4.0</version>
+                <version>${google.adk.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-open-ai</artifactId>
-                <version>1.12.2</version>
+                <version>${langchain4j.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>com.google.adk</groupId>
                 <artifactId>google-adk-langchain4j</artifactId>
-                <version>1.4.0</version>
+                <version>${google.adk.version}</version>
             </dependency>
 
             <!-- 数据库相关 -->
-<!--            <dependency>-->
-<!--                <groupId>org.mybatis.spring.boot</groupId>-->
-<!--                <artifactId>mybatis-spring-boot-starter</artifactId>-->
-<!--                <version>3.0.4</version>-->
-<!--            </dependency>-->
             <dependency>
                 <groupId>com.baomidou</groupId>
                 <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-                <version>3.5.17</version>
+                <version>${mybatis-plus.version}</version>
             </dependency>
-            <!-- # 多数据源路由配置
-                 # mysql 5.x driver-class-name: com.mysql.jdbc.Driver    mysql-connector-java 5.1.34
-                 # mysql 8.x driver-class-name: com.mysql.cj.jdbc.Driver mysql-connector-java 8.0.22-->
-            <dependency>
-                <groupId>mysql</groupId>
-                <artifactId>mysql-connector-java</artifactId>
-                <version>8.0.28</version>
-            </dependency>
-
             <!-- 杂项 -->
-            <dependency>
-                <groupId>com.alibaba</groupId>
-                <artifactId>fastjson</artifactId>
-                <version>2.0.28</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-lang3</artifactId>
-                <version>3.9</version>
-            </dependency>
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
-                <version>32.1.3-jre</version>
-            </dependency>
-            <dependency>
-                <groupId>dom4j</groupId>
-                <artifactId>dom4j</artifactId>
-                <version>1.6.1</version>
-            </dependency>
-            <dependency>
-                <groupId>com.thoughtworks.xstream</groupId>
-                <artifactId>xstream</artifactId>
-                <version>1.4.10</version>
-            </dependency>
-            <dependency>
-                <groupId>io.jsonwebtoken</groupId>
-                <artifactId>jjwt</artifactId>
-                <version>0.9.1</version>
-            </dependency>
-            <dependency>
-                <groupId>com.auth0</groupId>
-                <artifactId>java-jwt</artifactId>
-                <version>4.4.0</version>
-            </dependency>
-            <dependency>
-                <groupId>commons-codec</groupId>
-                <artifactId>commons-codec</artifactId>
-                <version>1.15</version>
+                <version>${guava.version}</version>
             </dependency>
 
             <!-- 工程模块 -->
             <dependency>
                 <groupId>com.hh</groupId>
                 <artifactId>ai-agent-scaffold-api</artifactId>
-                <version>1.0</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.hh</groupId>
                 <artifactId>ai-agent-scaffold-application</artifactId>
-                <version>1.0</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.hh</groupId>
                 <artifactId>ai-agent-scaffold-domain</artifactId>
-                <version>1.0</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.hh</groupId>
                 <artifactId>ai-agent-scaffold-infrastructure</artifactId>
-                <version>1.0</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.hh</groupId>
                 <artifactId>ai-agent-scaffold-types</artifactId>
-                <version>1.0</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.hh</groupId>
                 <artifactId>ai-agent-scaffold-trigger</artifactId>
-                <version>1.0</version>
+                <version>${project.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -190,55 +139,47 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.0</version>
-                <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
-                    <encoding>${project.build.sourceEncoding}</encoding>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>2.5</version>
-                <configuration>
-                    <encoding>UTF-8</encoding>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>versions-maven-plugin</artifactId>
-                <version>2.7</version>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>${maven.enforcer.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>enforce-build-baseline</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <!-- 编译目标和运行 JDK 都限定为 Java 17，避免使用更高版本 JDK 误发布。 -->
+                                <requireJavaVersion>
+                                    <version>[17,18)</version>
+                                </requireJavaVersion>
+                                <!-- Wrapper 固定 3.9.12；该下限仍允许当前开发环境的 3.8.1 完成迁移。 -->
+                                <requireMavenVersion>
+                                    <version>[3.8.1,)</version>
+                                </requireMavenVersion>
+                                <dependencyConvergence>
+                                    <excludes>
+                                        <!--
+                                            ADK 1.4.0 同时传递多代 Google Cloud Client；升级其中任一版本
+                                            需要随 ADK 版本整体验证，不能在构建治理中单独强制覆盖。
+                                        -->
+                                        <exclude>com.google.*:*</exclude>
+                                        <exclude>io.grpc:*</exclude>
+                                        <exclude>org.apache.arrow:*</exclude>
+                                        <exclude>com.squareup.okhttp3:*</exclude>
+                                        <exclude>org.checkerframework:*</exclude>
+                                        <exclude>commons-io:*</exclude>
+                                        <exclude>org.codehaus.mojo:animal-sniffer-annotations</exclude>
+                                        <exclude>org.apache.httpcomponents:*</exclude>
+                                        <exclude>org.threeten:*</exclude>
+                                    </excludes>
+                                </dependencyConvergence>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <profile>
-            <id>dev</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <properties>
-                <java_jvm>-Xms1G -Xmx1G -server  -XX:MaxPermSize=256M -Xss256K -Dspring.profiles.active=test -XX:+DisableExplicitGC -XX:+UseG1GC  -XX:LargePageSizeInBytes=128m -XX:+UseFastAccessorMethods -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/export/Logs/ai-agent-scaffold-boot -Xloggc:/export/Logs/ai-agent-scaffold-boot/gc-ai-agent-scaffold-boot.log -XX:+PrintGCDetails -XX:+PrintGCDateStamps</java_jvm>
-                <profileActive>dev</profileActive>
-            </properties>
-        </profile>
-        <profile>
-            <id>test</id>
-            <properties>
-                <java_jvm>-Xms1G -Xmx1G -server  -XX:MaxPermSize=256M -Xss256K -Dspring.profiles.active=test -XX:+DisableExplicitGC -XX:+UseG1GC  -XX:LargePageSizeInBytes=128m -XX:+UseFastAccessorMethods -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/export/Logs/ai-agent-scaffold-boot -Xloggc:/export/Logs/ai-agent-scaffold-boot/gc-ai-agent-scaffold-boot.log -XX:+PrintGCDetails -XX:+PrintGCDateStamps</java_jvm>
-                <profileActive>test</profileActive>
-            </properties>
-        </profile>
-        <profile>
-            <id>prod</id>
-            <properties>
-                <java_jvm>-Xms6G -Xmx6G -server  -XX:MaxPermSize=256M -Xss256K -Dspring.profiles.active=release -XX:+DisableExplicitGC -XX:+UseG1GC  -XX:LargePageSizeInBytes=128m -XX:+UseFastAccessorMethods -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/export/Logs/fq-mall-activity-app -Xloggc:/export/Logs/ai-agent-scaffold-boot/gc-ai-agent-scaffold-boot.log -XX:+PrintGCDetails -XX:+PrintGCDateStamps</java_jvm>
-                <profileActive>prod</profileActive>
-            </properties>
-        </profile>
-    </profiles>
 
 </project>
