@@ -246,7 +246,9 @@ public class AgentServiceController implements IAgentService {
 
         AtomicReference<ChatSubscription> subscriptionReference = new AtomicReference<>();
         AtomicBoolean cancellationRequested = new AtomicBoolean(false);
-        Runnable cancelUpstream = () -> cancelSubscription(subscriptionReference, cancellationRequested);
+        AtomicBoolean subscriptionCancelled = new AtomicBoolean(false);
+        Runnable cancelUpstream = () -> cancelSubscription(
+                subscriptionReference, cancellationRequested, subscriptionCancelled);
 
         // 先注册回调，避免客户端在订阅建立完成前断开时遗漏取消信号。
         emitter.onTimeout(() -> {
@@ -302,7 +304,7 @@ public class AgentServiceController implements IAgentService {
             subscriptionReference.set(subscription);
             // 如果回调发生在 subscribe 返回之前，这里补偿执行取消，避免建立竞态泄漏上游任务。
             if (cancellationRequested.get()) {
-                cancelSubscription(subscriptionReference, cancellationRequested);
+                cancelSubscription(subscriptionReference, cancellationRequested, subscriptionCancelled);
             }
         } catch (RuntimeException error) {
             // 适配器在建立订阅时直接失败，也必须使用已经开始 SSE 响应的安全错误协议。
@@ -318,10 +320,12 @@ public class AgentServiceController implements IAgentService {
      */
     private void cancelSubscription(
             AtomicReference<ChatSubscription> subscriptionReference,
-            AtomicBoolean cancellationRequested) {
+            AtomicBoolean cancellationRequested,
+            AtomicBoolean subscriptionCancelled) {
         cancellationRequested.set(true);
         ChatSubscription subscription = subscriptionReference.get();
-        if (subscription != null) {
+        // timeout、异常和完成回调可能连续到达；同一个上游订阅只能取消一次。
+        if (subscription != null && subscriptionCancelled.compareAndSet(false, true)) {
             subscription.cancel();
         }
     }

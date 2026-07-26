@@ -76,6 +76,23 @@ class AgentServiceControllerTest {
     }
 
     @Test
+    void successiveEmitterTerminalSignalsCancelUpstreamOnlyOnce() {
+        AtomicInteger cancellations = new AtomicInteger();
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(neverEndingStream(cancellations));
+        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
+
+        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+        controller.emitter.triggerTimeout();
+        controller.emitter.triggerCompletion();
+        controller.emitter.triggerError(new IOException("client disconnected"));
+
+        // Servlet 容器会组合触发多个生命周期回调，不能对同一个模型流重复 dispose。
+        assertThat(cancellations).hasValue(1);
+    }
+
+    @Test
     void streamEventIsMappedToExistingMessageSseContract() {
         ChatUseCase chatUseCase = mock(ChatUseCase.class);
         when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))

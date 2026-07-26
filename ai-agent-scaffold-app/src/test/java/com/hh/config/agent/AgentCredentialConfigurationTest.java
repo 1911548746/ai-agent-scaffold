@@ -3,6 +3,7 @@ package com.hh.config.agent;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -21,8 +22,11 @@ class AgentCredentialConfigurationTest {
     );
 
     @Test
-    void modelConfigurationsUseTheEnvironmentVariablePlaceholder() throws IOException {
-        Path modelDirectory = Path.of("src/main/resources/agent/models");
+    void modelConfigurationsUseTheEnvironmentVariablePlaceholder() throws IOException, URISyntaxException {
+        // 通过测试 classpath 定位资源，避免 Maven Reactor 从仓库根目录执行时相对路径失效。
+        var resource = getClass().getClassLoader().getResource("agent/models");
+        assertThat(resource).as("模型配置目录必须被打包到测试 classpath").isNotNull();
+        Path modelDirectory = Path.of(resource.toURI());
         List<Path> modelFiles;
         try (Stream<Path> paths = Files.list(modelDirectory)) {
             modelFiles = paths
