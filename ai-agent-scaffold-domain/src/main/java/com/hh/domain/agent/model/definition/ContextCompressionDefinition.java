@@ -8,10 +8,12 @@ import lombok.Data;
 @Data
 public class ContextCompressionDefinition {
 
-    // sliding-window: 滑动窗口；fixed-size: 固定阈值压缩。
+    // slidingWindow、fixedSize 由 ADK 生成摘要；pureSlidingWindow 仅本地裁剪历史 Event。
     private String type = "fixed-size";
     private Integer compactionInterval = 12;
     private Integer overlapSize = 2;
     private Integer tokenThreshold = 12000;
     private Integer eventRetentionSize = 30;
+    // pureSlidingWindow 按完整 invocation 保留，而不是按 Event 条数截断。
+    private Integer invocationRetentionSize = 12;
 }

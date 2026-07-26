@@ -3,6 +3,7 @@ package com.hh.infrastructure.agent.session.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.hh.infrastructure.agent.session.AdkSessionStore;
 import com.hh.infrastructure.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
+import com.hh.infrastructure.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
 import com.hh.infrastructure.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import com.hh.infrastructure.dao.SessionDao;
 import com.hh.infrastructure.dao.SessionEventDao;
@@ -182,12 +183,15 @@ public class MySqlSessionStore implements AdkSessionStore {
              * 方案评估见 note/流式Event持久化问题与方案评估.md；在此之前不能把该分支视为可靠的降写策略。
              */
             boolean stateChanged = applyStateDeltas(session, event);
-            boolean persistEvent = !event.partial().orElse(false);
+            boolean persistCandidate = !event.partial().orElse(false);
             List<String> deletableEventIds = deletableEventIds(event);
-            boolean deleteCompactedEvents = persistEvent
+            boolean deleteCompactedEvents = persistCandidate
                     && compactionCleanupSettings.deleteCompactedEvents()
                     && !deletableEventIds.isEmpty();
-            if (persistEvent || stateChanged) {
+            boolean omitPureMarkerPersistence = deleteCompactedEvents
+                    && PureSlidingWindowEventSummarizer.isPureSlidingWindowMarker(event);
+            boolean persistEvent = persistCandidate && !omitPureMarkerPersistence;
+            if (persistEvent || stateChanged || deleteCompactedEvents) {
                 transactionTemplate.executeWithoutResult(status -> {
                     if (persistEvent) {
                         persistEvent(appName, userId, sessionId, event);
@@ -208,7 +212,12 @@ public class MySqlSessionStore implements AdkSessionStore {
             }
 
             try {
-                session.events().add(event);
+                if (omitPureMarkerPersistence) {
+                    // 源 Event 已被同一事务物理删除；当前 Session 也必须同步移除，才能不依赖空 marker 截断上下文。
+                    session.events().removeIf(sessionEvent -> deletableEventIds.contains(sessionEvent.id()));
+                } else {
+                    session.events().add(event);
+                }
             } catch (UnsupportedOperationException ignored) {
                 // 某些 Session 快照可能返回不可变列表；数据库已经完成持久化即可。
             }

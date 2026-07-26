@@ -41,7 +41,7 @@ class AgentDefinitionLoaderTest {
         assertThat(definitions).extracting(AgentDefinition::getId)
                 .containsExactly("hello-agent", "pipeline-agent", "chrome-devtools-agent");
 
-        // Hello 示例覆盖 Local MCP、Skill、Plugin、持久化和压缩配置的兼容转换。
+        // Hello 示例覆盖 Local MCP、Skill、Plugin、持久化和 pureSlidingWindow 压缩配置的兼容转换。
         AgentDefinition hello = definition(definitions, "hello-agent");
         assertThat(hello.isEnabled()).isTrue();
         assertThat(hello.getAppName()).isEqualTo("HelloAgent");
@@ -61,8 +61,8 @@ class AgentDefinitionLoaderTest {
         });
         assertThat(hello.getRunner().getPersistence()).isTrue();
         assertThat(hello.getRunner().getPluginNameList()).containsExactly("myLoggingPlugin");
-        assertThat(hello.getRunner().getContextCompress().getType()).isEqualTo("slidingWindow");
-        assertThat(hello.getRunner().getContextCompress().getCompactionInterval()).isEqualTo(8);
+        assertThat(hello.getRunner().getContextCompress().getType()).isEqualTo("pureSlidingWindow");
+        assertThat(hello.getRunner().getContextCompress().getInvocationRetentionSize()).isEqualTo(4);
 
         // Pipeline 示例覆盖三个 LLM 节点、output key 与顺序工作流的转换。
         AgentDefinition pipeline = definition(definitions, "pipeline-agent");
@@ -109,6 +109,16 @@ class AgentDefinitionLoaderTest {
                 .hasMessageContaining("duplicate-agent-one.yml")
                 .hasMessageContaining("duplicate-agent-two.yml")
                 .hasMessageContaining("duplicate-agent");
+    }
+
+    @Test
+    void compilesPureSlidingWindowRetentionSize() {
+        AgentDefinition definition = loader.load("classpath:agent/catalog/pure-sliding-window-catalog.yml")
+                .get(0);
+
+        // 配置编译只传递策略参数；是否创建 ADK summarizer 由基础设施 RunnerNode 决定。
+        assertThat(definition.getRunner().getContextCompress().getType()).isEqualTo("pureSlidingWindow");
+        assertThat(definition.getRunner().getContextCompress().getInvocationRetentionSize()).isEqualTo(3);
     }
 
     @Test

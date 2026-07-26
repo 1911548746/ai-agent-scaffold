@@ -31,9 +31,12 @@ ai:
 #                 type: slidingWindow
 #                 compaction-interval: 3
 #                 overlap-size: 1
-                type: fixedSize
-                token-threshold: 1500
-                event-retention-size: 6
+#                # 不调用模型、不生成摘要：仅保留最近 N 个完整 invocation 的原始 Event。
+                type: pureSlidingWindow
+                invocation-retention-size: 4
+#                 type: fixedSize
+#                 token-threshold: 1500
+#                 event-retention-size: 6
             plugin-name-list:
               - myLoggingPlugin
 

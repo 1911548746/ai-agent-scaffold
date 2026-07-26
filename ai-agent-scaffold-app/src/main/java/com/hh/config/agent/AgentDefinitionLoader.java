@@ -453,6 +453,7 @@ public class AgentDefinitionLoader {
         targetCompression.setOverlapSize(compression.getOverlapSize());
         targetCompression.setTokenThreshold(compression.getTokenThreshold());
         targetCompression.setEventRetentionSize(compression.getEventRetentionSize());
+        targetCompression.setInvocationRetentionSize(compression.getInvocationRetentionSize());
         result.setContextCompress(targetCompression);
         return result;
     }

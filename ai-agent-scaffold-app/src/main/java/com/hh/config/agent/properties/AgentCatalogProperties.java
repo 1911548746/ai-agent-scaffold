@@ -123,5 +123,7 @@ public class AgentCatalogProperties {
         private Integer tokenThreshold = 12000;
         @Min(1)
         private Integer eventRetentionSize = 30;
+        @Min(1)
+        private Integer invocationRetentionSize = 12;
     }
 }

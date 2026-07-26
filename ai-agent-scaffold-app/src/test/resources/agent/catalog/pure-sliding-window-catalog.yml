@@ -1,0 +1,26 @@
+ai:
+  agent:
+    config:
+      enabled: true
+      schema-version: 1
+      catalog-path: classpath:agent/catalog/pure-sliding-window-catalog.yml
+      model-resources:
+        - classpath:agent/models/deepseek-v4-flash.yml
+      tool-resources:
+        - classpath:agent/tools/local-weather.yml
+        - classpath:agent/tools/release-note-skill.yml
+      agent-resources:
+        - classpath:agent/agents/hello-agent.yml
+      workflow-resources: []
+      applications:
+        - id: pure-window-agent
+          app-name: PureWindowAgent
+          agent-id: "100099"
+          agent-name: 纯滑动窗口测试智能体
+          agent-desc: 离线配置编译测试
+          agent-ref: hello-agent
+          runner:
+            persistence: false
+            context-compress:
+              type: pureSlidingWindow
+              invocation-retention-size: 3

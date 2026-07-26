@@ -8,9 +8,10 @@ import com.google.adk.sessions.GetSessionConfig;
 import com.google.adk.sessions.Session;
 import com.google.genai.types.CustomMetadata;
 import com.google.genai.types.StringList;
-import com.hh.infrastructure.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
 import com.hh.infrastructure.agent.session.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
 import com.hh.infrastructure.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
 import com.hh.infrastructure.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import com.hh.infrastructure.agent.session.impl.MySqlSessionStore;
 import com.hh.infrastructure.dao.SessionDao;
@@ -28,6 +29,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -153,6 +155,38 @@ class SessionEventRetentionTest {
     }
 
     @Test
+    void pureMarkerIsNotPersistedWhenItsSourceEventsArePhysicallyDeleted() {
+        SessionDao sessionDao = mock(SessionDao.class);
+        SessionEventDao eventDao = mock(SessionEventDao.class);
+        MySqlSessionStore store = store(sessionDao, eventDao, true);
+        Session session = session("session-a");
+        session.events().add(Event.builder().id("source-a").build());
+        session.events().add(Event.builder().id("source-b").build());
+
+        store.appendEvent(session, pureMarker("pure-marker", "source-a", "source-b")).blockingGet();
+
+        // 空 marker 只用于当前 ADK compactor 回调；源 Event 已物理删除时无需在 session_events 留空行。
+        verify(eventDao, never()).upsertByEventIdentity(any(SessionEventPO.class));
+        verify(eventDao).deleteCompactedEvents(any(SessionEventCompactionCleanup.class));
+        verify(sessionDao).updateStateByIdentity(any(SessionPO.class));
+        assertThat(session.events()).isEmpty();
+    }
+
+    @Test
+    void pureMarkerIsPersistedWhenCleanupIsDisabledForDebugging() {
+        SessionEventDao eventDao = mock(SessionEventDao.class);
+        MySqlSessionStore store = store(mock(SessionDao.class), eventDao, false);
+        Session session = session("session-a");
+
+        store.appendEvent(session, pureMarker("pure-marker", "source-a")).blockingGet();
+
+        // 开发调试保留原始 Event 时，必须保留 marker，才能让 ADK 在下次回放中继续识别截断边界。
+        verify(eventDao).upsertByEventIdentity(any(SessionEventPO.class));
+        verify(eventDao, never()).deleteCompactedEvents(any(SessionEventCompactionCleanup.class));
+        assertThat(session.events()).extracting(Event::id).containsExactly("pure-marker");
+    }
+
+    @Test
     void legacyCompactionWithoutTrackedMetadataDoesNotDeleteEvents() {
         SessionEventDao eventDao = mock(SessionEventDao.class);
         MySqlSessionStore store = store(mock(SessionDao.class), eventDao, true);
@@ -234,6 +268,17 @@ class SessionEventRetentionTest {
                         .stringListValue(StringList.builder().values(sourceEventIds).build())
                         .build()))
                 .build();
+    }
+
+    private Event pureMarker(String markerEventId, String... sourceEventIds) {
+        Event marker = compactionEvent(markerEventId, sourceEventIds);
+        List<CustomMetadata> metadata = new ArrayList<>(marker.customMetadata().orElseThrow());
+        metadata.add(CustomMetadata.builder()
+                .key(PureSlidingWindowEventSummarizer.PURE_SLIDING_WINDOW_MARKER_METADATA_KEY)
+                .stringListValue(StringList.builder().values(List.of("true")).build())
+                .build());
+        marker.setCustomMetadata(metadata);
+        return marker;
     }
 
     private SessionEventPO eventRow(String eventId) {

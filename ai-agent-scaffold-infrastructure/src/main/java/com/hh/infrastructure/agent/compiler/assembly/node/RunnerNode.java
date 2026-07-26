@@ -14,6 +14,7 @@ import com.google.adk.summarizer.LlmEventSummarizer;
 import com.hh.infrastructure.agent.session.compaction.cleanup.CompactionCleanupContext;
 import com.hh.infrastructure.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
 import com.hh.infrastructure.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
+import com.hh.infrastructure.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
 import com.hh.infrastructure.agent.compiler.assembly.context.DynamicContext;
 import com.hh.infrastructure.agent.session.AdkSessionStore;
 import com.hh.infrastructure.agent.compiler.assembly.command.AgentAssemblyCommand;
@@ -82,7 +83,10 @@ public class RunnerNode extends AgentAssemblySupport {
 
         // 上下文压缩
         ContextCompressionDefinition contextCompressConfig = runnerConfig.getContextCompress();
-        EventsCompactionConfig compactionConfig;
+        EventsCompactionConfig compactionConfig = null;
+        ContextCompressTypeEnum compressType = contextCompressConfig == null
+                ? ContextCompressTypeEnum.FIXED_SIZE
+                : ContextCompressTypeEnum.getByType(contextCompressConfig.getType());
 
         // 根据上下文压缩类型进行不同的配置
         // 滑动窗口
@@ -92,7 +96,7 @@ public class RunnerNode extends AgentAssemblySupport {
           compactionInterval：累计约多少轮（invocation）对话后触发压缩。
           overlapSize：压缩时覆盖上一次压缩前多少轮（invocation）对话的原始 events。
          */
-        if (null != contextCompressConfig && ContextCompressTypeEnum.SLIDING_WINDOW.equals(ContextCompressTypeEnum.getByType(contextCompressConfig.getType()))) {
+        if (ContextCompressTypeEnum.SLIDING_WINDOW.equals(compressType)) {
             compactionConfig = EventsCompactionConfig.builder()
                     .compactionInterval(contextCompressConfig.getCompactionInterval())
                     .overlapSize(contextCompressConfig.getOverlapSize())
@@ -107,12 +111,21 @@ public class RunnerNode extends AgentAssemblySupport {
          * 保留最近 eventRetentionSize 条 events，
          * 更早的 events 交给 summarizer 压成 compaction event。
          */
-        else {
+        else if (ContextCompressTypeEnum.FIXED_SIZE.equals(compressType)) {
             compactionConfig = EventsCompactionConfig.builder()
                     .tokenThreshold(null != contextCompressConfig ? contextCompressConfig.getTokenThreshold() : new ContextCompressionDefinition().getTokenThreshold())
                     .eventRetentionSize(null != contextCompressConfig ? contextCompressConfig.getEventRetentionSize() : new ContextCompressionDefinition().getEventRetentionSize())
                     // 默认摘要能力仍由 ADK 提供；包装器按 fixedSize 语义记录真正被新摘要覆盖的 Event。
                     .summarizer(createTrackingSummarizer(dynamicContext, contextCompressConfig))
+                    .build();
+        }
+        // 纯滑动窗口仍使用 ADK 的窗口选择与 compaction marker 回放机制，但 marker 不携带模型摘要内容。
+        else if (ContextCompressTypeEnum.PURE_SLIDING_WINDOW.equals(compressType)) {
+            compactionConfig = EventsCompactionConfig.builder()
+                    // 每完成一轮都检查窗口；summarizer 仅在完整 invocation 超过保留容量时返回 marker。
+                    .compactionInterval(1)
+                    .overlapSize(contextCompressConfig.getInvocationRetentionSize())
+                    .summarizer(createPureSlidingWindowSummarizer(contextCompressConfig))
                     .build();
         }
 
@@ -127,12 +140,15 @@ public class RunnerNode extends AgentAssemblySupport {
             }
         }
 
-        return App.builder()
+        // TODO 没有配置压缩策略时，不会进行上下文管理
+        var appBuilder = App.builder()
                 .name(appName)
                 .rootAgent(baseAgent)
-                .plugins(plugins)
-                .eventsCompactionConfig(compactionConfig)
-                .build();
+                .plugins(plugins);
+        if (compactionConfig != null) {
+            appBuilder.eventsCompactionConfig(compactionConfig);
+        }
+        return appBuilder.build();
     }
 
     // 创建Runner
@@ -147,7 +163,6 @@ public class RunnerNode extends AgentAssemblySupport {
             // Runner 只依赖会话存储能力，不能感知底层是否为 MySQL。
             sessionService = sessionStore;
         }
-
         // 会话运行节点
         return Runner.builder()
                 .app(app)
@@ -176,6 +191,18 @@ public class RunnerNode extends AgentAssemblySupport {
                 new LlmEventSummarizer(dynamicContext.getLlmModel()),
                 compactionCleanupPolicyRegistry.resolve(type),
                 cleanupContext);
+    }
+
+    /**
+     * pureSlidingWindow 复用 TrackingLlmEventSummarizer 的精确删除 metadata，但不创建 LLM 摘要器。
+     */
+    private TrackingLlmEventSummarizer createPureSlidingWindowSummarizer(
+            ContextCompressionDefinition contextCompressConfig) {
+        int retentionSize = contextCompressConfig.getInvocationRetentionSize();
+        return new TrackingLlmEventSummarizer(
+                new PureSlidingWindowEventSummarizer(retentionSize),
+                compactionCleanupPolicyRegistry.resolve(ContextCompressTypeEnum.PURE_SLIDING_WINDOW.getType()),
+                new CompactionCleanupContext(retentionSize, null));
     }
 
 }
