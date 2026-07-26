@@ -45,6 +45,7 @@ public class SchemaInitializer implements InitializingBean {
                     created_at DATETIME NOT NULL,
                     UNIQUE KEY uk_session_events_event_id (app_name, user_id, session_id, event_id),
                     KEY idx_session_events_session (app_name, user_id, session_id, id),
+                    KEY idx_session_events_compaction (compaction_event, app_name, user_id, session_id, id),
                     KEY idx_session_events_invocation (invocation_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """);
@@ -98,6 +99,7 @@ public class SchemaInitializer implements InitializingBean {
                 """);
 
         ensureMessageStatusColumn();
+        ensureSessionEventCompactionIndex();
     }
 
     /**
@@ -117,6 +119,29 @@ public class SchemaInitializer implements InitializingBean {
             jdbcTemplate.execute("""
                     ALTER TABLE messages
                     ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'completed' AFTER role
+                    """);
+        }
+    }
+
+    /**
+     * 为已由旧版本创建的 session_events 补齐 compaction 回放索引。
+     *
+     * <p>当前项目仍由 SchemaInitializer 兼容历史库；该启动期 DDL 将在 DATA-05 切换至 Flyway 后
+     * 迁移为版本化脚本并从此处删除。</p>
+     */
+    private void ensureSessionEventCompactionIndex() {
+        Integer indexCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.statistics
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'session_events'
+                  AND index_name = 'idx_session_events_compaction'
+                """, Integer.class);
+        if (indexCount != null && indexCount == 0) {
+            jdbcTemplate.execute("""
+                    ALTER TABLE session_events
+                    ADD INDEX idx_session_events_compaction
+                        (compaction_event, app_name, user_id, session_id, id)
                     """);
         }
     }

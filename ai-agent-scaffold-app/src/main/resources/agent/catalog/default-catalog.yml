@@ -28,9 +28,12 @@ ai:
           runner:
             persistence: true
             context-compress:
-              type: slidingWindow
-              compaction-interval: 8
-              overlap-size: 2
+#                 type: slidingWindow
+#                 compaction-interval: 3
+#                 overlap-size: 1
+                type: fixedSize
+                token-threshold: 1500
+                event-retention-size: 6
             plugin-name-list:
               - myLoggingPlugin
 

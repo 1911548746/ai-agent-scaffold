@@ -11,6 +11,9 @@ import com.google.adk.sessions.BaseSessionService;
 import com.google.adk.sessions.InMemorySessionService;
 import com.google.adk.summarizer.EventsCompactionConfig;
 import com.google.adk.summarizer.LlmEventSummarizer;
+import com.hh.infrastructure.agent.session.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
+import com.hh.infrastructure.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import com.hh.infrastructure.agent.compiler.assembly.context.DynamicContext;
 import com.hh.infrastructure.agent.session.AdkSessionStore;
 import com.hh.infrastructure.agent.compiler.assembly.command.AgentAssemblyCommand;
@@ -29,10 +32,13 @@ import java.util.List;
 
 @Slf4j
 @Component
-public class RunnerNode  extends AgentAssemblySupport {
+public class RunnerNode extends AgentAssemblySupport {
 
     @Resource
     private AdkSessionStore sessionStore;
+
+    @Resource
+    private CompactionCleanupPolicyRegistry compactionCleanupPolicyRegistry;
 
     @Override
     protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, DynamicContext dynamicContext) throws Exception {
@@ -79,33 +85,34 @@ public class RunnerNode  extends AgentAssemblySupport {
         EventsCompactionConfig compactionConfig;
 
         // 根据上下文压缩类型进行不同的配置
+        // 滑动窗口
+        /*
+          旧的一批 events -> summarizer 生成一条 compaction event
+          最近 overlap 的一部分 events -> 原样保留
+          compactionInterval：累计约多少轮（invocation）对话后触发压缩。
+          overlapSize：压缩时覆盖上一次压缩前多少轮（invocation）对话的原始 events。
+         */
+        if (null != contextCompressConfig && ContextCompressTypeEnum.SLIDING_WINDOW.equals(ContextCompressTypeEnum.getByType(contextCompressConfig.getType()))) {
+            compactionConfig = EventsCompactionConfig.builder()
+                    .compactionInterval(contextCompressConfig.getCompactionInterval())
+                    .overlapSize(contextCompressConfig.getOverlapSize())
+                    // SlidingWindow 策略会保留 overlap invocation 的原始 Event，避免下一轮摘要丢失窗口重叠。
+                    .summarizer(createTrackingSummarizer(dynamicContext, contextCompressConfig))
+                    .build();
+        }
+
         // 固定token阈值
         /*
          * 当上下文 token 超过阈值时，
          * 保留最近 eventRetentionSize 条 events，
          * 更早的 events 交给 summarizer 压成 compaction event。
          */
-        if (null != contextCompressConfig && ContextCompressTypeEnum.FIXED_SIZE.equals(ContextCompressTypeEnum.getByType(contextCompressConfig.getType()))) {
-            compactionConfig = EventsCompactionConfig.builder()
-                    .tokenThreshold(contextCompressConfig.getTokenThreshold())
-                    .eventRetentionSize(contextCompressConfig.getEventRetentionSize())
-                    .summarizer(new LlmEventSummarizer(dynamicContext.getLlmModel()))
-                    .build();
-        }
-        // 滑动窗口
-        /*
-          旧的一批 events -> summarizer 生成一条 compaction event
-          最近 overlap 的一部分 events -> 原样保留
-          compactionInterval：累计约多少轮（invocation）对话后触发压缩。
-          overlapSize：压缩时保留最近多少轮（invocation）对话的原始 events。
-          (注意，overlapSize 会包含一轮已经压缩的 compact event, 因此实际重叠的轮数会少一, 需要确保 overlapSize 大于等于 1。)
-          一轮（invocation）对话包含多个event。
-         */
         else {
             compactionConfig = EventsCompactionConfig.builder()
-                    .compactionInterval(null != contextCompressConfig ? contextCompressConfig.getCompactionInterval() : 12)     // TODO 能不能直接用ContextCompress类里面的值？
-                    .overlapSize(null != contextCompressConfig ? contextCompressConfig.getOverlapSize() : 2)
-                    .summarizer(new LlmEventSummarizer(dynamicContext.getLlmModel()))
+                    .tokenThreshold(null != contextCompressConfig ? contextCompressConfig.getTokenThreshold() : new ContextCompressionDefinition().getTokenThreshold())
+                    .eventRetentionSize(null != contextCompressConfig ? contextCompressConfig.getEventRetentionSize() : new ContextCompressionDefinition().getEventRetentionSize())
+                    // 默认摘要能力仍由 ADK 提供；包装器按 fixedSize 语义记录真正被新摘要覆盖的 Event。
+                    .summarizer(createTrackingSummarizer(dynamicContext, contextCompressConfig))
                     .build();
         }
 
@@ -148,6 +155,27 @@ public class RunnerNode  extends AgentAssemblySupport {
                 .sessionService(sessionService)
                 .memoryService(new InMemoryMemoryService())
                 .build();
+    }
+
+    /**
+     * 根据 Runner 的压缩配置选择清理策略。
+     *
+     * <p>只有显式 slidingWindow 才构建滑动窗口；其余值在 {@link #createApp} 中均会构建 fixedSize，
+     * 因此此处也必须使用 fixedSize 作为默认值，避免 ADK 压缩方式与 Event 清理语义不一致。</p>
+     */
+    private TrackingLlmEventSummarizer createTrackingSummarizer(DynamicContext dynamicContext, ContextCompressionDefinition contextCompressConfig) {
+
+        String type = contextCompressConfig == null ? ContextCompressTypeEnum.FIXED_SIZE.getType()
+                : contextCompressConfig.getType();
+
+        CompactionCleanupContext cleanupContext = new CompactionCleanupContext(
+                contextCompressConfig == null ? null : contextCompressConfig.getOverlapSize(),
+                contextCompressConfig == null ? null : contextCompressConfig.getEventRetentionSize());
+
+        return new TrackingLlmEventSummarizer(
+                new LlmEventSummarizer(dynamicContext.getLlmModel()),
+                compactionCleanupPolicyRegistry.resolve(type),
+                cleanupContext);
     }
 
 }

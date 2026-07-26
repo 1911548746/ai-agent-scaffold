@@ -3,3 +3,10 @@ spring:
     name: ai-agent-scaffold-app
   profiles:
     active: dev
+
+# DATA-03：生产默认释放已被 ADK 摘要精确覆盖的 Event；开发环境可覆盖为 false 以保留调试轨迹。
+ai:
+  agent:
+    session:
+      compaction:
+        delete-compacted-events: true

@@ -2,11 +2,16 @@ package com.hh.infrastructure.agent.session.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.hh.infrastructure.agent.session.AdkSessionStore;
+import com.hh.infrastructure.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
+import com.hh.infrastructure.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import com.hh.infrastructure.dao.SessionDao;
 import com.hh.infrastructure.dao.SessionEventDao;
+import com.hh.infrastructure.dao.po.SessionEventCompactionCleanup;
 import com.hh.infrastructure.dao.po.SessionEventPO;
+import com.hh.infrastructure.dao.po.SessionEventQuery;
 import com.hh.infrastructure.dao.po.SessionPO;
 import com.hh.infrastructure.support.ADKJsonParseSupport;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -45,15 +50,29 @@ public class MySqlSessionStore implements AdkSessionStore {
     private final SessionDao sessionDao;
     private final SessionEventDao sessionEventDao;
     private final TransactionTemplate transactionTemplate;
+    private final SessionEventCompactionCleanupSettings compactionCleanupSettings;
 
+    @Autowired
     public MySqlSessionStore(
             SessionDao sessionDao,
             SessionEventDao sessionEventDao,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            SessionEventCompactionCleanupSettings compactionCleanupSettings) {
         this.sessionDao = sessionDao;
         this.sessionEventDao = sessionEventDao;
         // RxJava 的 Callable 在订阅时才执行；事务必须在 Callable 内显式开启，不能依赖方法注解。
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.compactionCleanupSettings = compactionCleanupSettings;
+    }
+
+    /**
+     * 保留给不经过 Spring 组合根的离线测试和历史调用方；生产运行时始终注入显式配置。
+     */
+    public MySqlSessionStore(
+            SessionDao sessionDao,
+            SessionEventDao sessionEventDao,
+            PlatformTransactionManager transactionManager) {
+        this(sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
     }
 
     @Override
@@ -155,12 +174,19 @@ public class MySqlSessionStore implements AdkSessionStore {
 
             ensureEventIdentity(event);
 
-            // TODO(DATA-02): 当前 google-adk-langchain4j 的 OpenAI-compatible 流适配器没有为 token
-            // chunk 设置 partial=true，导致该判断会把它们当作终态 Event 持久化，逐 token 写入尚未解决。
-            // 后续需在 Provider/ADK 适配层补齐 partial + 终态 Event，或按 invocationId 缓冲并在流完成时 flush。
-            // 方案评估见 note/流式Event持久化问题与方案评估.md；在此之前不能把该分支视为可靠的降写策略。
+            /**
+             * TODO(DATA-02): 流式输出 - 逐 token 存 event
+             * 当前 google-adk-langchain4j 的 OpenAI-compatible 流适配器没有为 token
+             * chunk 设置 partial=true，导致该判断会把它们当作终态 Event 持久化，逐 token 写入尚未解决。
+             * 后续需在 Provider/ADK 适配层补齐 partial + 终态 Event，或按 invocationId 缓冲并在流完成时 flush。
+             * 方案评估见 note/流式Event持久化问题与方案评估.md；在此之前不能把该分支视为可靠的降写策略。
+             */
             boolean stateChanged = applyStateDeltas(session, event);
             boolean persistEvent = !event.partial().orElse(false);
+            List<String> deletableEventIds = deletableEventIds(event);
+            boolean deleteCompactedEvents = persistEvent
+                    && compactionCleanupSettings.deleteCompactedEvents()
+                    && !deletableEventIds.isEmpty();
             if (persistEvent || stateChanged) {
                 transactionTemplate.executeWithoutResult(status -> {
                     if (persistEvent) {
@@ -168,6 +194,16 @@ public class MySqlSessionStore implements AdkSessionStore {
                     }
                     // 终态事件更新 lastUpdateTime；partial 事件仅在确有持久状态变化时更新快照。
                     updateSessionSnapshot(session);
+                    if (deleteCompactedEvents) {
+                        // 仅删除 ADK 本轮实际交给 summarizer 的 Event，不能用时间或行号猜测 overlap 边界。
+                        sessionEventDao.deleteCompactedEvents(SessionEventCompactionCleanup.builder()
+                                .appName(appName)
+                                .userId(userId)
+                                .sessionId(sessionId)
+                                .summaryEventId(event.id())
+                                .eventIds(deletableEventIds)
+                                .build());
+                    }
                 });
             }
 
@@ -203,34 +239,28 @@ public class MySqlSessionStore implements AdkSessionStore {
             String userId,
             String sessionId,
             Optional<GetSessionConfig> configOpt) {
-        List<SessionEventPO> rows = sessionEventDao.selectList(new LambdaQueryWrapper<SessionEventPO>()
-                .eq(SessionEventPO::getAppName, appName)
-                .eq(SessionEventPO::getUserId, userId)
-                .eq(SessionEventPO::getSessionId, sessionId)
-                .orderByAsc(SessionEventPO::getId));
-
-        List<Event> events = rows.stream()
+        SessionEventQuery query = SessionEventQuery.builder()
+                .appName(appName)
+                .userId(userId)
+                .sessionId(sessionId)
+                .build();
+        GetSessionConfig config = configOpt.orElse(null);
+        List<SessionEventPO> rows;
+        if (config != null && config.numRecentEvents().isPresent()) {
+            // 显式 numRecentEvents 的语义是“最近 N 条”，不能额外插入 compaction 摘要改变调用方预期。
+            query.setLimit(config.numRecentEvents().get());
+            rows = sessionEventDao.selectRecentEvents(query);
+        } else if (config != null && config.afterTimestamp().isPresent()) {
+            // 时间边界同样在 SQL 层执行，避免先反序列化被丢弃的历史 JSON。
+            query.setAfterTimestamp(config.afterTimestamp().get().getEpochSecond());
+            rows = sessionEventDao.selectEventsAfterTimestamp(query);
+        } else {
+            // 默认恢复路径必须保留摘要之前的 overlap 原始 Event；规模由压缩后的精确删除控制。
+            rows = sessionEventDao.selectSessionEvents(query);
+        }
+        return rows.stream()
                 .map(row -> Event.fromJson(row.getEventJson()))
                 .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
-
-        GetSessionConfig config = configOpt.orElse(null);
-        if (config == null) {
-            return events;
-        }
-
-        if (config.numRecentEvents().isPresent()) {
-            int count = config.numRecentEvents().get();
-            if (events.size() <= count) {
-                return events;
-            }
-            return new ArrayList<>(events.subList(events.size() - count, events.size()));
-        }
-
-        if (config.afterTimestamp().isPresent()) {
-            long afterEpochSecond = config.afterTimestamp().get().getEpochSecond();
-            events.removeIf(event -> event.timestamp() <= afterEpochSecond);
-        }
-        return events;
     }
 
     private void persistEvent(String appName, String userId, String sessionId, Event event) {
@@ -252,6 +282,29 @@ public class MySqlSessionStore implements AdkSessionStore {
                 .build();
         // ADK 可能因重试或回调竞争重复投递同一 eventId；保留第一条不可变快照即可。
         sessionEventDao.upsertByEventIdentity(row);
+    }
+
+    /**
+     * 仅信任由 TrackingLlmEventSummarizer 写入的 compaction metadata。
+     *
+     * <p>标准 EventCompaction 只给出时间范围，而 sliding-window overlap 与其他 Event 可能同秒产生；
+     * 必须使用精确 eventId 集合，缺失 metadata 时保守地不删除。</p>
+     */
+    private List<String> deletableEventIds(Event event) {
+        if (event.actions() == null || event.actions().compaction().isEmpty()) {
+            return List.of();
+        }
+        return event.customMetadata().orElse(List.of()).stream()
+                .filter(metadata -> TrackingLlmEventSummarizer.DELETABLE_EVENT_IDS_METADATA_KEY
+                        .equals(metadata.key().orElse(null)))
+                .flatMap(metadata -> metadata.stringListValue().stream())
+                .flatMap(eventIds -> eventIds.values().stream())
+                .flatMap(List::stream)
+                .filter(eventId -> eventId != null && !eventId.isBlank())
+                // 新摘要不应删除自身；即便 metadata 被错误构造，也要保留已成功写入的摘要。
+                .filter(eventId -> !event.id().equals(eventId))
+                .distinct()
+                .toList();
     }
 
     private void ensureEventIdentity(Event event) {

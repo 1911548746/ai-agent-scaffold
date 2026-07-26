@@ -12,6 +12,8 @@ import com.hh.infrastructure.dao.SessionDao;
 import com.hh.infrastructure.dao.SessionEventDao;
 import com.hh.infrastructure.dao.po.ConversationPO;
 import com.hh.infrastructure.dao.po.SessionEventPO;
+import com.hh.infrastructure.dao.po.SessionEventCompactionCleanup;
+import com.hh.infrastructure.dao.po.SessionEventQuery;
 import com.hh.infrastructure.dao.po.SessionPO;
 import org.apache.ibatis.builder.xml.XMLMapperBuilder;
 import org.apache.ibatis.io.Resources;
@@ -87,8 +89,7 @@ class IdempotentPersistenceAdapterTest {
                 .stateJson("{}")
                 .build();
         when(sessionDao.selectOne(org.mockito.ArgumentMatchers.<Wrapper<SessionPO>>any())).thenReturn(persisted);
-        when(sessionEventDao.selectList(org.mockito.ArgumentMatchers.<Wrapper<SessionEventPO>>any()))
-                .thenReturn(List.of());
+        when(sessionEventDao.selectSessionEvents(any(SessionEventQuery.class))).thenReturn(List.of());
 
         Session first = store.createSession("app-a", "user-a", new ConcurrentHashMap<>(), "session-a").blockingGet();
         Session second = store.createSession("app-a", "user-a", new ConcurrentHashMap<>(), "session-a").blockingGet();
@@ -203,6 +204,18 @@ class IdempotentPersistenceAdapterTest {
         verify(sessionDao, never()).updateStateByIdentity(any(SessionPO.class));
     }
 
+    @Test
+    void mapperCompactionQueriesKeepOverlapEventsAndDeleteOnlyExactEventIds() throws Exception {
+        assertXmlStatement(SessionEventDao.class, "selectSessionEvents", "mapper/SessionEventDao.xml",
+                "FROM session_events e", "ORDER BY e.id ASC");
+        assertXmlStatement(SessionEventDao.class, "selectRecentEvents", "mapper/SessionEventDao.xml",
+                "ORDER BY e.id DESC", "LIMIT ?", "ORDER BY recent.id ASC");
+        assertXmlStatement(SessionEventDao.class, "selectEventsAfterTimestamp", "mapper/SessionEventDao.xml",
+                "e.event_ts > ?", "ORDER BY e.id ASC");
+        assertXmlStatement(SessionEventDao.class, "deleteCompactedEvents", "mapper/SessionEventDao.xml",
+                "DELETE FROM session_events", "event_id != ?", "event_id IN ( ? )");
+    }
+
     /**
      * 解析真实 XML，避免仅因资源文件存在而漏掉 namespace 或 statement id 错配。
      */
@@ -231,7 +244,26 @@ class IdempotentPersistenceAdapterTest {
 
         String statementId = mapperType.getName() + "." + methodName;
         assertThat(configuration.hasStatement(statementId)).isTrue();
-        return configuration.getMappedStatement(statementId).getBoundSql(null).getSql().replaceAll("\\s+", " ");
+        return configuration.getMappedStatement(statementId)
+                .getBoundSql(mapperParameter(mapperType, methodName))
+                .getSql()
+                .replaceAll("\\s+", " ");
+    }
+
+    /**
+     * 含 foreach 的 Mapper 需要真实集合参数才能完成 BoundSql 展开，其余语句仍可使用 null 验证结构。
+     */
+    private Object mapperParameter(Class<?> mapperType, String methodName) {
+        if (mapperType == SessionEventDao.class && "deleteCompactedEvents".equals(methodName)) {
+            return SessionEventCompactionCleanup.builder()
+                    .appName("app-a")
+                    .userId("user-a")
+                    .sessionId("session-a")
+                    .summaryEventId("summary-a")
+                    .eventIds(List.of("source-a"))
+                    .build();
+        }
+        return null;
     }
 
     private Session session(String sessionId) {
