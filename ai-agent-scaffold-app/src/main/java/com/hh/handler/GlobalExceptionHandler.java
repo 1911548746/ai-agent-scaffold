@@ -1,6 +1,6 @@
 package com.hh.handler;
 
-import com.hh.api.response.Response;
+import com.hh.api.agent.response.Response;
 import com.hh.types.exception.AppException;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.support.SensitiveDataRedactor;

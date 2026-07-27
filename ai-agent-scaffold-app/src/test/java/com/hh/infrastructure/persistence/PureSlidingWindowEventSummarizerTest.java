@@ -1,10 +1,10 @@
 package com.hh.infrastructure.persistence;
 
 import com.google.adk.events.Event;
-import com.hh.infrastructure.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.session.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
-import com.hh.infrastructure.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
+import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

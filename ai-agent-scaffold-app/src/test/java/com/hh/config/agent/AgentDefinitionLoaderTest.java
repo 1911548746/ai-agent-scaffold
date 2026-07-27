@@ -1,5 +1,7 @@
 package com.hh.config.agent;
 
+import com.hh.config.agent.catalog.AgentConfigurationException;
+import com.hh.config.agent.catalog.AgentDefinitionLoader;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;

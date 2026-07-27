@@ -1,10 +1,11 @@
 package com.hh.config;
 
-import com.hh.config.agent.AgentDefinitionLoader;
-import com.hh.config.agent.properties.AgentCatalogProperties;
+import com.hh.config.agent.catalog.AgentDefinitionLoader;
+import com.hh.config.agent.bootstrap.AiAgentAutoConfig;
+import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
 import com.hh.application.agent.port.AgentRuntimeCompiler;
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.config.agent.AgentCompiler;
+import com.hh.config.agent.bootstrap.AgentCompiler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

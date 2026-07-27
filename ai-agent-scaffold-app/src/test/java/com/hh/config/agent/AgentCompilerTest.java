@@ -1,6 +1,8 @@
 package com.hh.config.agent;
 
 import com.hh.application.agent.port.AgentRuntimeCompiler;
+import com.hh.config.agent.bootstrap.AgentCompiler;
+import com.hh.config.agent.catalog.AgentConfigurationException;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.ChatModelDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;

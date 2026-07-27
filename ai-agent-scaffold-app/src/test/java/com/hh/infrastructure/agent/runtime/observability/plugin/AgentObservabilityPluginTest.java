@@ -7,6 +7,7 @@ import com.google.adk.models.LlmResponse;
 import com.google.adk.tools.BaseTool;
 import com.google.adk.tools.ToolContext;
 import com.google.genai.types.GenerateContentResponseUsageMetadata;
+import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPlugin;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;

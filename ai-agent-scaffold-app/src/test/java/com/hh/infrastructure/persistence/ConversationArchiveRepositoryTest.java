@@ -1,10 +1,10 @@
 package com.hh.infrastructure.persistence;
 
-import com.hh.infrastructure.adapter.repository.ConversationArchiveRepository;
-import com.hh.infrastructure.dao.ConversationDao;
-import com.hh.infrastructure.dao.MessageDao;
-import com.hh.infrastructure.dao.SessionDao;
-import com.hh.infrastructure.dao.SessionEventDao;
+import com.hh.infrastructure.agent.adapter.repository.ConversationArchiveRepository;
+import com.hh.infrastructure.agent.dao.ConversationDao;
+import com.hh.infrastructure.agent.dao.MessageDao;
+import com.hh.infrastructure.agent.dao.SessionDao;
+import com.hh.infrastructure.agent.dao.SessionEventDao;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 

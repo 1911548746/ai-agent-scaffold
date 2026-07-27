@@ -3,10 +3,10 @@ package com.hh.infrastructure.persistence;
 import com.google.adk.events.Event;
 import com.google.adk.events.EventActions;
 import com.google.adk.events.EventCompaction;
-import com.hh.infrastructure.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
-import com.hh.infrastructure.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.session.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

@@ -6,14 +6,16 @@ import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
 import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
-import com.hh.infrastructure.agent.compiler.assembly.context.DynamicContext;
-import com.hh.infrastructure.agent.compiler.assembly.node.RunnerNode;
-import com.hh.infrastructure.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
-import com.hh.infrastructure.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.session.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.session.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.runtime.observability.plugin.AgentObservabilityPlugin;
-import com.hh.infrastructure.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
+import com.hh.infrastructure.agent.agent.compiler.assembly.context.DynamicContext;
+import com.hh.infrastructure.agent.agent.compiler.assembly.node.RunnerNode;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPlugin;
+import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
+import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
+import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
@@ -67,9 +69,9 @@ class RunnerNodePureSlidingWindowTest {
         assertThat(app.eventsCompactionConfig().compactionInterval()).isEqualTo(1);
         assertThat(app.eventsCompactionConfig().overlapSize()).isEqualTo(3);
         assertThat(app.eventsCompactionConfig().summarizer())
-                .isInstanceOf(com.hh.infrastructure.agent.session.compaction.summarizer.TrackingLlmEventSummarizer.class);
+                .isInstanceOf(TrackingLlmEventSummarizer.class);
         assertThat(ReflectionTestUtils.getField(app.eventsCompactionConfig().summarizer(), "delegate"))
-                .isInstanceOf(com.hh.infrastructure.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer.class);
+                .isInstanceOf(PureSlidingWindowEventSummarizer.class);
         assertThat(app.plugins())
                 .singleElement()
                 .isInstanceOf(AgentObservabilityPlugin.class);

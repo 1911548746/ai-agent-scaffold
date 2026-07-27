@@ -1,8 +1,8 @@
 package com.hh.trigger.http;
 
-import com.hh.api.IAgentService;
-import com.hh.api.dto.*;
-import com.hh.api.response.Response;
+import com.hh.api.agent.IAgentService;
+import com.hh.api.agent.dto.*;
+import com.hh.api.agent.response.Response;
 import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.model.ChatResult;
 import com.hh.application.agent.model.ChatStreamObserver;

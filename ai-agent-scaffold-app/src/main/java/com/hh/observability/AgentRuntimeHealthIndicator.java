@@ -1,7 +1,7 @@
 package com.hh.observability;
 
-import com.hh.config.agent.properties.AgentCatalogProperties;
-import com.hh.infrastructure.agent.runtime.AdkAgentRuntimeRegistry;
+import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
+import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;

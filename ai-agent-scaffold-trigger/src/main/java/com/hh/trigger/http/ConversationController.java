@@ -1,11 +1,11 @@
 package com.hh.trigger.http;
 
-import com.hh.api.IConversationService;
-import com.hh.api.dto.ConversationDeleteRequestDTO;
-import com.hh.api.dto.ConversationDetailResponseDTO;
-import com.hh.api.dto.ConversationListResponseDTO;
-import com.hh.api.dto.MessageItemDTO;
-import com.hh.api.response.Response;
+import com.hh.api.agent.IConversationService;
+import com.hh.api.agent.dto.ConversationDeleteRequestDTO;
+import com.hh.api.agent.dto.ConversationDetailResponseDTO;
+import com.hh.api.agent.dto.ConversationListResponseDTO;
+import com.hh.api.agent.dto.MessageItemDTO;
+import com.hh.api.agent.response.Response;
 import com.hh.application.agent.model.ConversationDeletionCommand;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import com.hh.domain.agent.model.valobj.ConversationVO;

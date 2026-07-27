@@ -1,6 +1,5 @@
 package com.hh.trigger.http;
 
-import com.hh.api.dto.ChatRequestDTO;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;

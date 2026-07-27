@@ -1,9 +1,9 @@
 package com.hh.observability;
 
 import com.google.adk.runner.Runner;
-import com.hh.config.agent.properties.AgentCatalogProperties;
-import com.hh.infrastructure.agent.runtime.AdkAgentRuntime;
-import com.hh.infrastructure.agent.runtime.AdkAgentRuntimeRegistry;
+import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
+import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
+import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.actuate.health.Status;
 
