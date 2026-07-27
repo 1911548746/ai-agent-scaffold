@@ -2,7 +2,7 @@
 name: release-note
 description: 将零散变更整理为面向用户或团队的发布说明。
 license: internal-study
-compatibility: ADK Java 1.4.0
+compatibility: ADK Java 1.7.0
 allowed-tools: none
 metadata:
   chapter: "15"

@@ -447,6 +447,7 @@ public class AgentDefinitionLoader {
         RunnerDefinition result = new RunnerDefinition();
         result.setAgentName(rootAgentName);
         result.setPersistence(source.isPersistence());
+        result.setGroupFunctionResponsesInHistory(source.isGroupFunctionResponsesInHistory());
         result.setPluginNameList(new ArrayList<>(source.getPluginNameList()));
 
         // 显式复制全部压缩参数，避免迁移后因 null 或默认值差异改变上下文保留策略。

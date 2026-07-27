@@ -1,6 +1,5 @@
-package com.hh.infrastructure.agent.runtime.observability;
+package com.hh.infrastructure.agent.agent.runtime.observability;
 
-import com.hh.infrastructure.agent.agent.runtime.observability.AgentRuntimeObservability;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;

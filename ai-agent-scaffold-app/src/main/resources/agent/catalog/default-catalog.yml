@@ -27,6 +27,8 @@ ai:
           agent-ref: hello-agent
           runner:
             persistence: true
+            # 仅供要求 FC1/FC2/FR1/FR2 历史格式的兼容模型端点使用。
+            group-function-responses-in-history: true
             context-compress:
 #                 type: slidingWindow
 #                 compaction-interval: 3

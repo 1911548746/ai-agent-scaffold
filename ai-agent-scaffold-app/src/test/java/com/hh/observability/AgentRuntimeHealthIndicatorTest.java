@@ -1,6 +1,7 @@
 package com.hh.observability;
 
 import com.google.adk.runner.Runner;
+import com.google.adk.agents.RunConfig;
 import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
@@ -53,7 +54,7 @@ class AgentRuntimeHealthIndicatorTest {
         properties.setEnabled(true);
         AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
         registry.publish(List.of(new AdkAgentRuntime(
-                "app-a", "agent-a", "Agent A", "desc", mock(Runner.class))));
+                "app-a", "agent-a", "Agent A", "desc", mock(Runner.class), RunConfig.builder().build())));
         AgentRuntimeHealthIndicator indicator = new AgentRuntimeHealthIndicator(properties, registry);
 
         var health = indicator.health();

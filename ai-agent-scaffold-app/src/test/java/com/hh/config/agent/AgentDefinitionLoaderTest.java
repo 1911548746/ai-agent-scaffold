@@ -62,6 +62,7 @@ class AgentDefinitionLoaderTest {
             assertThat(agent.getSkillsDir()).isEqualTo("classpath:agent/skills");
         });
         assertThat(hello.getRunner().getPersistence()).isTrue();
+        assertThat(hello.getRunner().getGroupFunctionResponsesInHistory()).isTrue();
         assertThat(hello.getRunner().getPluginNameList()).containsExactly("myLoggingPlugin");
         assertThat(hello.getRunner().getContextCompress().getType()).isEqualTo("pureSlidingWindow");
         assertThat(hello.getRunner().getContextCompress().getInvocationRetentionSize()).isEqualTo(4);
@@ -83,6 +84,8 @@ class AgentDefinitionLoaderTest {
         });
         assertThat(pipeline.getRootAgentName()).isEqualTo("CodePipelineAgent");
         assertThat(pipeline.getRunner().getPersistence()).isTrue();
+        // 未配置时保持 false，不因 ADK 升级改变历史消息组织方式。
+        assertThat(pipeline.getRunner().getGroupFunctionResponsesInHistory()).isFalse();
 
         // Chrome 示例保留 stdio MCP 定义，但默认禁用以避免离线测试或普通启动创建外部进程。
         AgentDefinition chrome = definition(definitions, "chrome-devtools-agent");
@@ -100,6 +103,7 @@ class AgentDefinitionLoaderTest {
             });
         });
         assertThat(chrome.getRunner().getPersistence()).isFalse();
+        assertThat(chrome.getRunner().getGroupFunctionResponsesInHistory()).isFalse();
         assertThat(chrome.getRunner().getPluginNameList()).isEmpty();
     }
 

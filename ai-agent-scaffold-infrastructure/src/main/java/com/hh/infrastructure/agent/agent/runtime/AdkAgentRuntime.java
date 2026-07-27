@@ -1,5 +1,6 @@
 package com.hh.infrastructure.agent.agent.runtime;
 
+import com.google.adk.agents.RunConfig;
 import com.google.adk.runner.Runner;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
 
@@ -16,7 +17,8 @@ public record AdkAgentRuntime(
         String agentId,
         String agentName,
         String agentDesc,
-        Runner runner) {
+        Runner runner,
+        RunConfig runConfig) {
 
     public AdkAgentRuntime {
         Objects.requireNonNull(appName, "appName must not be null");
@@ -24,6 +26,7 @@ public record AdkAgentRuntime(
         Objects.requireNonNull(agentName, "agentName must not be null");
         Objects.requireNonNull(agentDesc, "agentDesc must not be null");
         Objects.requireNonNull(runner, "runner must not be null");
+        Objects.requireNonNull(runConfig, "runConfig must not be null");
     }
 
     /**

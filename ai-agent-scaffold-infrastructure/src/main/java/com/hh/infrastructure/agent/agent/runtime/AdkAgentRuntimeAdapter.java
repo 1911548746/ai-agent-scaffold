@@ -58,18 +58,20 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
     @Override
     public ChatResult run(String agentId, String userId, String sessionId, String message) {
         List<String> outputs = new ArrayList<>();
-        requireRuntime(agentId).runner()
-                .runAsync(userId, sessionId, Content.fromParts(Part.fromText(message)))
+        AdkAgentRuntime runtime = requireRuntime(agentId);
+        runtime.runner()
+                .runAsync(userId, sessionId, Content.fromParts(Part.fromText(message)), runtime.runConfig())
                 .blockingForEach(event -> appendFinalResponse(outputs, event));
         return new ChatResult(outputs);
     }
 
     @Override
     public ChatStream runStream(String agentId, String userId, String sessionId, String message) {
-        RunConfig runConfig = RunConfig.builder()
+        AdkAgentRuntime runtime = requireRuntime(agentId);
+        RunConfig runConfig = runtime.runConfig().toBuilder()
                 .streamingMode(RunConfig.StreamingMode.SSE)
                 .build();
-        Flowable<Event> events = requireRuntime(agentId).runner().runAsync(
+        Flowable<Event> events = runtime.runner().runAsync(
                 userId, sessionId, Content.fromParts(Part.fromText(message)), runConfig);
         return observer -> events.subscribe(
                 // TODO 后期可以加入 思考过程、工具调用 等 trace，在前端展示
@@ -98,8 +100,13 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         }
 
         List<String> outputs = new ArrayList<>();
-        requireRuntime(agentId).runner()
-                .runAsync(command.getUserId(), command.getSessionId(), Content.builder().parts(parts).build())
+        AdkAgentRuntime runtime = requireRuntime(agentId);
+        runtime.runner()
+                .runAsync(
+                        command.getUserId(),
+                        command.getSessionId(),
+                        Content.builder().parts(parts).build(),
+                        runtime.runConfig())
                 .blockingForEach(event -> appendFinalResponse(outputs, event));
         return new ChatResult(outputs);
     }

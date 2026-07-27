@@ -101,6 +101,8 @@ public class AgentCatalogProperties {
     public static class RunnerDefinition {
         // 未声明持久化时保持旧装配链默认的内存 Session 行为。
         private boolean persistence = false;
+        // 默认不强制覆盖，由 ADK 根据模型决定；true 仅用于要求分组历史格式的兼容端点。
+        private boolean groupFunctionResponsesInHistory = false;
         @Valid
         @NotNull
         private ContextCompressDefinition contextCompress = new ContextCompressDefinition();

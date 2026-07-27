@@ -2,7 +2,7 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.hh.infrastructure.agentpac.dao.ConversationDao">
+<mapper namespace="com.hh.infrastructure.agent.dao.ConversationDao">
 
     <!-- 联合唯一键是并发裁决点；重复创建不覆盖首条对话记录。 -->
     <insert id="upsertByIdentity" parameterType="com.hh.infrastructure.agent.dao.po.ConversationPO">

@@ -1,6 +1,7 @@
 package com.hh.infrastructure.persistence;
 
 import com.google.adk.agents.BaseAgent;
+import com.google.adk.agents.RunConfig;
 import com.google.adk.apps.App;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
@@ -30,7 +31,25 @@ import static org.mockito.Mockito.mock;
 /**
  * 固化 pureSlidingWindow 的关键装配边界：保留 ADK 的窗口编排，但替换为无模型的 marker summarizer。
  */
+@SuppressWarnings("deprecation")
 class RunnerNodePureSlidingWindowTest {
+
+    @Test
+    void runnerExecutionPolicyIsCompiledIntoRunConfig() throws Exception {
+        RunnerNode node = new RunnerNode();
+        RunnerDefinition runner = new RunnerDefinition();
+        runner.setGroupFunctionResponsesInHistory(true);
+
+        Method createRunConfig = RunnerNode.class.getDeclaredMethod(
+                "createRunConfig", RunnerDefinition.class);
+        createRunConfig.setAccessible(true);
+        RunConfig runConfig = (RunConfig) createRunConfig.invoke(node, runner);
+        RunConfig automaticRunConfig = (RunConfig) createRunConfig.invoke(node, new RunnerDefinition());
+
+        assertThat(runConfig.groupFunctionResponsesInHistory()).isTrue();
+        assertThat(runConfig.streamingMode()).isEqualTo(RunConfig.StreamingMode.NONE);
+        assertThat(automaticRunConfig.groupFunctionResponsesInHistoryOverride()).isEmpty();
+    }
 
     @Test
     void pureSlidingWindowBuildsAppWithAdkWindowConfigurationAndNoLlmSummarizer() throws Exception {

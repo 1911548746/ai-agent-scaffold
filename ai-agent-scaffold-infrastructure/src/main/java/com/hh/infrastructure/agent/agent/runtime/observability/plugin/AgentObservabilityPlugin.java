@@ -218,6 +218,10 @@ public final class AgentObservabilityPlugin extends BasePlugin {
     private void recordTokens(String modelName, GenerateContentResponseUsageMetadata usage) {
         usage.promptTokenCount().ifPresent(value -> incrementTokenCounter(modelName, "prompt", value));
         usage.candidatesTokenCount().ifPresent(value -> incrementTokenCounter(modelName, "completion", value));
+        // total 是权威总量；thought/cache/tool 是明细维度，监控侧不能将所有 kind 再次求和。
+        usage.thoughtsTokenCount().ifPresent(value -> incrementTokenCounter(modelName, "thought", value));
+        usage.cachedContentTokenCount().ifPresent(value -> incrementTokenCounter(modelName, "cache", value));
+        usage.toolUsePromptTokenCount().ifPresent(value -> incrementTokenCounter(modelName, "tool", value));
         usage.totalTokenCount().ifPresent(value -> incrementTokenCounter(modelName, "total", value));
     }
 

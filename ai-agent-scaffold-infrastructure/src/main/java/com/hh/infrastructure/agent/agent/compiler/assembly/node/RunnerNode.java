@@ -2,6 +2,7 @@ package com.hh.infrastructure.agent.agent.compiler.assembly.node;
 
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.BaseAgent;
+import com.google.adk.agents.RunConfig;
 import com.google.adk.apps.App;
 import com.google.adk.artifacts.InMemoryArtifactService;
 import com.google.adk.memory.InMemoryMemoryService;
@@ -32,6 +33,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Slf4j
@@ -66,7 +68,9 @@ public class RunnerNode extends AgentAssemblySupport {
         Runner runner = createRunner(agentDefinition, app);
 
         // 策略树到此才产生完整运行时；在 AgentCompiler 发布前它仍是私有候选对象。
-        AdkAgentRuntime runtime = new AdkAgentRuntime(appName, agentId, agentName, agentDesc, runner);
+        RunConfig runConfig = createRunConfig(agentDefinition.getRunner());
+        AdkAgentRuntime runtime = new AdkAgentRuntime(
+                appName, agentId, agentName, agentDesc, runner, runConfig);
 
         // 返回临时构建结果；AgentCompiler 在所有 Agent 成功后统一发布 Registry 快照。
         return runtime;
@@ -188,6 +192,29 @@ public class RunnerNode extends AgentAssemblySupport {
                 .sessionService(sessionService)
                 .memoryService(new InMemoryMemoryService())
                 .build();
+    }
+
+    /**
+     * 将 Agent 级执行策略编译成不可变 RunConfig，供同步、流式和多模态入口共同复用。
+     */
+    private RunConfig createRunConfig(RunnerDefinition runnerConfig) {
+        boolean groupFunctionResponses = runnerConfig != null
+                && Boolean.TRUE.equals(runnerConfig.getGroupFunctionResponsesInHistory());
+        RunConfig.Builder builder = RunConfig.builder();
+        if (groupFunctionResponses) {
+            // false/未配置必须保持 Optional.empty，让 ADK 为 Gemini 3 等模型自行决定是否重排。
+            enableGroupedFunctionHistoryCompatibility(builder);
+        }
+        return builder.build();
+    }
+
+    /**
+     * 仅为确实需要 FC1/FC2/FR1/FR2 历史格式的非核心模型端点开启 ADK 兼容覆盖。
+     */
+    @SuppressWarnings("deprecation")
+    private void enableGroupedFunctionHistoryCompatibility(RunConfig.Builder builder) {
+        // ADK 1.7 已将该覆盖标记为特定端点兼容 API，集中隔离便于上游移除后统一迁移。
+        builder.groupFunctionResponsesInHistoryOverride(Optional.of(true));
     }
 
     /**

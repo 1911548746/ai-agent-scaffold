@@ -1,4 +1,4 @@
-package com.hh.infrastructure.agent.runtime.observability.plugin;
+package com.hh.infrastructure.agent.agent.runtime.observability.plugin;
 
 import com.google.adk.agents.BaseAgent;
 import com.google.adk.agents.CallbackContext;
@@ -7,7 +7,6 @@ import com.google.adk.models.LlmResponse;
 import com.google.adk.tools.BaseTool;
 import com.google.adk.tools.ToolContext;
 import com.google.genai.types.GenerateContentResponseUsageMetadata;
-import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPlugin;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +54,9 @@ class AgentObservabilityPluginTest {
                 GenerateContentResponseUsageMetadata.builder()
                         .promptTokenCount(12)
                         .candidatesTokenCount(8)
+                        .thoughtsTokenCount(3)
+                        .cachedContentTokenCount(4)
+                        .toolUsePromptTokenCount(5)
                         .totalTokenCount(20)
                         .build()));
         plugin.beforeModelCallback(modelContext, requestBuilder).test().assertComplete().assertNoValues();
@@ -86,6 +88,34 @@ class AgentObservabilityPluginTest {
         assertThat(meterRegistry.find(AgentObservabilityPlugin.MODEL_TOKEN_COUNTER_NAME)
                 .tags("agent.id", "agent-a", "model.name", "model-a", "kind", "total")
                 .counter().count()).isEqualTo(20);
+        assertTokenCount("thought", 3);
+        assertTokenCount("cache", 4);
+        assertTokenCount("tool", 5);
+    }
+
+    @Test
+    void ignoresMissingOrNonPositiveTokenDetails() {
+        CallbackContext modelContext = callbackContext("invocation-a", "model-event");
+        plugin.beforeModelCallback(modelContext, modelRequest("model-a")).test().assertComplete();
+
+        LlmResponse finalResponse = mock(LlmResponse.class);
+        when(finalResponse.partial()).thenReturn(Optional.of(false));
+        when(finalResponse.turnComplete()).thenReturn(Optional.of(true));
+        when(finalResponse.usageMetadata()).thenReturn(Optional.of(
+                GenerateContentResponseUsageMetadata.builder()
+                        .thoughtsTokenCount(0)
+                        .cachedContentTokenCount(0)
+                        .toolUsePromptTokenCount(0)
+                        .build()));
+
+        plugin.afterModelCallback(modelContext, finalResponse).test().assertComplete();
+
+        assertThat(meterRegistry.find(AgentObservabilityPlugin.MODEL_TOKEN_COUNTER_NAME)
+                .tag("kind", "thought").counter()).isNull();
+        assertThat(meterRegistry.find(AgentObservabilityPlugin.MODEL_TOKEN_COUNTER_NAME)
+                .tag("kind", "cache").counter()).isNull();
+        assertThat(meterRegistry.find(AgentObservabilityPlugin.MODEL_TOKEN_COUNTER_NAME)
+                .tag("kind", "tool").counter()).isNull();
     }
 
     @Test
@@ -146,5 +176,11 @@ class AgentObservabilityPluginTest {
         when(builder.build()).thenReturn(request);
         when(request.model()).thenReturn(Optional.of(modelName));
         return builder;
+    }
+
+    private void assertTokenCount(String kind, double expected) {
+        assertThat(meterRegistry.find(AgentObservabilityPlugin.MODEL_TOKEN_COUNTER_NAME)
+                .tags("agent.id", "agent-a", "model.name", "model-a", "kind", kind)
+                .counter().count()).isEqualTo(expected);
     }
 }
