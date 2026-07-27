@@ -22,7 +22,7 @@ services:
       retries: 10
       start_period: 15s
     networks:
-      - my-network
+      - ai-agent-scaffold-network
 
   # phpmyadmin https://hub.docker.com/_/phpmyadmin
   phpmyadmin:
@@ -39,7 +39,7 @@ services:
       mysql:
         condition: service_healthy
     networks:
-      - my-network
+      - ai-agent-scaffold-network
 
   # Redis
   redis:
@@ -54,7 +54,7 @@ services:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
     command: redis-server /usr/local/etc/redis/redis.conf
     networks:
-      - my-network
+      - ai-agent-scaffold-network
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
@@ -77,11 +77,13 @@ services:
       - LANGUAGE=C.UTF-8
       - LC_ALL=C.UTF-8
     networks:
-      - my-network
+      - ai-agent-scaffold-network
     depends_on:
       redis:
         condition: service_healthy
 
 networks:
-  my-network:
+  ai-agent-scaffold-network:
+    # app Compose 通过同一固定网络名接入 MySQL；可用 COMPOSE_NETWORK_NAME 隔离不同环境。
+    name: ${COMPOSE_NETWORK_NAME:-ai-agent-scaffold-network}
     driver: bridge

@@ -1,27 +1,49 @@
-# /usr/local/bin/docker-compose -f /docs/dev-ops/environment/environment-docker-compose-2.4.yml up -d
-version: '3.8'
-# docker-compose -f docker-compose-app.yml up -d
-# 你需要修改system为你自身系统的仓库名
+name: ai-agent-scaffold
+
 services:
-  ai-agent-scaffold:
-    image: system/ai-agent-scaffold:1.0
-    container_name: ai-agent-scaffold
-    restart: on-failure
+  ai-agent-scaffold-app:
+    image: ${APP_IMAGE:-ai-agent-scaffold-app:1.0}
+    build:
+      # Dockerfile 是多模块 Maven 构建，必须使用仓库根目录作为 context。
+      context: ../..
+      dockerfile: ai-agent-scaffold-app/Dockerfile
+    restart: unless-stopped
+    init: true
+    stop_grace_period: ${STOP_GRACE_PERIOD:-35s}
     ports:
-      - "8091:8091"
+      - "${HOST_SERVER_PORT:-8080}:8080"
+      # 管理端口只发布到宿主机回环地址；远程采集应通过受控网络或显式覆盖此配置。
+      - "127.0.0.1:${HOST_MANAGEMENT_PORT:-8081}:8081"
     environment:
-      - TZ=PRC
-      - SERVER_PORT=8091
-    volumes:
-      - ./log:/data/log
+      TZ: ${TZ:-Asia/Shanghai}
+      SERVER_PORT: "8080"
+      MANAGEMENT_SERVER_ADDRESS: "0.0.0.0"
+      MANAGEMENT_SERVER_PORT: "8081"
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: ${SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE:-30s}
+      # 凭据只由部署环境注入；Compose 不提供任何默认密码或模型 Key。
+      MODEL_API_KEY: ${MODEL_API_KEY:?请设置 MODEL_API_KEY}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?请设置 SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?请设置 SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?请设置 SPRING_DATASOURCE_PASSWORD}
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/readyz || exit 1"]
+      interval: 15s
+      timeout: 3s
+      start_period: 45s
+      retries: 3
     logging:
-      driver: "json-file"
+      driver: json-file
       options:
-        max-size: "10m"
+        max-size: 10m
         max-file: "3"
     networks:
-      - my-network
+      - ai-agent-scaffold-network
 
 networks:
-  my-network:
-    driver: bridge
+  ai-agent-scaffold-network:
+    # 数据库环境 Compose 负责创建该网络，应用侧只接入，避免 Compose 项目名导致网络名漂移。
+    name: ${COMPOSE_NETWORK_NAME:-ai-agent-scaffold-network}
+    external: true

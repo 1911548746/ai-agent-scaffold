@@ -5,6 +5,13 @@ spring:
     name: ai-agent-scaffold-app
   profiles:
     active: dev
+  lifecycle:
+    # Docker 默认 SIGTERM 等待时间会覆盖该值，确保停止容器时先停止接收请求并等待在途调用结束。
+    timeout-per-shutdown-phase: ${SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE:30s}
+
+server:
+  # 容器以 SIGTERM 停止时，等待 Web 容器完成在途请求后再关闭 Spring 上下文。
+  shutdown: graceful
 
 # OPS-01：运维端点与业务端口隔离，默认只允许本机采集；容器部署时再显式覆盖监听地址。
 management:

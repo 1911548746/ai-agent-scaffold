@@ -1,0 +1,17 @@
+# Docker 构建上下文不需要本地 IDE、构建产物或运行日志，避免镜像构建变慢。
+.git
+.idea
+**/*.iml
+**/target
+data
+**/*.log
+
+# 本地环境文件可能包含模型或数据库凭据，绝不能发送给 Docker daemon。
+.env
+.env.*
+!.env.example
+
+# 镜像构建只需要 Maven 模块源码和构建描述文件。
+docs
+note
+scripts
