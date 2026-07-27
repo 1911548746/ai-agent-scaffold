@@ -22,6 +22,8 @@ import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
 import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.infrastructure.agent.runtime.AdkAgentRuntime;
+import com.hh.infrastructure.agent.runtime.observability.plugin.AgentObservabilityPlugin;
+import com.hh.infrastructure.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
 import com.hh.infrastructure.agent.compiler.assembly.pipeline.AgentAssemblySupport;
 import com.hh.types.enums.ContextCompressTypeEnum;
 import jakarta.annotation.Resource;
@@ -29,7 +31,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -40,6 +44,9 @@ public class RunnerNode extends AgentAssemblySupport {
 
     @Resource
     private CompactionCleanupPolicyRegistry compactionCleanupPolicyRegistry;
+
+    @Resource
+    private AgentObservabilityPluginFactory agentObservabilityPluginFactory;
 
     @Override
     protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, DynamicContext dynamicContext) throws Exception {
@@ -132,10 +139,22 @@ public class RunnerNode extends AgentAssemblySupport {
         // 配置插件列表
         List<String> pluginNameList = runnerConfig.getPluginNameList();
         List<Plugin> plugins = new ArrayList<>();
+        Set<String> pluginNames = new HashSet<>();
+
+        // 系统观测能力属于运行时基础设施，不允许因业务 YAML 漏配而失效。
+        Plugin observabilityPlugin = agentObservabilityPluginFactory.create(
+                definition.getAgentDescriptor().getAgentId());
+        plugins.add(observabilityPlugin);
+        pluginNames.add(observabilityPlugin.getName());
 
         for (String pluginName : pluginNameList) {
             Plugin plugin = getBean(pluginName);
             if (plugin != null) {
+                if (!pluginNames.add(plugin.getName())) {
+                    throw new IllegalArgumentException(
+                            "Agent '" + definition.getId() + "' contains duplicate Plugin name '"
+                                    + plugin.getName() + "'");
+                }
                 plugins.add(plugin);
             }
         }

@@ -5,12 +5,16 @@ import com.google.adk.apps.App;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
 import com.hh.domain.agent.model.definition.RunnerDefinition;
+import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.infrastructure.agent.compiler.assembly.context.DynamicContext;
 import com.hh.infrastructure.agent.compiler.assembly.node.RunnerNode;
 import com.hh.infrastructure.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
 import com.hh.infrastructure.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
 import com.hh.infrastructure.agent.session.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
 import com.hh.infrastructure.agent.session.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.runtime.observability.plugin.AgentObservabilityPlugin;
+import com.hh.infrastructure.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -34,6 +38,8 @@ class RunnerNodePureSlidingWindowTest {
                 new SlidingWindowCompactionCleanupPolicy(),
                 new FixedSizeCompactionCleanupPolicy(),
                 new PureSlidingWindowCompactionCleanupPolicy())));
+        ReflectionTestUtils.setField(node, "agentObservabilityPluginFactory",
+                new AgentObservabilityPluginFactory(new SimpleMeterRegistry()));
 
         ContextCompressionDefinition compression = new ContextCompressionDefinition();
         compression.setType("pureSlidingWindow");
@@ -44,7 +50,9 @@ class RunnerNodePureSlidingWindowTest {
         runner.setContextCompress(compression);
 
         AgentDefinition definition = AgentDefinition.builder()
+                .id("pure-window-definition")
                 .appName("pure_window_app")
+                .agentDescriptor(agentDescriptor())
                 .runner(runner)
                 .build();
         DynamicContext context = new DynamicContext();
@@ -62,5 +70,16 @@ class RunnerNodePureSlidingWindowTest {
                 .isInstanceOf(com.hh.infrastructure.agent.session.compaction.summarizer.TrackingLlmEventSummarizer.class);
         assertThat(ReflectionTestUtils.getField(app.eventsCompactionConfig().summarizer(), "delegate"))
                 .isInstanceOf(com.hh.infrastructure.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer.class);
+        assertThat(app.plugins())
+                .singleElement()
+                .isInstanceOf(AgentObservabilityPlugin.class);
+    }
+
+    private AgentDescriptor agentDescriptor() {
+        AgentDescriptor descriptor = new AgentDescriptor();
+        descriptor.setAgentId("pure-window-agent");
+        descriptor.setAgentName("Pure Window Agent");
+        descriptor.setAgentDesc("test");
+        return descriptor;
     }
 }

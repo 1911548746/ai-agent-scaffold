@@ -172,6 +172,12 @@
                                         <exclude>org.codehaus.mojo:animal-sniffer-annotations</exclude>
                                         <exclude>org.apache.httpcomponents:*</exclude>
                                         <exclude>org.threeten:*</exclude>
+                                        <!--
+                                            OPS-01 引入的 Boot OTel bridge 使用 semconv 1.25 alpha，
+                                            ADK 的 Google Cloud Storage 链使用 1.29 alpha；两者均由上游
+                                            锁定，待升级 ADK/Boot 时应重新验证并移除此单坐标例外。
+                                        -->
+                                        <exclude>io.opentelemetry.semconv:opentelemetry-semconv</exclude>
                                     </excludes>
                                 </dependencyConvergence>
                             </rules>

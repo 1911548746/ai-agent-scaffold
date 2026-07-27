@@ -42,6 +42,16 @@
             <artifactId>lombok</artifactId>
         </dependency>
 
+        <!-- OPS-01：只在 ADK 基础设施边界使用 Micrometer API，不向 application/domain 泄漏。 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-observation</artifactId>
+        </dependency>
+
         <!-- 系统模块 -->
         <dependency>
             <groupId>com.hh</groupId>

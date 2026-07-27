@@ -1,8 +1,43 @@
 spring:
+  application:
+    name: ai-agent-scaffold-app
   config:
     name: ai-agent-scaffold-app
   profiles:
     active: dev
+
+# OPS-01：运维端点与业务端口隔离，默认只允许本机采集；容器部署时再显式覆盖监听地址。
+management:
+  server:
+    address: ${MANAGEMENT_SERVER_ADDRESS:127.0.0.1}
+    port: ${MANAGEMENT_SERVER_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+        # 管理端口隔离后仍在业务端口提供 /livez 与 /readyz，供编排平台探测。
+        add-additional-paths: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          # readiness 同时检查应用状态、数据库和已原子发布的 Agent Runtime 快照。
+          include: readinessState,db,agentRuntime
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  observations:
+    key-values:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}
 
 # DATA-03：生产默认删除被 compaction marker 覆盖的 Event；开发环境可覆盖为 false 以保留调试轨迹。
 ai:
