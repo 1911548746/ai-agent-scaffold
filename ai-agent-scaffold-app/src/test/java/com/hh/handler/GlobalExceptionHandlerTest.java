@@ -5,6 +5,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.hh.api.agent.response.Response;
 import com.hh.application.agent.exception.ModelInvocationException;
+import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import org.junit.jupiter.api.AfterEach;
@@ -87,6 +88,21 @@ class GlobalExceptionHandlerTest {
                 .contains(IllegalStateException.class.getName())
                 .doesNotContain(secret)
                 .doesNotContain("\tat ");
+    }
+
+    @Test
+    void preflightCompactionFailureReturnsRetryableServiceUnavailableResponse() {
+        ResponseEntity<Response<Void>> entity = handler.handleContextCompactionException(
+                request(), new ContextCompactionException(new IllegalStateException("provider details")));
+
+        assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(entity.getBody()).isNotNull();
+        assertThat(entity.getBody().getCode()).isEqualTo(ResponseCode.CONTEXT_COMPACTION_UNAVAILABLE.getCode());
+        assertThat(entity.getBody().getInfo()).isEqualTo(ResponseCode.CONTEXT_COMPACTION_UNAVAILABLE.getInfo());
+        assertThat(logAppender.list).hasSize(1);
+        assertThat(logAppender.list.get(0).getFormattedMessage())
+                .contains(IllegalStateException.class.getName())
+                .doesNotContain("provider details");
     }
 
     /**

@@ -2,6 +2,7 @@ package com.hh.handler;
 
 import com.hh.api.agent.response.Response;
 import com.hh.application.agent.exception.ModelInvocationException;
+import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.types.exception.AppException;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.support.SensitiveDataRedactor;
@@ -34,6 +35,17 @@ public class GlobalExceptionHandler {
                 request.getMethod(), request.getRequestURI(), ex.failureType(), ex.rootCauseType());
 
         return ResponseEntity.status(modelFailureStatus(ex.failureType()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Response.error(ex.getCode(), ex.getInfo()));
+    }
+
+    /** fixedSize 的前置压缩失败时，本轮主模型尚未开始，客户端可安全重试。 */
+    @ExceptionHandler(ContextCompactionException.class)
+    public ResponseEntity<Response<Void>> handleContextCompactionException(
+            HttpServletRequest request, ContextCompactionException ex) {
+        log.error("上下文压缩失败，请求: [{} {}]，根因类型: {}",
+                request.getMethod(), request.getRequestURI(), ex.rootCauseType());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Response.error(ex.getCode(), ex.getInfo()));
     }

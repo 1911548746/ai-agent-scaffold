@@ -2,8 +2,10 @@ package com.hh.infrastructure.agent.dao;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.hh.infrastructure.agent.dao.po.SessionEventCompactionCleanup;
+import com.hh.infrastructure.agent.dao.po.SessionEventIdCleanup;
 import com.hh.infrastructure.agent.dao.po.SessionEventPO;
 import com.hh.infrastructure.agent.dao.po.SessionEventQuery;
+import com.hh.infrastructure.agent.dao.po.SessionInvocationEventCleanup;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;
@@ -38,4 +40,14 @@ public interface SessionEventDao extends BaseMapper<SessionEventPO> {
      * 删除已被当前摘要精确覆盖的源 Event；摘要自身永远不在删除集合内。
      */
     int deleteCompactedEvents(SessionEventCompactionCleanup cleanup);
+
+    /**
+     * 删除一次失败或取消 invocation 产生的全部 Event，防止孤立用户消息继续参与上下文。
+     */
+    int deleteInvocationEvents(SessionInvocationEventCleanup cleanup);
+
+    /**
+     * 删除中断 invocation 中的 partial 和纯中间文本 Event，保留用户与工具轨迹。
+     */
+    int deleteEventsByIds(SessionEventIdCleanup cleanup);
 }

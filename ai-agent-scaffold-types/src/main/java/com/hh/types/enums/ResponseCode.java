@@ -19,6 +19,7 @@ public enum ResponseCode {
     MODEL_CONFIGURATION_ERROR("0006", "模型服务配置异常，请联系管理员"),
     MODEL_REQUEST_REJECTED("0007", "模型请求未被接受，请检查 Agent 配置"),
     MODEL_UNAVAILABLE("0008", "模型服务暂时不可用，请稍后重试"),
+    CONTEXT_COMPACTION_UNAVAILABLE("0009", "上下文压缩暂时不可用，请稍后重试"),
     ;
 
     private String code;

@@ -30,15 +30,15 @@ ai:
             # 仅供要求 FC1/FC2/FR1/FR2 历史格式的兼容模型端点使用。
             group-function-responses-in-history: true
             context-compress:
-#                 type: slidingWindow
-#                 compaction-interval: 3
-#                 overlap-size: 1
+                type: slidingWindow
+                compaction-interval: 3
+                overlap-size: 1
 #                # 不调用模型、不生成摘要：仅保留最近 N 个完整 invocation 的原始 Event。
-                type: pureSlidingWindow
-                invocation-retention-size: 4
+#                 type: pureSlidingWindow
+#                 invocation-retention-size: 4
 #                 type: fixedSize
-#                 token-threshold: 1500
-#                 event-retention-size: 6
+#                 token-threshold: 500
+#                 event-retention-size: 4
             plugin-name-list:
               - myLoggingPlugin
 

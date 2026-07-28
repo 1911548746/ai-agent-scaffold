@@ -14,6 +14,7 @@ import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import io.reactivex.rxjava3.core.Flowable;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -29,9 +30,19 @@ import java.util.List;
 public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
 
     private final AdkAgentRuntimeRegistry runtimeRegistry;
+    private final SessionCompactionCoordinator compactionCoordinator;
 
-    public AdkAgentRuntimeAdapter(AdkAgentRuntimeRegistry runtimeRegistry) {
+    @Autowired
+    public AdkAgentRuntimeAdapter(
+            AdkAgentRuntimeRegistry runtimeRegistry,
+            SessionCompactionCoordinator compactionCoordinator) {
         this.runtimeRegistry = runtimeRegistry;
+        this.compactionCoordinator = compactionCoordinator;
+    }
+
+    /** 保持既有离线测试和非 Spring 使用方的构造方式。 */
+    public AdkAgentRuntimeAdapter(AdkAgentRuntimeRegistry runtimeRegistry) {
+        this(runtimeRegistry, SessionCompactionCoordinator.direct());
     }
 
     @Override
@@ -59,9 +70,18 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
     public ChatResult run(String agentId, String userId, String sessionId, String message) {
         List<String> outputs = new ArrayList<>();
         AdkAgentRuntime runtime = requireRuntime(agentId);
-        runAsync(runtime, userId, sessionId, Content.fromParts(Part.fromText(message)), runtime.runConfig())
-                .blockingForEach(event -> appendFinalResponse(outputs, event));
-        return new ChatResult(outputs);
+        Content content = Content.fromParts(Part.fromText(message));
+        SessionCompactionCoordinator.InvocationLease lease = compactionCoordinator.begin(
+                runtime, userId, sessionId, content);
+        try {
+            runAsync(runtime, userId, sessionId, content, runtime.runConfig())
+                    .blockingForEach(event -> appendFinalResponse(outputs, event));
+            lease.success();
+            return new ChatResult(outputs);
+        } catch (RuntimeException | Error error) {
+            lease.fail();
+            throw error;
+        }
     }
 
     @Override
@@ -70,9 +90,13 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         RunConfig runConfig = runtime.runConfig().toBuilder()
                 .streamingMode(RunConfig.StreamingMode.SSE)
                 .build();
-        Flowable<Event> events = runAsync(
-                runtime, userId, sessionId, Content.fromParts(Part.fromText(message)), runConfig);
-        return observer -> events.subscribe(
+        Content content = Content.fromParts(Part.fromText(message));
+        return observer -> {
+            SessionCompactionCoordinator.InvocationLease lease = compactionCoordinator.begin(
+                    runtime, userId, sessionId, content);
+            try {
+                Flowable<Event> events = runAsync(runtime, userId, sessionId, content, runConfig);
+                var disposable = events.subscribe(
                 // TODO 后期可以加入 思考过程、工具调用 等 trace，在前端展示
                 event -> {
                     // FunctionCall、FunctionResponse 等 SDK 内部事件不是对话协议的一部分。
@@ -80,9 +104,25 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
                         observer.onEvent(new ChatEvent(event.stringifyContent()));
                     }
                 },
-                observer::onError,
-                observer::onComplete
-        )::dispose;
+                error -> {
+                    lease.fail();
+                    observer.onError(error);
+                },
+                () -> {
+                    lease.success();
+                    observer.onComplete();
+                }
+                );
+                return () -> {
+                    // 先停止上游继续产出 Event，再在同一 Session 许可内清理本轮已落地的上下文。
+                    disposable.dispose();
+                    lease.fail();
+                };
+            } catch (RuntimeException | Error error) {
+                lease.fail();
+                throw error;
+            }
+        };
     }
 
     @Override
@@ -98,16 +138,20 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
             command.getInlineDatas().forEach(data -> parts.add(Part.fromBytes(data.getBytes(), data.getMimeType())));
         }
 
-        List<String> outputs = new ArrayList<>();
         AdkAgentRuntime runtime = requireRuntime(agentId);
-        runAsync(
-                runtime,
-                command.getUserId(),
-                command.getSessionId(),
-                Content.builder().parts(parts).build(),
-                runtime.runConfig())
-                .blockingForEach(event -> appendFinalResponse(outputs, event));
-        return new ChatResult(outputs);
+        Content content = Content.builder().parts(parts).build();
+        SessionCompactionCoordinator.InvocationLease lease = compactionCoordinator.begin(
+                runtime, command.getUserId(), command.getSessionId(), content);
+        List<String> outputs = new ArrayList<>();
+        try {
+            runAsync(runtime, command.getUserId(), command.getSessionId(), content, runtime.runConfig())
+                    .blockingForEach(event -> appendFinalResponse(outputs, event));
+            lease.success();
+            return new ChatResult(outputs);
+        } catch (RuntimeException | Error error) {
+            lease.fail();
+            throw error;
+        }
     }
 
     /**

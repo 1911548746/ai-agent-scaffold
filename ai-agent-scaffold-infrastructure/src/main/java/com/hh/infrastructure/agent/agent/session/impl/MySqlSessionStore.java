@@ -9,8 +9,10 @@ import com.hh.infrastructure.agent.dao.SessionDao;
 import com.hh.infrastructure.agent.dao.SessionEventDao;
 import com.hh.infrastructure.agent.support.ADKJsonParseSupport;
 import com.hh.infrastructure.agent.dao.po.SessionEventCompactionCleanup;
+import com.hh.infrastructure.agent.dao.po.SessionEventIdCleanup;
 import com.hh.infrastructure.agent.dao.po.SessionEventPO;
 import com.hh.infrastructure.agent.dao.po.SessionEventQuery;
+import com.hh.infrastructure.agent.dao.po.SessionInvocationEventCleanup;
 import com.hh.infrastructure.agent.dao.po.SessionPO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -222,6 +224,68 @@ public class MySqlSessionStore implements AdkSessionStore {
                 // 某些 Session 快照可能返回不可变列表；数据库已经完成持久化即可。
             }
             return event;
+        });
+    }
+
+    @Override
+    public Completable discardInvocationEvents(Session session, List<String> invocationIds) {
+        return Completable.fromAction(() -> {
+            List<String> resolvedInvocationIds = invocationIds == null ? List.of() : invocationIds.stream()
+                    .filter(invocationId -> invocationId != null && !invocationId.isBlank())
+                    .distinct()
+                    .toList();
+            if (resolvedInvocationIds.isEmpty()) {
+                return;
+            }
+
+            // 远程模型调用早已结束；这里只开启覆盖补偿删除的短事务，不占用连接等待外部服务。
+            transactionTemplate.executeWithoutResult(status -> sessionEventDao.deleteInvocationEvents(
+                    SessionInvocationEventCleanup.builder()
+                            .appName(session.appName())
+                            .userId(session.userId())
+                            .sessionId(session.id())
+                            .invocationIds(resolvedInvocationIds)
+                            .build()));
+
+            // 数据库删除成功后再同步内存快照，失败时由 TransactionTemplate 抛错并保留原列表。
+            session.events().removeIf(event -> resolvedInvocationIds.contains(event.invocationId()));
+        });
+    }
+
+    @Override
+    public Completable preserveInterruptedInvocation(
+            Session session,
+            List<String> deletableEventIds,
+            List<Event> recoveryEvents) {
+        return Completable.fromAction(() -> {
+            List<String> resolvedEventIds = deletableEventIds == null ? List.of() : deletableEventIds.stream()
+                    .filter(eventId -> eventId != null && !eventId.isBlank())
+                    .distinct()
+                    .toList();
+            List<Event> resolvedRecoveryEvents = recoveryEvents == null ? List.of() : List.copyOf(recoveryEvents);
+            resolvedRecoveryEvents.forEach(this::ensureEventIdentity);
+
+            // 恢复 Event 与旧 Event 清理必须共同提交，避免只留下半套可恢复轨迹。
+            transactionTemplate.executeWithoutResult(status -> {
+                for (Event recoveryEvent : resolvedRecoveryEvents) {
+                    persistEvent(session.appName(), session.userId(), session.id(), recoveryEvent);
+                }
+                if (!resolvedRecoveryEvents.isEmpty()) {
+                    updateSessionSnapshot(session);
+                }
+                if (!resolvedEventIds.isEmpty()) {
+                    sessionEventDao.deleteEventsByIds(SessionEventIdCleanup.builder()
+                            .appName(session.appName())
+                            .userId(session.userId())
+                            .sessionId(session.id())
+                            .eventIds(resolvedEventIds)
+                            .build());
+                }
+            });
+
+            // 数据库提交后再生成相同的内存视图，供同一进程的下一轮调用直接使用。
+            session.events().removeIf(event -> resolvedEventIds.contains(event.id()));
+            session.events().addAll(resolvedRecoveryEvents);
         });
     }
 

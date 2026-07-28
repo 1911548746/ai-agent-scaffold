@@ -13,7 +13,9 @@ import com.hh.infrastructure.agent.dao.SessionEventDao;
 import com.hh.infrastructure.agent.dao.po.ConversationPO;
 import com.hh.infrastructure.agent.dao.po.SessionEventPO;
 import com.hh.infrastructure.agent.dao.po.SessionEventCompactionCleanup;
+import com.hh.infrastructure.agent.dao.po.SessionEventIdCleanup;
 import com.hh.infrastructure.agent.dao.po.SessionEventQuery;
+import com.hh.infrastructure.agent.dao.po.SessionInvocationEventCleanup;
 import com.hh.infrastructure.agent.dao.po.SessionPO;
 import org.apache.ibatis.builder.xml.XMLMapperBuilder;
 import org.apache.ibatis.io.Resources;
@@ -216,6 +218,12 @@ class IdempotentPersistenceAdapterTest {
                 "e.event_ts > ?", "ORDER BY e.id ASC");
         assertXmlStatement(SessionEventDao.class, "deleteCompactedEvents", "mapper/SessionEventDao.xml",
                 "DELETE FROM session_events", "event_id != ?", "event_id IN ( ? )");
+        assertXmlStatement(SessionEventDao.class, "deleteInvocationEvents", "mapper/SessionEventDao.xml",
+                "DELETE FROM session_events", "WHERE app_name = ?", "AND user_id = ?",
+                "AND session_id = ?", "AND invocation_id IN ( ? )");
+        assertXmlStatement(SessionEventDao.class, "deleteEventsByIds", "mapper/SessionEventDao.xml",
+                "DELETE FROM session_events", "WHERE app_name = ?", "AND user_id = ?",
+                "AND session_id = ?", "AND event_id IN ( ? )");
     }
 
     /**
@@ -263,6 +271,22 @@ class IdempotentPersistenceAdapterTest {
                     .sessionId("session-a")
                     .summaryEventId("summary-a")
                     .eventIds(List.of("source-a"))
+                    .build();
+        }
+        if (mapperType == SessionEventDao.class && "deleteInvocationEvents".equals(methodName)) {
+            return SessionInvocationEventCleanup.builder()
+                    .appName("app-a")
+                    .userId("user-a")
+                    .sessionId("session-a")
+                    .invocationIds(List.of("invocation-a"))
+                    .build();
+        }
+        if (mapperType == SessionEventDao.class && "deleteEventsByIds".equals(methodName)) {
+            return SessionEventIdCleanup.builder()
+                    .appName("app-a")
+                    .userId("user-a")
+                    .sessionId("session-a")
+                    .eventIds(List.of("event-a"))
                     .build();
         }
         return null;

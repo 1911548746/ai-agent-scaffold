@@ -15,6 +15,7 @@ import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
 import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPlugin;
 import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
+import com.hh.infrastructure.agent.agent.runtime.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -29,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * 固化 pureSlidingWindow 的关键装配边界：保留 ADK 的窗口编排，但替换为无模型的 marker summarizer。
+ * 固化 pureSlidingWindow 的关键装配边界：压缩计划留在 Runtime，不再注册到 ADK App 自动执行。
  */
 @SuppressWarnings("deprecation")
 class RunnerNodePureSlidingWindowTest {
@@ -52,7 +53,7 @@ class RunnerNodePureSlidingWindowTest {
     }
 
     @Test
-    void pureSlidingWindowBuildsAppWithAdkWindowConfigurationAndNoLlmSummarizer() throws Exception {
+    void pureSlidingWindowBuildsRuntimePlanWithoutRegisteringAutomaticCompaction() throws Exception {
         RunnerNode node = new RunnerNode();
         ReflectionTestUtils.setField(node, "applicationContext", mock(ApplicationContext.class));
         ReflectionTestUtils.setField(node, "compactionCleanupPolicyRegistry", new CompactionCleanupPolicyRegistry(List.of(
@@ -84,12 +85,19 @@ class RunnerNodePureSlidingWindowTest {
         createApp.setAccessible(true);
         App app = (App) createApp.invoke(node, definition, context);
 
-        assertThat(app.eventsCompactionConfig()).isNotNull();
-        assertThat(app.eventsCompactionConfig().compactionInterval()).isEqualTo(1);
-        assertThat(app.eventsCompactionConfig().overlapSize()).isEqualTo(3);
-        assertThat(app.eventsCompactionConfig().summarizer())
+        assertThat(app.eventsCompactionConfig()).isNull();
+        Method createPlan = RunnerNode.class.getDeclaredMethod(
+                "createCompactionPlan", DynamicContext.class, ContextCompressionDefinition.class);
+        createPlan.setAccessible(true);
+        RuntimeCompactionPlan plan = (RuntimeCompactionPlan) createPlan.invoke(node, context, compression);
+
+        assertThat(plan.postResponseRequired()).isTrue();
+        assertThat(plan.type().getType()).isEqualTo("pureSlidingWindow");
+        Object config = ReflectionTestUtils.getField(plan.compactor(), "config");
+        assertThat(ReflectionTestUtils.getField(config, "summarizer"))
                 .isInstanceOf(TrackingLlmEventSummarizer.class);
-        assertThat(ReflectionTestUtils.getField(app.eventsCompactionConfig().summarizer(), "delegate"))
+        assertThat(ReflectionTestUtils.getField(
+                ReflectionTestUtils.getField(config, "summarizer"), "delegate"))
                 .isInstanceOf(PureSlidingWindowEventSummarizer.class);
         assertThat(app.plugins())
                 .singleElement()

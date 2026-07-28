@@ -12,6 +12,8 @@ import com.google.adk.sessions.BaseSessionService;
 import com.google.adk.sessions.InMemorySessionService;
 import com.google.adk.summarizer.EventsCompactionConfig;
 import com.google.adk.summarizer.LlmEventSummarizer;
+import com.google.adk.summarizer.SlidingWindowEventCompactor;
+import com.google.adk.summarizer.TailRetentionEventCompactor;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
@@ -23,6 +25,7 @@ import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
 import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
+import com.hh.infrastructure.agent.agent.runtime.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
 import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblySupport;
 import com.hh.types.enums.ContextCompressTypeEnum;
@@ -61,7 +64,7 @@ public class RunnerNode extends AgentAssemblySupport {
         String agentName = agentDefinition.getAgentDescriptor().getAgentName();
         String agentDesc = agentDefinition.getAgentDescriptor().getAgentDesc();
 
-        // 创建App
+        // App 不再注册自动压缩。压缩由 Runtime 协调器显式执行，避免后置摘要失败反向终止主回复。
         App app = createApp(agentDefinition, dynamicContext);
 
         // 创建Runner
@@ -69,8 +72,10 @@ public class RunnerNode extends AgentAssemblySupport {
 
         // 策略树到此才产生完整运行时；在 AgentCompiler 发布前它仍是私有候选对象。
         RunConfig runConfig = createRunConfig(agentDefinition.getRunner());
+        RuntimeCompactionPlan compactionPlan = createCompactionPlan(
+                dynamicContext, agentDefinition.getRunner().getContextCompress());
         AdkAgentRuntime runtime = new AdkAgentRuntime(
-                appName, agentId, agentName, agentDesc, runner, runConfig);
+                appName, agentId, agentName, agentDesc, runner, runConfig, compactionPlan);
 
         // 返回临时构建结果；AgentCompiler 在所有 Agent 成功后统一发布 Registry 快照。
         return runtime;
@@ -90,54 +95,6 @@ public class RunnerNode extends AgentAssemblySupport {
         // runnerAgentName 运行时用的智能体名称
         String runnerAgentName = runnerConfig.getAgentName();
         BaseAgent baseAgent = dynamicContext.getAgentGroup().get(runnerAgentName);
-
-        // 上下文压缩
-        ContextCompressionDefinition contextCompressConfig = runnerConfig.getContextCompress();
-        EventsCompactionConfig compactionConfig = null;
-        ContextCompressTypeEnum compressType = contextCompressConfig == null
-                ? ContextCompressTypeEnum.FIXED_SIZE
-                : ContextCompressTypeEnum.getByType(contextCompressConfig.getType());
-
-        // 根据上下文压缩类型进行不同的配置
-        // 滑动窗口
-        /*
-          旧的一批 events -> summarizer 生成一条 compaction event
-          最近 overlap 的一部分 events -> 原样保留
-          compactionInterval：累计约多少轮（invocation）对话后触发压缩。
-          overlapSize：压缩时覆盖上一次压缩前多少轮（invocation）对话的原始 events。
-         */
-        if (ContextCompressTypeEnum.SLIDING_WINDOW.equals(compressType)) {
-            compactionConfig = EventsCompactionConfig.builder()
-                    .compactionInterval(contextCompressConfig.getCompactionInterval())
-                    .overlapSize(contextCompressConfig.getOverlapSize())
-                    // SlidingWindow 策略会保留 overlap invocation 的原始 Event，避免下一轮摘要丢失窗口重叠。
-                    .summarizer(createTrackingSummarizer(dynamicContext, contextCompressConfig))
-                    .build();
-        }
-
-        // 固定token阈值
-        /*
-         * 当上下文 token 超过阈值时，
-         * 保留最近 eventRetentionSize 条 events，
-         * 更早的 events 交给 summarizer 压成 compaction event。
-         */
-        else if (ContextCompressTypeEnum.FIXED_SIZE.equals(compressType)) {
-            compactionConfig = EventsCompactionConfig.builder()
-                    .tokenThreshold(null != contextCompressConfig ? contextCompressConfig.getTokenThreshold() : new ContextCompressionDefinition().getTokenThreshold())
-                    .eventRetentionSize(null != contextCompressConfig ? contextCompressConfig.getEventRetentionSize() : new ContextCompressionDefinition().getEventRetentionSize())
-                    // 默认摘要能力仍由 ADK 提供；包装器按 fixedSize 语义记录真正被新摘要覆盖的 Event。
-                    .summarizer(createTrackingSummarizer(dynamicContext, contextCompressConfig))
-                    .build();
-        }
-        // 纯滑动窗口仍使用 ADK 的窗口选择与 compaction marker 回放机制，但 marker 不携带模型摘要内容。
-        else if (ContextCompressTypeEnum.PURE_SLIDING_WINDOW.equals(compressType)) {
-            compactionConfig = EventsCompactionConfig.builder()
-                    // 每完成一轮都检查窗口；summarizer 仅在完整 invocation 超过保留容量时返回 marker。
-                    .compactionInterval(1)
-                    .overlapSize(contextCompressConfig.getInvocationRetentionSize())
-                    .summarizer(createPureSlidingWindowSummarizer(contextCompressConfig))
-                    .build();
-        }
 
         // 配置插件列表
         List<String> pluginNameList = runnerConfig.getPluginNameList();
@@ -162,15 +119,11 @@ public class RunnerNode extends AgentAssemblySupport {
             }
         }
 
-        // TODO 没有配置压缩策略时，不会进行上下文管理
-        var appBuilder = App.builder()
+        return App.builder()
                 .name(appName)
                 .rootAgent(baseAgent)
-                .plugins(plugins);
-        if (compactionConfig != null) {
-            appBuilder.eventsCompactionConfig(compactionConfig);
-        }
-        return appBuilder.build();
+                .plugins(plugins)
+                .build();
     }
 
     // 创建Runner
@@ -236,6 +189,45 @@ public class RunnerNode extends AgentAssemblySupport {
                 new LlmEventSummarizer(dynamicContext.getLlmModel()),
                 compactionCleanupPolicyRegistry.resolve(type),
                 cleanupContext);
+    }
+
+    /**
+     * 将 YAML 压缩配置编译为 Runtime 维护计划，而不是交给 ADK 自动串入主调用 Flowable。
+     */
+    private RuntimeCompactionPlan createCompactionPlan(
+            DynamicContext dynamicContext,
+            ContextCompressionDefinition configured) {
+
+        ContextCompressionDefinition config = configured == null ? new ContextCompressionDefinition() : configured;
+        ContextCompressTypeEnum type = ContextCompressTypeEnum.getByType(config.getType());
+
+        if (type == ContextCompressTypeEnum.SLIDING_WINDOW) {
+            EventsCompactionConfig adkConfig = EventsCompactionConfig.builder()
+                    .compactionInterval(config.getCompactionInterval())
+                    .overlapSize(config.getOverlapSize())
+                    .summarizer(createTrackingSummarizer(dynamicContext, config))
+                    .build();
+            return new RuntimeCompactionPlan(type, new SlidingWindowEventCompactor(adkConfig), 0, true);
+        }
+        if (type == ContextCompressTypeEnum.PURE_SLIDING_WINDOW) {
+            EventsCompactionConfig adkConfig = EventsCompactionConfig.builder()
+                    .compactionInterval(1)
+                    .overlapSize(config.getInvocationRetentionSize())
+                    .summarizer(createPureSlidingWindowSummarizer(config))
+                    .build();
+            return new RuntimeCompactionPlan(type, new SlidingWindowEventCompactor(adkConfig), 0, true);
+        }
+
+        // fixedSize 在当前用户消息写入前运行；阈值由协调器使用“历史 + 待发送消息”预检，
+        // 因此此处传 0 强制 TailRetention 只要被选中就压缩既有历史。
+        return new RuntimeCompactionPlan(
+                ContextCompressTypeEnum.FIXED_SIZE,
+                new TailRetentionEventCompactor(
+                        createTrackingSummarizer(dynamicContext, config),
+                        config.getEventRetentionSize(),
+                        0),
+                config.getTokenThreshold(),
+                true);
     }
 
     /**

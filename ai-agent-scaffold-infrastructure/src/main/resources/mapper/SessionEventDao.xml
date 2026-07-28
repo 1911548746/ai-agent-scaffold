@@ -72,4 +72,28 @@
           </foreach>
     </delete>
 
+    <!-- 调用失败后的短事务补偿，只按完整 Session 身份和本轮 invocationId 删除。 -->
+    <delete id="deleteInvocationEvents" parameterType="com.hh.infrastructure.agent.dao.po.SessionInvocationEventCleanup">
+        DELETE FROM session_events
+        WHERE app_name = #{appName}
+          AND user_id = #{userId}
+          AND session_id = #{sessionId}
+          AND invocation_id IN
+          <foreach collection="invocationIds" item="invocationId" open="(" separator="," close=")">
+              #{invocationId}
+          </foreach>
+    </delete>
+
+    <!-- 有工具进度的中断调用只删除明确列出的不完整 Event，不按时间范围推断。 -->
+    <delete id="deleteEventsByIds" parameterType="com.hh.infrastructure.agent.dao.po.SessionEventIdCleanup">
+        DELETE FROM session_events
+        WHERE app_name = #{appName}
+          AND user_id = #{userId}
+          AND session_id = #{sessionId}
+          AND event_id IN
+          <foreach collection="eventIds" item="eventId" open="(" separator="," close=")">
+              #{eventId}
+          </foreach>
+    </delete>
+
 </mapper>

@@ -4,12 +4,14 @@ import com.hh.api.agent.IAgentService;
 import com.hh.api.agent.dto.*;
 import com.hh.api.agent.response.Response;
 import com.hh.application.agent.exception.ModelInvocationException;
+import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.model.ChatResult;
 import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
+import com.hh.types.enums.ResponseCode;
 import com.hh.types.support.SensitiveDataRedactor;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -351,6 +353,9 @@ public class AgentServiceController implements IAgentService {
             log.error("流式模型调用最终失败，失败类型: {}，根因类型: {}",
                     modelError.failureType(), modelError.rootCauseType());
             response = StreamErrorResponseDTO.knownError(modelError.failureType().responseCode());
+        } else if (error instanceof ContextCompactionException compactionError) {
+            log.error("前置上下文压缩失败，根因类型: {}", compactionError.rootCauseType());
+            response = StreamErrorResponseDTO.knownError(ResponseCode.CONTEXT_COMPACTION_UNAVAILABLE);
         } else {
             // 非模型异常仍保留脱敏堆栈，否则工具、Session 或程序缺陷会失去诊断线索。
             log.error("智能体对话流式输出出错，异常类型: {}，异常详情: {}",

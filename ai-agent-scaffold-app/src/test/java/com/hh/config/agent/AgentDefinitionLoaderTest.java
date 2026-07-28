@@ -43,7 +43,7 @@ class AgentDefinitionLoaderTest {
         assertThat(definitions).extracting(AgentDefinition::getId)
                 .containsExactly("hello-agent", "pipeline-agent", "chrome-devtools-agent");
 
-        // Hello 示例覆盖 Local MCP、Skill、Plugin、持久化和 pureSlidingWindow 压缩配置的兼容转换。
+        // Hello 示例覆盖 Local MCP、Skill、Plugin、持久化和 slidingWindow 压缩配置的兼容转换。
         AgentDefinition hello = definition(definitions, "hello-agent");
         assertThat(hello.isEnabled()).isTrue();
         assertThat(hello.getAppName()).isEqualTo("HelloAgent");
@@ -64,8 +64,10 @@ class AgentDefinitionLoaderTest {
         assertThat(hello.getRunner().getPersistence()).isTrue();
         assertThat(hello.getRunner().getGroupFunctionResponsesInHistory()).isTrue();
         assertThat(hello.getRunner().getPluginNameList()).containsExactly("myLoggingPlugin");
-        assertThat(hello.getRunner().getContextCompress().getType()).isEqualTo("pureSlidingWindow");
-        assertThat(hello.getRunner().getContextCompress().getInvocationRetentionSize()).isEqualTo(4);
+        assertThat(hello.getRunner().getContextCompress().getType()).isEqualTo("slidingWindow");
+        // 默认示例的窗口参数以 catalog 为准，避免配置演示调整后测试仍固化旧值。
+        assertThat(hello.getRunner().getContextCompress().getCompactionInterval()).isEqualTo(7);
+        assertThat(hello.getRunner().getContextCompress().getOverlapSize()).isEqualTo(2);
 
         // Pipeline 示例覆盖三个 LLM 节点、output key 与顺序工作流的转换。
         AgentDefinition pipeline = definition(definitions, "pipeline-agent");

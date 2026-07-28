@@ -17,8 +17,10 @@ import com.hh.infrastructure.agent.agent.session.impl.MySqlSessionStore;
 import com.hh.infrastructure.agent.dao.SessionDao;
 import com.hh.infrastructure.agent.dao.SessionEventDao;
 import com.hh.infrastructure.agent.dao.po.SessionEventCompactionCleanup;
+import com.hh.infrastructure.agent.dao.po.SessionEventIdCleanup;
 import com.hh.infrastructure.agent.dao.po.SessionEventPO;
 import com.hh.infrastructure.agent.dao.po.SessionEventQuery;
+import com.hh.infrastructure.agent.dao.po.SessionInvocationEventCleanup;
 import com.hh.infrastructure.agent.dao.po.SessionPO;
 import io.reactivex.rxjava3.core.Maybe;
 import org.junit.jupiter.api.Test;
@@ -225,6 +227,131 @@ class SessionEventRetentionTest {
 
         // 摘要已经尝试写入但清理失败时，TransactionTemplate 必须回滚整个事务，不能留下孤立摘要。
         verify(transactionManager).rollback(any(TransactionStatus.class));
+    }
+
+    @Test
+    void failedInvocationCleanupDeletesDatabaseFirstThenUpdatesMemory() {
+        SessionDao sessionDao = mock(SessionDao.class);
+        SessionEventDao eventDao = mock(SessionEventDao.class);
+        PlatformTransactionManager transactionManager = transactionManager();
+        MySqlSessionStore store = new MySqlSessionStore(
+                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+        Session session = session("session-a");
+        session.events().addAll(List.of(
+                Event.builder().id("history-a").invocationId("invocation-history").build(),
+                Event.builder().id("user-a").invocationId("invocation-failed").build(),
+                Event.builder().id("tool-a").invocationId("invocation-failed").build()));
+
+        store.discardInvocationEvents(
+                session, List.of("invocation-failed", "invocation-failed", "")).blockingAwait();
+
+        ArgumentCaptor<SessionInvocationEventCleanup> cleanupCaptor =
+                ArgumentCaptor.forClass(SessionInvocationEventCleanup.class);
+        verify(eventDao).deleteInvocationEvents(cleanupCaptor.capture());
+        assertThat(cleanupCaptor.getValue())
+                .extracting(
+                        SessionInvocationEventCleanup::getAppName,
+                        SessionInvocationEventCleanup::getUserId,
+                        SessionInvocationEventCleanup::getSessionId)
+                .containsExactly("app-a", "user-a", "session-a");
+        assertThat(cleanupCaptor.getValue().getInvocationIds()).containsExactly("invocation-failed");
+        assertThat(session.events()).extracting(Event::id).containsExactly("history-a");
+
+        InOrder inOrder = inOrder(transactionManager, eventDao);
+        inOrder.verify(transactionManager).getTransaction(any(TransactionDefinition.class));
+        inOrder.verify(eventDao).deleteInvocationEvents(any(SessionInvocationEventCleanup.class));
+        inOrder.verify(transactionManager).commit(any(TransactionStatus.class));
+    }
+
+    @Test
+    void failedInvocationCleanupKeepsMemoryWhenDatabaseDeleteRollsBack() {
+        SessionDao sessionDao = mock(SessionDao.class);
+        SessionEventDao eventDao = mock(SessionEventDao.class);
+        PlatformTransactionManager transactionManager = transactionManager();
+        when(eventDao.deleteInvocationEvents(any(SessionInvocationEventCleanup.class)))
+                .thenThrow(new IllegalStateException("invocation cleanup failed"));
+        MySqlSessionStore store = new MySqlSessionStore(
+                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+        Session session = session("session-a");
+        session.events().add(Event.builder().id("user-a").invocationId("invocation-failed").build());
+
+        assertThatThrownBy(() -> store.discardInvocationEvents(
+                session, List.of("invocation-failed")).blockingAwait())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("invocation cleanup failed");
+
+        verify(transactionManager).rollback(any(TransactionStatus.class));
+        assertThat(session.events()).extracting(Event::id).containsExactly("user-a");
+    }
+
+    @Test
+    void interruptedInvocationRecoveryWritesMarkersAndDeletesIncompleteEventsInOneTransaction() {
+        SessionDao sessionDao = mock(SessionDao.class);
+        SessionEventDao eventDao = mock(SessionEventDao.class);
+        PlatformTransactionManager transactionManager = transactionManager();
+        MySqlSessionStore store = new MySqlSessionStore(
+                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+        Session session = session("session-a");
+        session.events().addAll(List.of(
+                Event.builder().id("user-a").invocationId("invocation-a").build(),
+                Event.builder().id("tool-a").invocationId("invocation-a").build(),
+                Event.builder().id("partial-a").invocationId("invocation-a").build()));
+        Event toolInterruption = Event.builder()
+                .id("tool-interrupted-a")
+                .invocationId("invocation-a")
+                .interrupted(true)
+                .build();
+        Event invocationInterruption = Event.builder()
+                .id("invocation-interrupted-a")
+                .invocationId("invocation-a")
+                .interrupted(true)
+                .build();
+
+        store.preserveInterruptedInvocation(
+                session,
+                List.of("partial-a"),
+                List.of(toolInterruption, invocationInterruption)).blockingAwait();
+
+        ArgumentCaptor<SessionEventIdCleanup> cleanupCaptor = ArgumentCaptor.forClass(SessionEventIdCleanup.class);
+        verify(eventDao).deleteEventsByIds(cleanupCaptor.capture());
+        assertThat(cleanupCaptor.getValue())
+                .extracting(
+                        SessionEventIdCleanup::getAppName,
+                        SessionEventIdCleanup::getUserId,
+                        SessionEventIdCleanup::getSessionId)
+                .containsExactly("app-a", "user-a", "session-a");
+        assertThat(cleanupCaptor.getValue().getEventIds()).containsExactly("partial-a");
+        assertThat(session.events()).extracting(Event::id)
+                .containsExactly("user-a", "tool-a", "tool-interrupted-a", "invocation-interrupted-a");
+
+        InOrder inOrder = inOrder(transactionManager, eventDao, sessionDao);
+        inOrder.verify(transactionManager).getTransaction(any(TransactionDefinition.class));
+        inOrder.verify(eventDao, org.mockito.Mockito.times(2)).upsertByEventIdentity(any(SessionEventPO.class));
+        inOrder.verify(sessionDao).updateStateByIdentity(any(SessionPO.class));
+        inOrder.verify(eventDao).deleteEventsByIds(any(SessionEventIdCleanup.class));
+        inOrder.verify(transactionManager).commit(any(TransactionStatus.class));
+    }
+
+    @Test
+    void interruptedInvocationRecoveryRollbackKeepsOriginalMemoryView() {
+        SessionDao sessionDao = mock(SessionDao.class);
+        SessionEventDao eventDao = mock(SessionEventDao.class);
+        PlatformTransactionManager transactionManager = transactionManager();
+        when(eventDao.deleteEventsByIds(any(SessionEventIdCleanup.class)))
+                .thenThrow(new IllegalStateException("interrupted recovery failed"));
+        MySqlSessionStore store = new MySqlSessionStore(
+                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+        Session session = session("session-a");
+        session.events().add(Event.builder().id("partial-a").invocationId("invocation-a").build());
+        Event marker = Event.builder().id("marker-a").invocationId("invocation-a").interrupted(true).build();
+
+        assertThatThrownBy(() -> store.preserveInterruptedInvocation(
+                session, List.of("partial-a"), List.of(marker)).blockingAwait())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("interrupted recovery failed");
+
+        verify(transactionManager).rollback(any(TransactionStatus.class));
+        assertThat(session.events()).extracting(Event::id).containsExactly("partial-a");
     }
 
     private MySqlSessionStore store(SessionDao sessionDao, SessionEventDao eventDao, boolean deleteCompactedEvents) {
