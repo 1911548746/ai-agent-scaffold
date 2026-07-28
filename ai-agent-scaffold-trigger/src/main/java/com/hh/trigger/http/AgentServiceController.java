@@ -3,6 +3,7 @@ package com.hh.trigger.http;
 import com.hh.api.agent.IAgentService;
 import com.hh.api.agent.dto.*;
 import com.hh.api.agent.response.Response;
+import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.model.ChatResult;
 import com.hh.application.agent.model.ChatStreamObserver;
@@ -344,10 +345,19 @@ public class AgentServiceController implements IAgentService {
      * 再次走异常响应流程，供应商错误文本仍有机会到达客户端。</p>
      */
     private void completeWithSafeError(SseEmitter emitter, Throwable error) {
-        log.error("智能体对话流式输出出错，异常类型: {}，异常详情: {}",
-                error.getClass().getName(), SensitiveDataRedactor.formatStackTrace(error));
+        StreamErrorResponseDTO response = StreamErrorResponseDTO.internalError();
+        if (error instanceof ModelInvocationException modelError) {
+            // 已知模型失败只输出分类和根因类型，避免每次重试及最终失败重复打印长堆栈。
+            log.error("流式模型调用最终失败，失败类型: {}，根因类型: {}",
+                    modelError.failureType(), modelError.rootCauseType());
+            response = StreamErrorResponseDTO.knownError(modelError.failureType().responseCode());
+        } else {
+            // 非模型异常仍保留脱敏堆栈，否则工具、Session 或程序缺陷会失去诊断线索。
+            log.error("智能体对话流式输出出错，异常类型: {}，异常详情: {}",
+                    error.getClass().getName(), SensitiveDataRedactor.formatStackTrace(error));
+        }
         try {
-            sendEvent(emitter, "error", StreamErrorResponseDTO.internalError());
+            sendEvent(emitter, "error", response);
         } catch (IOException sendError) {
             // 客户端已经断开时无法可靠投递错误事件，只记录已脱敏的服务端诊断信息。
             log.warn("SSE 安全错误事件发送失败，异常类型: {}，异常详情: {}",

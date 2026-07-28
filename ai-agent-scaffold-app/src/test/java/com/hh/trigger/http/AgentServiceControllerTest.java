@@ -6,12 +6,14 @@ import ch.qos.logback.core.read.ListAppender;
 import com.hh.api.agent.dto.ChatRequestDTO;
 import com.hh.api.agent.dto.StreamErrorResponseDTO;
 import com.hh.application.agent.model.ChatEvent;
+import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.usecase.ChatUseCase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import com.hh.types.enums.ResponseCode;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -66,6 +68,34 @@ class AgentServiceControllerTest {
         assertThat(logAppender.list)
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .noneMatch(message -> message.contains(sensitiveValue));
+    }
+
+    @Test
+    void classifiedModelFailureUsesStableSseCodeAndCompactLog() {
+        String sensitiveValue = "must-not-reach-client-or-log";
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(observer -> {
+                    observer.onError(new ModelInvocationException(
+                            ModelInvocationException.FailureType.TIMEOUT,
+                            new IllegalStateException("apiKey=" + sensitiveValue)));
+                    return () -> { };
+                });
+        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
+
+        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+
+        assertThat(controller.eventData).isInstanceOf(StreamErrorResponseDTO.class);
+        StreamErrorResponseDTO response = (StreamErrorResponseDTO) controller.eventData;
+        assertThat(response.code()).isEqualTo(ResponseCode.MODEL_TIMEOUT.getCode());
+        assertThat(response.info()).isEqualTo(ResponseCode.MODEL_TIMEOUT.getInfo());
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message)
+                        .contains(ModelInvocationException.FailureType.TIMEOUT.name())
+                        .contains(IllegalStateException.class.getName())
+                        .doesNotContain(sensitiveValue)
+                        .doesNotContain("\tat "));
     }
 
     @Test

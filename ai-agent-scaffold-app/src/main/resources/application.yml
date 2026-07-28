@@ -13,6 +13,11 @@ server:
   # 容器以 SIGTERM 停止时，等待 Web 容器完成在途请求后再关闭 Spring 上下文。
   shutdown: graceful
 
+logging:
+  level:
+    # LangChain4j 默认会为每一次中间重试输出完整 WARN 堆栈；最终失败由项目异常边界统一记录一次。
+    dev.langchain4j.internal.RetryUtils: error
+
 # OPS-01：运维端点与业务端口隔离，默认只允许本机采集；容器部署时再显式覆盖监听地址。
 management:
   server:

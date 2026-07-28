@@ -29,18 +29,8 @@ public class ChatModelNode extends AgentAssemblySupport {
         AgentDefinition definition = requestParameter.getAgentDefinition();
         ChatModelDefinition chatModelDefinition = definition.getChatModel();
 
-        // TODO 超时重试优化
-        /*
-         * dev.langchain4j.exception.TimeoutException: request timed out
-         * 	at dev.langchain4j.http.client.jdk.JdkHttpClient.execute(JdkHttpClient.java:59)
-         *
-         * 	Caused by: java.net.http.HttpTimeoutException: request timed out
-         * 	at java.net.http/jdk.internal.net.http.HttpClientImpl.send(HttpClientImpl.java:572)
-         * 	at java.net.http/jdk.internal.net.http.HttpClientFacade.send(HttpClientFacade.java:123)
-         * 	at dev.langchain4j.http.client.jdk.JdkHttpClient.execute(JdkHttpClient.java:51)
-         */
-
-        // ChatModel
+        // 同步模型由 LangChain4j 在超时、限流和 5xx 等可重试错误上执行指数退避；
+        // maxRetries 表示首次调用失败后的追加重试次数，而不是总调用次数。
         OpenAiChatModel chatModel = OpenAiChatModel.builder()
                 .baseUrl(chatModelDefinition.getBaseUrl())
                 .apiKey(chatModelDefinition.getApiKey())
@@ -50,7 +40,7 @@ public class ChatModelNode extends AgentAssemblySupport {
                 .build();
         dynamicContext.setChatModel(chatModel);
 
-        // StreamingChatModel
+        // 流式响应可能已经向客户端发送部分内容，透明重试会造成重复片段，因此不配置自动重试。
         OpenAiStreamingChatModel streamingChatModel = OpenAiStreamingChatModel.builder()
                 .baseUrl(chatModelDefinition.getBaseUrl())
                 .apiKey(chatModelDefinition.getApiKey())

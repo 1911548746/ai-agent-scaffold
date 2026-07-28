@@ -14,6 +14,11 @@ public enum ResponseCode {
     ILLEGAL_PARAMETER("0002", "非法参数"),
 
     AGENT_NOT_FOUND("0003", "Agent not found"),
+    MODEL_TIMEOUT("0004", "模型服务响应超时，请稍后重试"),
+    MODEL_RATE_LIMITED("0005", "模型服务繁忙，请稍后重试"),
+    MODEL_CONFIGURATION_ERROR("0006", "模型服务配置异常，请联系管理员"),
+    MODEL_REQUEST_REJECTED("0007", "模型请求未被接受，请检查 Agent 配置"),
+    MODEL_UNAVAILABLE("0008", "模型服务暂时不可用，请稍后重试"),
     ;
 
     private String code;

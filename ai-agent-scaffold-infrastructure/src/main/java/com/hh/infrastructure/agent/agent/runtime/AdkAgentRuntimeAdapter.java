@@ -59,8 +59,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
     public ChatResult run(String agentId, String userId, String sessionId, String message) {
         List<String> outputs = new ArrayList<>();
         AdkAgentRuntime runtime = requireRuntime(agentId);
-        runtime.runner()
-                .runAsync(userId, sessionId, Content.fromParts(Part.fromText(message)), runtime.runConfig())
+        runAsync(runtime, userId, sessionId, Content.fromParts(Part.fromText(message)), runtime.runConfig())
                 .blockingForEach(event -> appendFinalResponse(outputs, event));
         return new ChatResult(outputs);
     }
@@ -71,8 +70,8 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         RunConfig runConfig = runtime.runConfig().toBuilder()
                 .streamingMode(RunConfig.StreamingMode.SSE)
                 .build();
-        Flowable<Event> events = runtime.runner().runAsync(
-                userId, sessionId, Content.fromParts(Part.fromText(message)), runConfig);
+        Flowable<Event> events = runAsync(
+                runtime, userId, sessionId, Content.fromParts(Part.fromText(message)), runConfig);
         return observer -> events.subscribe(
                 // TODO 后期可以加入 思考过程、工具调用 等 trace，在前端展示
                 event -> {
@@ -101,14 +100,36 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
 
         List<String> outputs = new ArrayList<>();
         AdkAgentRuntime runtime = requireRuntime(agentId);
-        runtime.runner()
-                .runAsync(
-                        command.getUserId(),
-                        command.getSessionId(),
-                        Content.builder().parts(parts).build(),
-                        runtime.runConfig())
+        runAsync(
+                runtime,
+                command.getUserId(),
+                command.getSessionId(),
+                Content.builder().parts(parts).build(),
+                runtime.runConfig())
                 .blockingForEach(event -> appendFinalResponse(outputs, event));
         return new ChatResult(outputs);
+    }
+
+    /**
+     * 统一建立 ADK 响应式调用，并在错误通道中完成模型异常映射。
+     *
+     * <p>{@code runAsync()} 返回后发生的超时不会被普通 try/catch 捕获，必须在 Flowable 的
+     * onError 通道转换；同时保留建立 Flowable 时同步抛错的防御分支。</p>
+     */
+    private Flowable<Event> runAsync(
+            AdkAgentRuntime runtime,
+            String userId,
+            String sessionId,
+            Content content,
+            RunConfig runConfig) {
+        try {
+            return runtime.runner()
+                    .runAsync(userId, sessionId, content, runConfig)
+                    .onErrorResumeNext(error -> Flowable.error(ModelInvocationFailureMapper.map(error)));
+        } catch (RuntimeException error) {
+            Throwable mapped = ModelInvocationFailureMapper.map(error);
+            throw mapped instanceof RuntimeException runtimeException ? runtimeException : error;
+        }
     }
 
     private void appendFinalResponse(List<String> outputs, Event event) {

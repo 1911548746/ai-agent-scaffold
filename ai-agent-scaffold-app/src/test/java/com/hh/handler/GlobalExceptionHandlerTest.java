@@ -4,12 +4,16 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.hh.api.agent.response.Response;
+import com.hh.application.agent.exception.ModelInvocationException;
+import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -62,6 +66,27 @@ class GlobalExceptionHandlerTest {
         assertThat(stackTraceEvent.getFormattedMessage()).contains("Token is invalid");
         assertThat(stackTraceEvent.getFormattedMessage()).doesNotContain(secret);
         assertThat(stackTraceEvent.getFormattedMessage()).contains("\tat ");
+    }
+
+    @Test
+    void modelTimeoutReturnsGatewayTimeoutAndLogsOnlyCompactCauseType() {
+        String secret = "must-not-appear";
+        ModelInvocationException exception = new ModelInvocationException(
+                ModelInvocationException.FailureType.TIMEOUT,
+                new IllegalStateException("apiKey=" + secret));
+
+        ResponseEntity<Response<Void>> entity = handler.handleModelInvocationException(request(), exception);
+
+        assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
+        assertThat(entity.getBody()).isNotNull();
+        assertThat(entity.getBody().getCode()).isEqualTo(ResponseCode.MODEL_TIMEOUT.getCode());
+        assertThat(entity.getBody().getInfo()).isEqualTo(ResponseCode.MODEL_TIMEOUT.getInfo());
+        assertThat(logAppender.list).hasSize(1);
+        assertThat(logAppender.list.get(0).getFormattedMessage())
+                .contains(ModelInvocationException.FailureType.TIMEOUT.name())
+                .contains(IllegalStateException.class.getName())
+                .doesNotContain(secret)
+                .doesNotContain("\tat ");
     }
 
     /**

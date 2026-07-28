@@ -19,4 +19,11 @@ public record StreamErrorResponseDTO(String code, String info) {
         return new StreamErrorResponseDTO(ResponseCode.UN_ERROR.getCode(), INTERNAL_ERROR_INFO);
     }
 
+    /**
+     * 为已分类的安全异常保留稳定错误码；code 和 info 必须来自项目内置枚举，不能传入供应商消息。
+     */
+    public static StreamErrorResponseDTO knownError(ResponseCode responseCode) {
+        return new StreamErrorResponseDTO(responseCode.getCode(), responseCode.getInfo());
+    }
+
 }

@@ -1,6 +1,7 @@
 package com.hh.handler;
 
 import com.hh.api.agent.response.Response;
+import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.types.exception.AppException;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.support.SensitiveDataRedactor;
@@ -18,6 +19,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    /**
+     * 模型重试耗尽后返回稳定错误码，并只记录一次精简诊断信息。
+     *
+     * <p>中间重试由 LangChain4j 负责；这里不重复重试，也不记录可能包含请求或供应商响应的
+     * 原始 message。未知系统异常仍交由兜底处理器记录脱敏完整堆栈。</p>
+     */
+    @ExceptionHandler(ModelInvocationException.class)
+    public ResponseEntity<Response<Void>> handleModelInvocationException(
+            HttpServletRequest request, ModelInvocationException ex) {
+
+        log.error("模型调用最终失败，请求: [{} {}]，失败类型: {}，根因类型: {}",
+                request.getMethod(), request.getRequestURI(), ex.failureType(), ex.rootCauseType());
+
+        return ResponseEntity.status(modelFailureStatus(ex.failureType()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Response.error(ex.getCode(), ex.getInfo()));
+    }
 
     /**
      * 统一处理 JSON 请求体的 Bean Validation 失败。
@@ -103,6 +122,17 @@ public class GlobalExceptionHandler {
                 // 未指定 Accept 时 classpath 中的 XML converter 也可能被选中；API 错误契约固定为 JSON。
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Response.error(ResponseCode.ILLEGAL_PARAMETER.getCode(), "请求参数不合法"));
+    }
+
+    /**
+     * HTTP 状态只表达当前请求结果；供应商限流不能错误映射为调用本接口的用户被限流。
+     */
+    private HttpStatus modelFailureStatus(ModelInvocationException.FailureType failureType) {
+        return switch (failureType) {
+            case TIMEOUT -> HttpStatus.GATEWAY_TIMEOUT;
+            case RATE_LIMITED, UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            case CONFIGURATION_ERROR, REQUEST_REJECTED -> HttpStatus.BAD_GATEWAY;
+        };
     }
 
 }
