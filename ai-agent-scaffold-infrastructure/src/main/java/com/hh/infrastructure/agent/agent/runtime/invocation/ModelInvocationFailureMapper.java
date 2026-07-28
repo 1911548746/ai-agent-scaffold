@@ -35,7 +35,7 @@ public final class ModelInvocationFailureMapper {
     private ModelInvocationFailureMapper() {
     }
 
-    static Throwable map(Throwable error) {
+    public static Throwable map(Throwable error) {
         if (error instanceof ModelInvocationException) {
             return error;
         }
