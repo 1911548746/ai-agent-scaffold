@@ -1,4 +1,4 @@
-package com.hh.infrastructure.agent.agent.runtime;
+package com.hh.infrastructure.agent.agent.runtime.invocation;
 
 import com.hh.application.agent.exception.ModelInvocationException;
 import dev.langchain4j.exception.AuthenticationException;
@@ -30,7 +30,7 @@ import static com.hh.application.agent.exception.ModelInvocationException.Failur
  * <p>只转换明确属于模型请求的异常。工具、Plugin、Session 或数据库异常必须保持原样，
  * 否则上层会把基础设施故障误报为模型不可用。</p>
  */
-final class ModelInvocationFailureMapper {
+public final class ModelInvocationFailureMapper {
 
     private ModelInvocationFailureMapper() {
     }

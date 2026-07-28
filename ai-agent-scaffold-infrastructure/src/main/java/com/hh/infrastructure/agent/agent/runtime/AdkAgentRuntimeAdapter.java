@@ -11,6 +11,8 @@ import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
+import com.hh.infrastructure.agent.agent.runtime.invocation.ModelInvocationFailureMapper;
+import com.hh.infrastructure.agent.agent.runtime.invocation.SessionInvocationCoordinator;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import io.reactivex.rxjava3.core.Flowable;
@@ -30,19 +32,19 @@ import java.util.List;
 public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
 
     private final AdkAgentRuntimeRegistry runtimeRegistry;
-    private final SessionCompactionCoordinator compactionCoordinator;
+    private final SessionInvocationCoordinator compactionCoordinator;
 
     @Autowired
     public AdkAgentRuntimeAdapter(
             AdkAgentRuntimeRegistry runtimeRegistry,
-            SessionCompactionCoordinator compactionCoordinator) {
+            SessionInvocationCoordinator compactionCoordinator) {
         this.runtimeRegistry = runtimeRegistry;
         this.compactionCoordinator = compactionCoordinator;
     }
 
     /** 保持既有离线测试和非 Spring 使用方的构造方式。 */
     public AdkAgentRuntimeAdapter(AdkAgentRuntimeRegistry runtimeRegistry) {
-        this(runtimeRegistry, SessionCompactionCoordinator.direct());
+        this(runtimeRegistry, SessionInvocationCoordinator.direct());
     }
 
     @Override
@@ -71,7 +73,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         List<String> outputs = new ArrayList<>();
         AdkAgentRuntime runtime = requireRuntime(agentId);
         Content content = Content.fromParts(Part.fromText(message));
-        SessionCompactionCoordinator.InvocationLease lease = compactionCoordinator.begin(
+        SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
                 runtime, userId, sessionId, content);
         try {
             runAsync(runtime, userId, sessionId, content, runtime.runConfig())
@@ -92,7 +94,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
                 .build();
         Content content = Content.fromParts(Part.fromText(message));
         return observer -> {
-            SessionCompactionCoordinator.InvocationLease lease = compactionCoordinator.begin(
+            SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
                     runtime, userId, sessionId, content);
             try {
                 Flowable<Event> events = runAsync(runtime, userId, sessionId, content, runConfig);
@@ -140,7 +142,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
 
         AdkAgentRuntime runtime = requireRuntime(agentId);
         Content content = Content.builder().parts(parts).build();
-        SessionCompactionCoordinator.InvocationLease lease = compactionCoordinator.begin(
+        SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
                 runtime, command.getUserId(), command.getSessionId(), content);
         List<String> outputs = new ArrayList<>();
         try {

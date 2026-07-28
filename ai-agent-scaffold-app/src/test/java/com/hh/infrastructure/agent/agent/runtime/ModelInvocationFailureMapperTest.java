@@ -1,6 +1,7 @@
 package com.hh.infrastructure.agent.agent.runtime;
 
 import com.hh.application.agent.exception.ModelInvocationException;
+import com.hh.infrastructure.agent.agent.runtime.invocation.ModelInvocationFailureMapper;
 import dev.langchain4j.exception.AuthenticationException;
 import dev.langchain4j.exception.HttpException;
 import dev.langchain4j.exception.RateLimitException;

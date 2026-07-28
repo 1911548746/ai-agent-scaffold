@@ -3,6 +3,7 @@ package com.hh.infrastructure.agent.agent.runtime;
 import com.google.adk.agents.RunConfig;
 import com.google.adk.runner.Runner;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
+import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 
 import java.util.Objects;
 

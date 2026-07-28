@@ -13,6 +13,8 @@ import com.google.genai.types.FunctionResponse;
 import com.google.genai.types.GenerateContentResponseUsageMetadata;
 import com.google.genai.types.Part;
 import com.hh.application.agent.exception.ContextCompactionException;
+import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
+import com.hh.infrastructure.agent.agent.runtime.invocation.SessionInvocationCoordinator;
 import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
 import com.hh.types.enums.ContextCompressTypeEnum;
 import io.reactivex.rxjava3.core.Completable;
@@ -36,7 +38,7 @@ import static org.mockito.Mockito.when;
 /**
  * 验证压缩维护不再改变主调用成功语义，全程使用 mock ADK 组件，不调用模型或数据库。
  */
-class SessionCompactionCoordinatorTest {
+class SessionInvocationCoordinatorTest {
 
     @Test
     void fixedSizePrefersLatestPromptTokenCountOverCharacterEstimate() {
@@ -87,7 +89,7 @@ class SessionCompactionCoordinatorTest {
         EventCompactor compactor = mock(EventCompactor.class);
         when(compactor.compact(any(), any())).thenReturn(Completable.error(new IllegalStateException("summary failed")));
         Session session = sessionWithLongHistory();
-        SessionCompactionCoordinator coordinator = new SessionCompactionCoordinator(Runnable::run);
+        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
 
         assertThatThrownBy(() -> coordinator.begin(
                 runtime(new RuntimeCompactionPlan(ContextCompressTypeEnum.FIXED_SIZE, compactor, 1, true), session),
@@ -104,11 +106,11 @@ class SessionCompactionCoordinatorTest {
         EventCompactor compactor = mock(EventCompactor.class);
         when(compactor.compact(any(), any())).thenReturn(Completable.error(new IllegalStateException("summary failed")));
         QueueExecutor executor = new QueueExecutor();
-        SessionCompactionCoordinator coordinator = new SessionCompactionCoordinator(executor);
+        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(executor);
         AdkAgentRuntime runtime = runtime(new RuntimeCompactionPlan(
                 ContextCompressTypeEnum.SLIDING_WINDOW, compactor, 0, true), sessionWithLongHistory());
 
-        SessionCompactionCoordinator.InvocationLease lease = coordinator.begin(
+        SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime, "user-a", "session-a", Content.fromParts(Part.fromText("next message")));
         lease.success();
 
@@ -124,8 +126,8 @@ class SessionCompactionCoordinatorTest {
                 .id("history-a")
                 .invocationId("invocation-history")
                 .build());
-        SessionCompactionCoordinator coordinator = new SessionCompactionCoordinator(Runnable::run);
-        SessionCompactionCoordinator.InvocationLease lease = coordinator.begin(
+        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime(fixedSizePlan(Integer.MAX_VALUE), session),
                 "user-a", "session-a", Content.fromParts(Part.fromText("next message")));
         session.events().addAll(List.of(
@@ -142,8 +144,8 @@ class SessionCompactionCoordinatorTest {
     @Test
     void successfulInvocationKeepsNewEvents() {
         Session session = session(Event.builder().id("history-a").invocationId("invocation-history").build());
-        SessionCompactionCoordinator coordinator = new SessionCompactionCoordinator(Runnable::run);
-        SessionCompactionCoordinator.InvocationLease lease = coordinator.begin(
+        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime(fixedSizePlan(Integer.MAX_VALUE), session),
                 "user-a", "session-a", Content.fromParts(Part.fromText("next message")));
         session.events().add(Event.builder().id("reply-a").invocationId("invocation-success").build());
@@ -156,8 +158,8 @@ class SessionCompactionCoordinatorTest {
     @Test
     void interruptedToolInvocationKeepsRecoverableTraceAndCompletesDanglingCall() {
         Session session = session(Event.builder().id("history-a").invocationId("invocation-history").build());
-        SessionCompactionCoordinator coordinator = new SessionCompactionCoordinator(Runnable::run);
-        SessionCompactionCoordinator.InvocationLease lease = coordinator.begin(
+        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime(fixedSizePlan(Integer.MAX_VALUE), session),
                 "user-a", "session-a", Content.fromParts(Part.fromText("deploy the application")));
         session.events().addAll(List.of(
@@ -195,8 +197,8 @@ class SessionCompactionCoordinatorTest {
     @Test
     void invocationWithStateProgressIsMarkedInterruptedInsteadOfDiscarded() {
         Session session = session();
-        SessionCompactionCoordinator coordinator = new SessionCompactionCoordinator(Runnable::run);
-        SessionCompactionCoordinator.InvocationLease lease = coordinator.begin(
+        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime(fixedSizePlan(Integer.MAX_VALUE), session),
                 "user-a", "session-a", Content.fromParts(Part.fromText("prepare deployment")));
         session.events().addAll(List.of(
@@ -221,8 +223,8 @@ class SessionCompactionCoordinatorTest {
         when(sessionStore.getSession(any(), any(), any(), any())).thenReturn(Maybe.just(session));
         when(sessionStore.discardInvocationEvents(any(), any()))
                 .thenReturn(Completable.error(new IllegalStateException("cleanup failed")));
-        SessionCompactionCoordinator coordinator = new SessionCompactionCoordinator(Runnable::run);
-        SessionCompactionCoordinator.InvocationLease lease = coordinator.begin(
+        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime(fixedSizePlan(Integer.MAX_VALUE), session, sessionStore),
                 "user-a", "session-a", Content.fromParts(Part.fromText("next message")));
         session.events().add(Event.builder().id("user-a").invocationId("invocation-failed").build());

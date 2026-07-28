@@ -11,6 +11,8 @@ import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
+import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
+import com.hh.infrastructure.agent.agent.runtime.invocation.SessionInvocationCoordinator;
 import com.hh.types.enums.ContextCompressTypeEnum;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Maybe;
@@ -168,7 +170,7 @@ class AdkAgentRuntimeAdapterRunConfigTest {
                         mock(EventCompactor.class),
                         Integer.MAX_VALUE,
                         true))));
-        return new AdkAgentRuntimeAdapter(registry, SessionCompactionCoordinator.direct());
+        return new AdkAgentRuntimeAdapter(registry, SessionInvocationCoordinator.direct());
     }
 
     private Runner runner(Session session) {

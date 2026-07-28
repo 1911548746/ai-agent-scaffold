@@ -25,7 +25,7 @@ import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
 import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
-import com.hh.infrastructure.agent.agent.runtime.RuntimeCompactionPlan;
+import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
 import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblySupport;
 import com.hh.types.enums.ContextCompressTypeEnum;

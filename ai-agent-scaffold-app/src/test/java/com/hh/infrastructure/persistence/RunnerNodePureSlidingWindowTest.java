@@ -15,7 +15,7 @@ import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
 import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPlugin;
 import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
-import com.hh.infrastructure.agent.agent.runtime.RuntimeCompactionPlan;
+import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

@@ -1,4 +1,4 @@
-package com.hh.infrastructure.agent.agent.runtime;
+package com.hh.infrastructure.agent.agent.runtime.invocation;
 
 import com.google.adk.events.Event;
 import com.google.adk.sessions.Session;
@@ -8,6 +8,8 @@ import com.google.genai.types.FunctionResponse;
 import com.google.genai.types.Part;
 import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.application.agent.exception.ModelInvocationException;
+import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
+import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
 import com.hh.types.support.SensitiveDataRedactor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 @Component
-public class SessionCompactionCoordinator {
+public class SessionInvocationCoordinator {
 
     private static final String INTERRUPTED_TOOL_RESPONSE =
             "Tool execution was interrupted. Verify external state before retrying this operation.";
@@ -48,13 +50,13 @@ public class SessionCompactionCoordinator {
     private final Executor executor;
     private final ConcurrentMap<SessionKey, Semaphore> permits = new ConcurrentHashMap<>();
 
-    public SessionCompactionCoordinator(@Qualifier("contextCompactionExecutor") Executor executor) {
+    public SessionInvocationCoordinator(@Qualifier("contextCompactionExecutor") Executor executor) {
         this.executor = executor;
     }
 
     /** 供不启动 Spring 的离线单测和历史 Adapter 构造方式使用。 */
-    public static SessionCompactionCoordinator direct() {
-        return new SessionCompactionCoordinator(Runnable::run);
+    public static SessionInvocationCoordinator direct() {
+        return new SessionInvocationCoordinator(Runnable::run);
     }
 
     public InvocationLease begin(
@@ -226,7 +228,7 @@ public class SessionCompactionCoordinator {
             List<String> deletableEventIds = invocationEvents.stream()
                     .filter(event -> shouldDiscardInterruptedEvent(event, userEvent))
                     .map(Event::id)
-                    .filter(SessionCompactionCoordinator::hasText)
+                    .filter(SessionInvocationCoordinator::hasText)
                     .distinct()
                     .toList();
 
@@ -367,7 +369,7 @@ public class SessionCompactionCoordinator {
             Set<String> eventIds = new HashSet<>();
             events.stream()
                     .map(Event::id)
-                    .filter(SessionCompactionCoordinator::hasText)
+                    .filter(SessionInvocationCoordinator::hasText)
                     .forEach(eventIds::add);
             return new InvocationBaseline(Set.copyOf(eventIds), events.size());
         }

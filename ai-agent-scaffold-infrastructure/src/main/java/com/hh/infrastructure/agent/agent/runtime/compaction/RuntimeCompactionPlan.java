@@ -1,4 +1,4 @@
-package com.hh.infrastructure.agent.agent.runtime;
+package com.hh.infrastructure.agent.agent.runtime.compaction;
 
 import com.google.adk.events.Event;
 import com.google.adk.sessions.BaseSessionService;
