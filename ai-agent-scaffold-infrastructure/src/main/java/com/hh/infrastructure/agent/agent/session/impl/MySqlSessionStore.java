@@ -177,15 +177,10 @@ public class MySqlSessionStore implements AdkSessionStore {
 
             ensureEventIdentity(event);
 
-            /**
-             * TODO(DATA-02): 流式输出 - 逐 token 存 event
-             * 当前 google-adk-langchain4j 的 OpenAI-compatible 流适配器没有为 token
-             * chunk 设置 partial=true，导致该判断会把它们当作终态 Event 持久化，逐 token 写入尚未解决。
-             * 后续需在 Provider/ADK 适配层补齐 partial + 终态 Event，或按 invocationId 缓冲并在流完成时 flush。
-             * 方案评估见 note/流式Event持久化问题与方案评估.md；在此之前不能把该分支视为可靠的降写策略。
-             */
+            // partial 文本仅用于当前响应流；状态变化仍需更新快照，但 Event 本身不进入持久化历史。
             boolean stateChanged = applyStateDeltas(session, event);
-            boolean persistCandidate = !event.partial().orElse(false);
+            boolean partialEvent = event.partial().orElse(false);
+            boolean persistCandidate = !partialEvent;
             List<String> deletableEventIds = deletableEventIds(event);
             boolean deleteCompactedEvents = persistCandidate
                     && compactionCleanupSettings.deleteCompactedEvents()
@@ -217,7 +212,8 @@ public class MySqlSessionStore implements AdkSessionStore {
                 if (omitPureMarkerPersistence) {
                     // 源 Event 已被同一事务物理删除；当前 Session 也必须同步移除，才能不依赖空 marker 截断上下文。
                     session.events().removeIf(sessionEvent -> deletableEventIds.contains(sessionEvent.id()));
-                } else {
+                } else if (!partialEvent) {
+                    // 与 ADK BaseSessionService 保持一致，partial Event 不能污染下一轮模型上下文。
                     session.events().add(event);
                 }
             } catch (UnsupportedOperationException ignored) {

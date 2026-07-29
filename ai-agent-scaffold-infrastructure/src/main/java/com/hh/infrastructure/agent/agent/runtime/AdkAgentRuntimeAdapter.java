@@ -8,6 +8,7 @@ import com.google.genai.types.Part;
 import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.model.ChatResult;
 import com.hh.application.agent.model.ChatStream;
+import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Google ADK Runner 的运行时适配器。
@@ -98,14 +100,10 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
                     runtime, userId, sessionId, content);
             try {
                 Flowable<Event> events = runAsync(runtime, userId, sessionId, content, runConfig);
+                AtomicBoolean partialTextEmitted = new AtomicBoolean(false);
                 var disposable = events.subscribe(
                 // TODO 后期可以加入 思考过程、工具调用 等 trace，在前端展示
-                event -> {
-                    // FunctionCall、FunctionResponse 等 SDK 内部事件不是对话协议的一部分。
-                    if (event.finalResponse()) {
-                        observer.onEvent(new ChatEvent(event.stringifyContent()));
-                    }
-                },
+                event -> emitStreamingResponse(observer, event, partialTextEmitted),
                 error -> {
                     lease.fail();
                     observer.onError(error);
@@ -182,6 +180,47 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         if (event.finalResponse()) {
             outputs.add(event.stringifyContent());
         }
+    }
+
+    /**
+     * 将 ADK 模型 Event 映射为客户端文本片段，并跳过已经逐片发送过的完整终态副本。
+     */
+    private void emitStreamingResponse(
+            ChatStreamObserver observer,
+            Event event,
+            AtomicBoolean partialTextEmitted) {
+        if (!event.functionCalls().isEmpty() || !event.functionResponses().isEmpty()) {
+            // 工具事件是模型阶段边界，但不属于当前 HTTP 对话协议。
+            partialTextEmitted.set(false);
+            return;
+        }
+
+        if (event.partial().orElse(false)) {
+            String text = displayableText(event);
+            if (!text.isEmpty()) {
+                observer.onEvent(new ChatEvent(text));
+                partialTextEmitted.set(true);
+            }
+            return;
+        }
+
+        if (event.finalResponse()) {
+            // 装饰器生成的终态全文用于 Session 持久化；客户端已经收到分片时不再重复发送。
+            if (!partialTextEmitted.getAndSet(false)) {
+                observer.onEvent(new ChatEvent(event.stringifyContent()));
+            }
+        }
+    }
+
+    private String displayableText(Event event) {
+        StringBuilder text = new StringBuilder();
+        event.content()
+                .flatMap(Content::parts)
+                .orElse(List.of())
+                .stream()
+                .filter(part -> !part.thought().orElse(false))
+                .forEach(part -> part.text().ifPresent(text::append));
+        return text.toString();
     }
 
     /**

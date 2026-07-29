@@ -66,8 +66,8 @@ class AgentDefinitionLoaderTest {
         assertThat(hello.getRunner().getPluginNameList()).containsExactly("myLoggingPlugin");
         assertThat(hello.getRunner().getContextCompress().getType()).isEqualTo("slidingWindow");
         // 默认示例的窗口参数以 catalog 为准，避免配置演示调整后测试仍固化旧值。
-        assertThat(hello.getRunner().getContextCompress().getCompactionInterval()).isEqualTo(7);
-        assertThat(hello.getRunner().getContextCompress().getOverlapSize()).isEqualTo(2);
+        assertThat(hello.getRunner().getContextCompress().getCompactionInterval()).isEqualTo(3);
+        assertThat(hello.getRunner().getContextCompress().getOverlapSize()).isEqualTo(1);
 
         // Pipeline 示例覆盖三个 LLM 节点、output key 与顺序工作流的转换。
         AgentDefinition pipeline = definition(definitions, "pipeline-agent");

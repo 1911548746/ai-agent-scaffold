@@ -7,6 +7,8 @@ import com.google.adk.sessions.BaseSessionService;
 import com.google.adk.sessions.Session;
 import com.google.adk.summarizer.EventCompactor;
 import com.google.genai.types.Content;
+import com.google.genai.types.Part;
+import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.exception.ModelInvocationException;
@@ -24,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -147,6 +150,89 @@ class AdkAgentRuntimeAdapterRunConfigTest {
         subscription.cancel();
 
         assertThat(streamSession.events()).isEmpty();
+    }
+
+    @Test
+    void streamingForwardsPartialTextWithoutRepeatingCompletedContent() {
+        Runner runner = runner(session());
+        when(runner.runAsync(eq("user-a"), eq("session-a"), any(Content.class), any(RunConfig.class)))
+                .thenReturn(Flowable.just(
+                        textEvent("partial-a", "你", true),
+                        textEvent("partial-b", "好", true),
+                        textEvent("completed-a", "你好", false)));
+        AdkAgentRuntimeAdapter adapter = adapter(runner);
+        List<String> outputs = new ArrayList<>();
+        AtomicBoolean completed = new AtomicBoolean(false);
+
+        adapter.runStream("agent-a", "user-a", "session-a", "hello")
+                .subscribe(observer(outputs, completed));
+
+        assertThat(outputs).containsExactly("你", "好");
+        assertThat(completed).isTrue();
+    }
+
+    @Test
+    void streamingStillForwardsTerminalOnlyResponseAndResetsAtToolBoundary() {
+        Runner terminalRunner = runner(session());
+        when(terminalRunner.runAsync(eq("user-a"), eq("session-a"), any(Content.class), any(RunConfig.class)))
+                .thenReturn(Flowable.just(textEvent("completed-a", "完整回复", false)));
+        List<String> terminalOutputs = new ArrayList<>();
+
+        adapter(terminalRunner).runStream("agent-a", "user-a", "session-a", "hello")
+                .subscribe(observer(terminalOutputs, new AtomicBoolean()));
+
+        assertThat(terminalOutputs).containsExactly("完整回复");
+
+        Runner toolRunner = runner(session());
+        Event functionCall = Event.builder()
+                .id("tool-a")
+                .author("agent-a")
+                .content(Content.builder()
+                        .role("model")
+                        .parts(List.of(Part.fromFunctionCall("lookup", java.util.Map.of())))
+                        .build())
+                .build();
+        when(toolRunner.runAsync(eq("user-a"), eq("session-a"), any(Content.class), any(RunConfig.class)))
+                .thenReturn(Flowable.just(
+                        textEvent("partial-a", "正在查询", true),
+                        functionCall,
+                        textEvent("completed-b", "查询完成", false)));
+        List<String> toolOutputs = new ArrayList<>();
+
+        adapter(toolRunner).runStream("agent-a", "user-a", "session-a", "hello")
+                .subscribe(observer(toolOutputs, new AtomicBoolean()));
+
+        assertThat(toolOutputs).containsExactly("正在查询", "查询完成");
+    }
+
+    private ChatStreamObserver observer(List<String> outputs, AtomicBoolean completed) {
+        return new ChatStreamObserver() {
+            @Override
+            public void onEvent(ChatEvent event) {
+                outputs.add(event.content());
+            }
+
+            @Override
+            public void onError(Throwable error) {
+            }
+
+            @Override
+            public void onComplete() {
+                completed.set(true);
+            }
+        };
+    }
+
+    private Event textEvent(String id, String text, boolean partial) {
+        return Event.builder()
+                .id(id)
+                .author("agent-a")
+                .content(Content.builder()
+                        .role("model")
+                        .parts(List.of(Part.fromText(text)))
+                        .build())
+                .partial(partial)
+                .build();
     }
 
     private AdkAgentRuntimeAdapter adapter(Runner runner) {

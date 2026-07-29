@@ -150,9 +150,11 @@ class IdempotentPersistenceAdapterTest {
                 .partial(true)
                 .build();
 
-        store.appendEvent(session("session-a"), partialEvent).blockingGet();
+        Session session = session("session-a");
+        store.appendEvent(session, partialEvent).blockingGet();
 
         // token 片段只供当前请求流消费，不能触发 event 或 session 的数据库往返。
+        assertThat(session.events()).isEmpty();
         verifyNoInteractions(sessionDao, sessionEventDao, transactionManager);
     }
 
@@ -174,6 +176,7 @@ class IdempotentPersistenceAdapterTest {
         store.appendEvent(session, partialEvent).blockingGet();
 
         assertThat(session.state()).containsEntry("locale", "zh-CN");
+        assertThat(session.events()).isEmpty();
         ArgumentCaptor<SessionPO> snapshotCaptor = ArgumentCaptor.forClass(SessionPO.class);
         verify(sessionDao).updateStateByIdentity(snapshotCaptor.capture());
         assertThat(snapshotCaptor.getValue().getStateJson()).contains("locale");
@@ -183,6 +186,39 @@ class IdempotentPersistenceAdapterTest {
         inOrder.verify(transactionManager).getTransaction(any(TransactionDefinition.class));
         inOrder.verify(sessionDao).updateStateByIdentity(any(SessionPO.class));
         inOrder.verify(transactionManager).commit(any(TransactionStatus.class));
+    }
+
+    @Test
+    void streamingChunksStayTransientAndOnlyCompletedResponseIsPersisted() {
+        SessionDao sessionDao = mock(SessionDao.class);
+        SessionEventDao sessionEventDao = mock(SessionEventDao.class);
+        PlatformTransactionManager transactionManager = transactionManager();
+        MySqlSessionStore store = new MySqlSessionStore(sessionDao, sessionEventDao, transactionManager);
+        Session session = session("session-a");
+
+        store.appendEvent(session, Event.builder()
+                .id("partial-a")
+                .author("agent-a")
+                .timestamp(1L)
+                .partial(true)
+                .build()).blockingGet();
+        store.appendEvent(session, Event.builder()
+                .id("partial-b")
+                .author("agent-a")
+                .timestamp(2L)
+                .partial(true)
+                .build()).blockingGet();
+        Event completed = Event.builder()
+                .id("completed-a")
+                .author("agent-a")
+                .timestamp(3L)
+                .partial(false)
+                .build();
+        store.appendEvent(session, completed).blockingGet();
+
+        verify(sessionEventDao).upsertByEventIdentity(any(SessionEventPO.class));
+        verify(sessionDao).updateStateByIdentity(any(SessionPO.class));
+        assertThat(session.events()).containsExactly(completed);
     }
 
     @Test
