@@ -6,6 +6,7 @@
 /ai-agent-scaffold-trigger/target/
 /ai-agent-scaffold-types/target/
 /ai-agent-scaffold-application/target/
+/ai-agent-scaffold-adk-web/target/
 
 # 本地开发环境变量可能包含模型或数据库凭据；仅提交无值模板供字段说明使用。
 .env

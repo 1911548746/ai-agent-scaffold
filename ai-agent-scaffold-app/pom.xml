@@ -129,6 +129,33 @@
 
     <profiles>
         <profile>
+            <id>adk-web</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-adk-web-plain-jar</id>
+                                <!--
+                                    开发模块在自己的 compile 阶段就需要该分类产物，因此不能等到
+                                    package；默认 Profile 不执行此附加打包。
+                                -->
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                                <configuration>
+                                    <classifier>plain</classifier>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
             <id>persistence-it</id>
             <build>
                 <plugins>

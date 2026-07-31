@@ -88,6 +88,13 @@
                 <version>${google.adk.version}</version>
             </dependency>
 
+            <!-- ADK Web 仅由独立开发模块在 adk-web Profile 下引入，不进入默认生产依赖。 -->
+            <dependency>
+                <groupId>com.google.adk</groupId>
+                <artifactId>google-adk-dev</artifactId>
+                <version>${google.adk.version}</version>
+            </dependency>
+
             <!-- 数据库相关 -->
             <dependency>
                 <groupId>com.baomidou</groupId>
@@ -187,5 +194,15 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>adk-web</id>
+            <modules>
+                <!-- 开发调试模块只在显式 Profile 中加入 Reactor，不参与默认生产构建。 -->
+                <module>ai-agent-scaffold-adk-web</module>
+            </modules>
+        </profile>
+    </profiles>
 
 </project>

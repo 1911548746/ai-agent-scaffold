@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.hh</groupId>
+        <artifactId>ai-agent-scaffold</artifactId>
+        <version>1.0</version>
+    </parent>
+
+    <artifactId>ai-agent-scaffold-adk-web</artifactId>
+    <packaging>jar</packaging>
+
+    <dependencies>
+        <!--
+            Wrench 3.0.0 将旧版 Jackson 直接打进 Jar。若由它抢先加载 jackson-core 或
+            jackson-annotations，会与 Boot 管理的 jackson-databind 产生二进制不兼容。
+            三件套均提升为直接依赖，版本继续完全交给 Spring Boot BOM 管理。
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+        </dependency>
+        <!--
+            Wrench 内嵌的旧 spring-core 会遮蔽 Boot 3.4 使用的 Spring 6.2 API；提升为
+            直接依赖后，测试与可执行 Jar 都优先加载 BOM 管理的 spring-core/spring-jcl。
+        -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-core</artifactId>
+        </dependency>
+        <!--
+            Wrench 3.0.0 的 Jar 内嵌了旧版 Spring 与 Logback 类。这里显式声明与 app
+            相同的 Boot Web 基线，确保开发入口优先使用 BOM 管理的兼容实现。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!--
+            依赖 app 的 thin 分类产物以复用生产组合根；不能嵌套 Spring Boot 可执行 Fat Jar。
+            该分类产物只在根 adk-web Profile 激活时生成。
+        -->
+        <dependency>
+            <groupId>com.hh</groupId>
+            <artifactId>ai-agent-scaffold-app</artifactId>
+            <version>${project.version}</version>
+            <classifier>plain</classifier>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.adk</groupId>
+            <artifactId>google-adk-dev</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>ai-agent-scaffold-adk-web</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.hh.dev.adkweb.AdkWebDevelopmentLauncher</mainClass>
+                    <layout>JAR</layout>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
