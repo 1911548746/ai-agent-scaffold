@@ -7,10 +7,10 @@ ai:
       model-resources:
         - classpath:agent/models/deepseek-v4-flash.yml
       agent-resources:
-        - classpath:agent/agents/cycle-agent.yml
+        - classpath:agent-fixtures/agents/cycle-agent.yml
       workflow-resources:
-        - classpath:agent/workflows/topological-parent.yml
-        - classpath:agent/workflows/topological-child.yml
+        - classpath:agent-fixtures/workflows/topological-parent.yml
+        - classpath:agent-fixtures/workflows/topological-child.yml
       applications:
         - id: topological-fixture
           app-name: TopologicalFixture

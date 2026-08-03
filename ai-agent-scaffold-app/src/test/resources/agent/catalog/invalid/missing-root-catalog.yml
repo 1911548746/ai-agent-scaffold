@@ -7,7 +7,7 @@ ai:
       model-resources:
         - classpath:agent/models/deepseek-v4-flash.yml
       agent-resources:
-        - classpath:agent/agents/cycle-agent.yml
+        - classpath:agent-fixtures/agents/cycle-agent.yml
       applications:
         - id: missing-root-fixture
           app-name: MissingRootFixture

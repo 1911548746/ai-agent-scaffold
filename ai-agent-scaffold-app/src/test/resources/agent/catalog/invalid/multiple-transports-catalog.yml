@@ -7,9 +7,9 @@ ai:
       model-resources:
         - classpath:agent/models/deepseek-v4-flash.yml
       tool-resources:
-        - classpath:agent/tools/multiple-transports-tool.yml
+        - classpath:agent-fixtures/tools/multiple-transports-tool.yml
       agent-resources:
-        - classpath:agent/agents/multiple-transports-agent.yml
+        - classpath:agent-fixtures/agents/multiple-transports-agent.yml
       applications:
         - id: multiple-transports-fixture
           app-name: MultipleTransportsFixture

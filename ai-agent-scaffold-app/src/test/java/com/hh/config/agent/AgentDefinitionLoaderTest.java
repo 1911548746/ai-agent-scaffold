@@ -8,6 +8,7 @@ import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.mock.env.MockEnvironment;
 
 import java.util.List;
@@ -32,7 +33,10 @@ class AgentDefinitionLoaderTest {
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("MODEL_API_KEY", OFFLINE_MODEL_VALUE);
-        loader = new AgentDefinitionLoader(new DefaultResourceLoader(), validator, environment);
+        loader = new AgentDefinitionLoader(
+                new PathMatchingResourcePatternResolver(new DefaultResourceLoader()),
+                validator,
+                environment);
     }
 
     @Test
@@ -57,8 +61,10 @@ class AgentDefinitionLoaderTest {
         assertThat(hello.getAgents()).singleElement().satisfies(agent -> {
             assertThat(agent.getName()).isEqualTo("HelloAgent");
             assertThat(agent.getInstruction()).isEqualTo("You are a concise assistant. Say hello in a friendly way.");
-            assertThat(agent.getMcpToolList()).hasSize(1);
-            assertThat(agent.getMcpToolList().get(0).getLocal()).isNotNull();
+            // 新增本地 Tool 只需落入受管理目录，catalog 不再维护逐文件清单。
+            assertThat(agent.getMcpToolList()).hasSize(2);
+            assertThat(agent.getMcpToolList()).allSatisfy(tool ->
+                    assertThat(tool.getLocal()).isNotNull());
             assertThat(agent.getSkillsDir()).isEqualTo("classpath:agent/skills");
         });
         assertThat(hello.getRunner().getPersistence()).isTrue();
@@ -127,6 +133,37 @@ class AgentDefinitionLoaderTest {
         // 配置编译只传递策略参数；是否创建 ADK summarizer 由基础设施 RunnerNode 决定。
         assertThat(definition.getRunner().getContextCompress().getType()).isEqualTo("pureSlidingWindow");
         assertThat(definition.getRunner().getContextCompress().getInvocationRetentionSize()).isEqualTo(3);
+    }
+
+    @Test
+    void discoversNestedModuleResourcesWithoutCatalogFileEntries() {
+        AgentDefinition definition = loader.load("classpath:agent/catalog/discovery/wildcard-catalog.yml")
+                .get(0);
+
+        // Tool 位于 tools 的嵌套目录中，证明 **/*.yml 能递归发现而无需逐文件登记。
+        assertThat(definition.getAgents()).singleElement().satisfies(agent ->
+                assertThat(agent.getMcpToolList()).singleElement().satisfies(tool -> {
+                    assertThat(tool.getLocal()).isNotNull();
+                    assertThat(tool.getLocal().getMethodName()).isEqualTo("getWeather");
+                }));
+    }
+
+    @Test
+    void deduplicatesTheSameResourceMatchedByMultipleLocations() {
+        AgentDefinition definition = loader.load("classpath:agent/catalog/discovery/overlapping-catalog.yml")
+                .get(0);
+
+        // 同一 Tool 同时被递归模式和精确路径命中时不能被误报为重复 ID。
+        assertThat(definition.getAgents()).singleElement().satisfies(agent ->
+                assertThat(agent.getMcpToolList()).singleElement());
+    }
+
+    @Test
+    void rejectsResourcePatternWithoutAnyMatchingFiles() {
+        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/discovery/missing-resource-catalog.yml"))
+                .isInstanceOf(AgentConfigurationException.class)
+                .hasMessageContaining("classpath:agent-fixtures/discovery/missing-tools/**/*.yml")
+                .hasMessageContaining("does not match any files");
     }
 
     @Test

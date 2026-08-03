@@ -24,13 +24,15 @@ import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
+import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -54,13 +56,16 @@ public class AgentDefinitionLoader {
     // 新格式尚未提供兼容适配器，版本不一致必须直接失败而不是猜测字段语义。
     private static final int SUPPORTED_SCHEMA_VERSION = 1;
 
-    private final ResourceLoader resourceLoader;
+    private final ResourcePatternResolver resourcePatternResolver;
     private final Validator validator;
     private final Environment environment;
     private final YamlPropertySourceLoader yamlLoader = new YamlPropertySourceLoader();
 
-    public AgentDefinitionLoader(ResourceLoader resourceLoader, Validator validator, Environment environment) {
-        this.resourceLoader = resourceLoader;
+    public AgentDefinitionLoader(
+            ResourcePatternResolver resourcePatternResolver,
+            Validator validator,
+            Environment environment) {
+        this.resourcePatternResolver = resourcePatternResolver;
         this.validator = validator;
         this.environment = environment;
     }
@@ -551,16 +556,76 @@ public class AgentDefinitionLoader {
     }
 
     /**
-     * 按 catalog 中的资源顺序加载一类模块，并为每个对象附加来源路径。
+     * 按 catalog 声明顺序展开资源模式，再以稳定路径排序同一模式下的结果。
+     *
+     * <p>同一物理文件被多个模式命中时只加载一次；不同文件的重复模块 ID 仍由 {@link #index}
+     * 负责拒绝，不能因自动发现掩盖真实配置冲突。</p>
      */
     private <T> List<T> loadModules(List<String> locations, String prefix, Class<T> type) {
         List<T> values = new ArrayList<>();
-        for (String location : locations) {
-            T value = bind(location, prefix, type);
-            setSourcePath(value, location);
+        for (LocatedResource locatedResource : resolveModuleResources(locations)) {
+            T value = bind(locatedResource.resource(), locatedResource.sourcePath(), prefix, type);
+            setSourcePath(value, locatedResource.sourcePath());
             values.add(value);
         }
         return values;
+    }
+
+    /**
+     * 将精确资源地址或 Ant 通配地址展开为实际资源。
+     *
+     * <p>默认 catalog 只允许 {@code classpath:}，避免 {@code classpath*:} 将依赖 JAR 的同路径 YAML
+     * 意外纳入当前应用配置。</p>
+     */
+    private List<LocatedResource> resolveModuleResources(List<String> locations) {
+        Map<String, LocatedResource> resourcesByIdentity = new LinkedHashMap<>();
+        for (String location : locations) {
+            if (location.startsWith(ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX)) {
+                throw error(location, "classpath*: resource scanning is not supported");
+            }
+
+            Resource[] resources;
+            try {
+                resources = resourcePatternResolver.getResources(location);
+            } catch (IOException exception) {
+                // Spring 在通配根目录不存在时会抛 IOException；对用户而言它仍是“没有匹配文件”。
+                if (isPattern(location)) {
+                    throw error(location, "configuration resource pattern does not match any files");
+                }
+                throw new AgentConfigurationException(location + ": unable to resolve configuration resource");
+            }
+            if (resources.length == 0) {
+                String message = isPattern(location)
+                        ? "configuration resource pattern does not match any files"
+                        : "configuration resource does not exist";
+                throw error(location, message);
+            }
+
+            // 文件系统与 JAR 返回的枚举顺序不应影响编译日志、错误路径或测试结果。
+            Arrays.sort(resources, Comparator.comparing(this::resourceIdentity));
+            for (Resource resource : resources) {
+                if (!resource.exists()) {
+                    throw error(location, "configuration resource does not exist");
+                }
+                String identity = resourceIdentity(resource);
+                String sourcePath = isPattern(location) ? resource.getDescription() : location;
+                resourcesByIdentity.putIfAbsent(identity, new LocatedResource(resource, sourcePath));
+            }
+        }
+        return List.copyOf(resourcesByIdentity.values());
+    }
+
+    private boolean isPattern(String location) {
+        return location.indexOf('*') >= 0 || location.indexOf('?') >= 0;
+    }
+
+    private String resourceIdentity(Resource resource) {
+        try {
+            return resource.getURI().normalize().toString();
+        } catch (IOException exception) {
+            // URI 不可用时退回描述文本；它仍足以避免同一次扫描中的重复加载。
+            return resource.getDescription();
+        }
     }
 
     /**
@@ -585,31 +650,38 @@ public class AgentDefinitionLoader {
      * 随异常消息泄漏。</p>
      */
     private <T> T bind(String location, String prefix, Class<T> type) {
-        Resource resource = resourceLoader.getResource(location);
+        Resource resource = resourcePatternResolver.getResource(location);
         if (!resource.exists()) {
             throw error(location, "configuration resource does not exist");
         }
+        return bind(resource, location, prefix, type);
+    }
+
+    private <T> T bind(Resource resource, String sourcePath, String prefix, Class<T> type) {
         try {
             MutablePropertySources sources = new MutablePropertySources();
-            List<PropertySource<?>> loaded = yamlLoader.load(location, resource);
+            List<PropertySource<?>> loaded = yamlLoader.load(sourcePath, resource);
             loaded.forEach(sources::addLast);
             // 每个文件独立 Binder，确保“每份 YAML 只描述一个对象”不会污染全局 Spring Environment。
             T value = new Binder(from(sources))
                     .bind(prefix, Bindable.of(type))
-                    .orElseThrow(() -> error(location, "missing configuration prefix '" + prefix + "'"));
-            validate(value, location);
+                    .orElseThrow(() -> error(sourcePath, "missing configuration prefix '" + prefix + "'"));
+            validate(value, sourcePath);
             return value;
         } catch (AgentConfigurationException exception) {
             throw exception;
         } catch (BindException exception) {
             // BindException 只保留属性名，不能透传其原始消息中的 rejected value。
             throw new AgentConfigurationException(
-                    location + "." + exception.getName() + ": configuration binding failed");
+                    sourcePath + "." + exception.getName() + ": configuration binding failed");
         } catch (IOException exception) {
-            throw new AgentConfigurationException(location + ": unable to read configuration resource");
+            throw new AgentConfigurationException(sourcePath + ": unable to read configuration resource");
         } catch (RuntimeException exception) {
-            throw new AgentConfigurationException(location + ": configuration binding failed for '" + prefix + "'");
+            throw new AgentConfigurationException(sourcePath + ": configuration binding failed for '" + prefix + "'");
         }
+    }
+
+    private record LocatedResource(Resource resource, String sourcePath) {
     }
 
     /**

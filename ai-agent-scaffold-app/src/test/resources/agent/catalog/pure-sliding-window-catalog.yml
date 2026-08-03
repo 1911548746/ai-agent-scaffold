@@ -8,6 +8,7 @@ ai:
         - classpath:agent/models/deepseek-v4-flash.yml
       tool-resources:
         - classpath:agent/tools/local-weather.yml
+        - classpath:agent/tools/refund-tool.yml
         - classpath:agent/tools/release-note-skill.yml
       agent-resources:
         - classpath:agent/agents/hello-agent.yml

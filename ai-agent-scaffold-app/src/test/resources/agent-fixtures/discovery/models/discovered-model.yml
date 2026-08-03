@@ -1,0 +1,9 @@
+ai:
+  agent:
+    model:
+      schema-version: 1
+      id: discovered-model
+      provider: openai-compatible
+      base-url: https://example.invalid/v1
+      api-key: ${MODEL_API_KEY}
+      model-name: offline-discovery-model

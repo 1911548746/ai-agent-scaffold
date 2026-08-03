@@ -5,19 +5,13 @@ ai:
       schema-version: 1
       catalog-path: classpath:agent/catalog/default-catalog.yml
       model-resources:
-        - classpath:agent/models/deepseek-v4-flash.yml
+        - classpath:agent/models/**/*.yml
       tool-resources:
-        - classpath:agent/tools/local-weather.yml
-        - classpath:agent/tools/release-note-skill.yml
-        - classpath:agent/tools/chrome-devtools-stdio.yml
+        - classpath:agent/tools/**/*.yml
       agent-resources:
-        - classpath:agent/agents/hello-agent.yml
-        - classpath:agent/agents/code-writer-agent.yml
-        - classpath:agent/agents/code-reviewer-agent.yml
-        - classpath:agent/agents/code-refactorer-agent.yml
-        - classpath:agent/agents/chrome-devtools-agent.yml
+        - classpath:agent/agents/**/*.yml
       workflow-resources:
-        - classpath:agent/workflows/code-pipeline.yml
+        - classpath:agent/workflows/**/*.yml
       applications:
         - id: hello-agent
           app-name: HelloAgent

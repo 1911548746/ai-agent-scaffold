@@ -1,0 +1,12 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: discovered-agent
+      name: DiscoveredAgent
+      description: 验证递归目录自动发现的测试 Agent
+      instruction: 你是一个离线测试 Agent。
+      output-key: result
+      model-ref: discovered-model
+      tool-refs:
+        - discovered-tool

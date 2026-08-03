@@ -7,10 +7,10 @@ ai:
       model-resources:
         - classpath:agent/models/deepseek-v4-flash.yml
       agent-resources:
-        - classpath:agent/agents/cycle-agent.yml
+        - classpath:agent-fixtures/agents/cycle-agent.yml
       workflow-resources:
-        - classpath:agent/workflows/cycle-a.yml
-        - classpath:agent/workflows/cycle-b.yml
+        - classpath:agent-fixtures/workflows/cycle-a.yml
+        - classpath:agent-fixtures/workflows/cycle-b.yml
       applications:
         - id: cycle-fixture
           app-name: CycleFixture

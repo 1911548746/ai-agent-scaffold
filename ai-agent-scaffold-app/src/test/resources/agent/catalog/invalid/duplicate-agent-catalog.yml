@@ -7,8 +7,8 @@ ai:
       model-resources:
         - classpath:agent/models/deepseek-v4-flash.yml
       agent-resources:
-        - classpath:agent/agents/duplicate-agent-one.yml
-        - classpath:agent/agents/duplicate-agent-two.yml
+        - classpath:agent-fixtures/agents/duplicate-agent-one.yml
+        - classpath:agent-fixtures/agents/duplicate-agent-two.yml
       applications:
         - id: duplicate-fixture
           app-name: DuplicateFixture

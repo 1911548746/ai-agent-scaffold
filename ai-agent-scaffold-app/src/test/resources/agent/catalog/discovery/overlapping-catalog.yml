@@ -1,0 +1,23 @@
+ai:
+  agent:
+    config:
+      enabled: true
+      schema-version: 1
+      catalog-path: classpath:agent/catalog/discovery/overlapping-catalog.yml
+      model-resources:
+        - classpath:agent-fixtures/discovery/models/**/*.yml
+      tool-resources:
+        - classpath:agent-fixtures/discovery/tools/**/*.yml
+        - classpath:agent-fixtures/discovery/tools/nested/discovered-tool.yml
+      agent-resources:
+        - classpath:agent-fixtures/discovery/agents/**/*.yml
+      workflow-resources: []
+      applications:
+        - id: discovered-app
+          app-name: DiscoveredApp
+          agent-id: "test-discovery-001"
+          agent-name: 自动发现测试智能体
+          agent-desc: 验证同一资源去重
+          agent-ref: discovered-agent
+          runner:
+            persistence: false
