@@ -6,5 +6,7 @@ ai:
       base-url: https://api.siliconflow.cn
       api-key: ${MODEL_API_KEY}
       model-name: deepseek-ai/DeepSeek-V4-Flash
-      timeout: 90
+      timeout: 30
       max-retries: 4
+      streaming-first-response-timeout: 30
+      streaming-max-retries: 2

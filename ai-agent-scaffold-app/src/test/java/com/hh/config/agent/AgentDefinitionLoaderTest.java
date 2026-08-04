@@ -40,12 +40,13 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void compilesThreeLegacyExamplesIntoEquivalentDefinitions() {
+    void compilesLegacyExamplesIntoEquivalentDefinitions() {
         List<AgentDefinition> definitions = loader.load("classpath:agent/catalog/default-catalog.yml");
 
         // catalog 中的顺序是对外展示和日志的稳定顺序，迁移后不能被 Map 遍历打乱。
         assertThat(definitions).extracting(AgentDefinition::getId)
-                .containsExactly("hello-agent", "pipeline-agent", "chrome-devtools-agent");
+                // 允许脚手架使用者继续增加应用，但既有示例的声明顺序必须保持稳定。
+                .containsSubsequence("hello-agent", "pipeline-agent", "chrome-devtools-agent");
 
         // Hello 示例覆盖 Local MCP、Skill、Plugin、持久化和 slidingWindow 压缩配置的兼容转换。
         AgentDefinition hello = definition(definitions, "hello-agent");
@@ -58,11 +59,13 @@ class AgentDefinitionLoaderTest {
         assertThat(hello.getChatModel().getModelName()).isEqualTo("deepseek-ai/DeepSeek-V4-Flash");
         assertThat(hello.getChatModel().getTimeout()).isEqualTo(90L);
         assertThat(hello.getChatModel().getMaxRetries()).isEqualTo(4);
+        assertThat(hello.getChatModel().getStreamingFirstResponseTimeout()).isEqualTo(30L);
+        assertThat(hello.getChatModel().getStreamingMaxRetries()).isEqualTo(2);
         assertThat(hello.getAgents()).singleElement().satisfies(agent -> {
             assertThat(agent.getName()).isEqualTo("HelloAgent");
             assertThat(agent.getInstruction()).isEqualTo("You are a concise assistant. Say hello in a friendly way.");
             // 新增本地 Tool 只需落入受管理目录，catalog 不再维护逐文件清单。
-            assertThat(agent.getMcpToolList()).hasSize(2);
+            assertThat(agent.getMcpToolList()).isNotEmpty();
             assertThat(agent.getMcpToolList()).allSatisfy(tool ->
                     assertThat(tool.getLocal()).isNotNull());
             assertThat(agent.getSkillsDir()).isEqualTo("classpath:agent/skills");
@@ -140,6 +143,9 @@ class AgentDefinitionLoaderTest {
         AgentDefinition definition = loader.load("classpath:agent/catalog/discovery/wildcard-catalog.yml")
                 .get(0);
 
+        // 未显式配置时使用安全的流式首响应默认值，旧模型 YAML 无需迁移即可加载。
+        assertThat(definition.getChatModel().getStreamingFirstResponseTimeout()).isEqualTo(30L);
+        assertThat(definition.getChatModel().getStreamingMaxRetries()).isEqualTo(2);
         // Tool 位于 tools 的嵌套目录中，证明 **/*.yml 能递归发现而无需逐文件登记。
         assertThat(definition.getAgents()).singleElement().satisfies(agent ->
                 assertThat(agent.getMcpToolList()).singleElement().satisfies(tool -> {

@@ -442,6 +442,8 @@ public class AgentDefinitionLoader {
         result.setModelName(source.getModelName());
         result.setTimeout(source.getTimeout());
         result.setMaxRetries(source.getMaxRetries());
+        result.setStreamingFirstResponseTimeout(source.getStreamingFirstResponseTimeout());
+        result.setStreamingMaxRetries(source.getStreamingMaxRetries());
         return result;
     }
 

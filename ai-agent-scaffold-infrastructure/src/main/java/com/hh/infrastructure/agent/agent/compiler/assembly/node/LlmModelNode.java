@@ -15,6 +15,8 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+
 @Slf4j
 @Component
 public class LlmModelNode extends AgentAssemblySupport {
@@ -38,8 +40,11 @@ public class LlmModelNode extends AgentAssemblySupport {
                 .modelName(modelName)
                 .build();
 
-        // 保留官方请求、工具和同步响应映射，仅修正 1.7.0 流式文本缺失 partial/终态的问题。
-        BaseLlm llmModel = new LangChain4jStreamingLlmDecorator(langChain4j);
+        // 装饰器同时修正 1.7.0 的流式边界，并只在首响应前执行有限重试。
+        BaseLlm llmModel = new LangChain4jStreamingLlmDecorator(
+                langChain4j,
+                Duration.ofSeconds(definition.getChatModel().getStreamingFirstResponseTimeout()),
+                definition.getChatModel().getStreamingMaxRetries());
         dynamicContext.setLlmModel(llmModel);
 
         return router(requestParameter, dynamicContext);

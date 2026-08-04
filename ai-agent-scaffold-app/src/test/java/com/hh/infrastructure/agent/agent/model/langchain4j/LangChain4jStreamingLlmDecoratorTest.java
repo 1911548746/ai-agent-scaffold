@@ -6,12 +6,17 @@ import com.google.adk.models.LlmRequest;
 import com.google.adk.models.LlmResponse;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
+import dev.langchain4j.exception.RetriableException;
 import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.schedulers.TestScheduler;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -113,8 +118,127 @@ class LangChain4jStreamingLlmDecoratorTest {
         assertThat(second.get(2).content().orElseThrow().text()).isEqualTo("AB");
     }
 
+    @Test
+    void retriesRetriableFailureOnlyBeforeFirstResponse() {
+        TestScheduler scheduler = new TestScheduler();
+        AtomicInteger attempts = new AtomicInteger();
+        BaseLlm decorator = decorator(stream -> attempts.incrementAndGet() == 1
+                        ? Flowable.error(new RetriableException("temporary unavailable"))
+                        : Flowable.just(text("恢复", null)),
+                Duration.ofSeconds(1), 2, Duration.ofMillis(100), scheduler);
+
+        var subscriber = decorator.generateContent(request, true).test();
+        subscriber.assertNoValues().assertNotComplete();
+
+        scheduler.advanceTimeBy(100, TimeUnit.MILLISECONDS);
+
+        subscriber.assertComplete().assertValueCount(2);
+        assertThat(attempts).hasValue(2);
+    }
+
+    @Test
+    void firstResponseTimeoutCancelsAttemptAndThenRetries() {
+        TestScheduler scheduler = new TestScheduler();
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicBoolean firstAttemptCancelled = new AtomicBoolean(false);
+        BaseLlm decorator = decorator(stream -> attempts.incrementAndGet() == 1
+                        ? Flowable.<LlmResponse>never().doOnCancel(() -> firstAttemptCancelled.set(true))
+                        : Flowable.just(text("重试成功", null)),
+                Duration.ofSeconds(1), 1, Duration.ofMillis(100), scheduler);
+
+        var subscriber = decorator.generateContent(request, true).test();
+        scheduler.advanceTimeBy(1, TimeUnit.SECONDS);
+
+        assertThat(firstAttemptCancelled).isTrue();
+        subscriber.assertNoValues().assertNotComplete();
+
+        scheduler.advanceTimeBy(100, TimeUnit.MILLISECONDS);
+        subscriber.assertComplete().assertValueCount(2);
+        assertThat(attempts).hasValue(2);
+    }
+
+    @Test
+    void neverRetriesAfterAnyResponseWasEmitted() {
+        TestScheduler scheduler = new TestScheduler();
+        AtomicInteger attempts = new AtomicInteger();
+        BaseLlm decorator = decorator(stream -> {
+                    attempts.incrementAndGet();
+                    return Flowable.concatArray(
+                            Flowable.just(text("已输出", null)),
+                            Flowable.error(new RetriableException("stream interrupted")));
+                },
+                Duration.ofSeconds(1), 2, Duration.ofMillis(100), scheduler);
+
+        decorator.generateContent(request, true).test()
+                .assertError(RetriableException.class)
+                .assertValueCount(1);
+        scheduler.advanceTimeBy(1, TimeUnit.SECONDS);
+
+        assertThat(attempts).hasValue(1);
+    }
+
+    @Test
+    void stopsAfterConfiguredRetriesAndDoesNotRetryPermanentFailure() {
+        TestScheduler scheduler = new TestScheduler();
+        AtomicInteger retriableAttempts = new AtomicInteger();
+        BaseLlm retriableDecorator = decorator(stream -> {
+                    retriableAttempts.incrementAndGet();
+                    return Flowable.error(new RetriableException("still unavailable"));
+                },
+                Duration.ofSeconds(1), 2, Duration.ofMillis(100), scheduler);
+
+        var exhausted = retriableDecorator.generateContent(request, true).test();
+        scheduler.advanceTimeBy(100, TimeUnit.MILLISECONDS);
+        scheduler.advanceTimeBy(200, TimeUnit.MILLISECONDS);
+        exhausted.assertFailure(RetriableException.class).assertNoValues();
+        assertThat(retriableAttempts).hasValue(3);
+
+        AtomicInteger permanentAttempts = new AtomicInteger();
+        BaseLlm permanentDecorator = decorator(stream -> {
+                    permanentAttempts.incrementAndGet();
+                    return Flowable.error(new IllegalArgumentException("invalid request"));
+                },
+                Duration.ofSeconds(1), 2, Duration.ofMillis(100), scheduler);
+
+        permanentDecorator.generateContent(request, true).test()
+                .assertFailure(IllegalArgumentException.class)
+                .assertNoValues();
+        assertThat(permanentAttempts).hasValue(1);
+    }
+
+    @Test
+    void cancellationDuringBackoffPreventsAnotherAttempt() {
+        TestScheduler scheduler = new TestScheduler();
+        AtomicInteger attempts = new AtomicInteger();
+        BaseLlm decorator = decorator(stream -> {
+                    attempts.incrementAndGet();
+                    return Flowable.error(new RetriableException("temporary unavailable"));
+                },
+                Duration.ofSeconds(1), 2, Duration.ofMillis(100), scheduler);
+
+        var subscriber = decorator.generateContent(request, true).test();
+        subscriber.cancel();
+        scheduler.advanceTimeBy(1, TimeUnit.SECONDS);
+
+        assertThat(attempts).hasValue(1);
+    }
+
     private BaseLlm decorator(Function<Boolean, Flowable<LlmResponse>> responses) {
         return new LangChain4jStreamingLlmDecorator(new StubLlm(responses));
+    }
+
+    private BaseLlm decorator(
+            Function<Boolean, Flowable<LlmResponse>> responses,
+            Duration firstResponseTimeout,
+            int maxRetries,
+            Duration initialBackoff,
+            TestScheduler scheduler) {
+        return new LangChain4jStreamingLlmDecorator(
+                new StubLlm(responses),
+                firstResponseTimeout,
+                maxRetries,
+                initialBackoff,
+                scheduler);
     }
 
     private LlmResponse text(String value, Boolean partial) {
