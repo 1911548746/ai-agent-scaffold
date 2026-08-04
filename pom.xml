@@ -15,6 +15,7 @@
         <module>ai-agent-scaffold-trigger</module>
         <module>ai-agent-scaffold-infrastructure</module>
         <module>ai-agent-scaffold-types</module>
+        <module>ai-agent-scaffold-adk-web</module>
     </modules>
 
     <repositories>
