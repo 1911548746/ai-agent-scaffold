@@ -61,6 +61,15 @@ public class ObservedAgentRuntimePort implements AgentRuntimePort {
     }
 
     @Override
+    public ChatResult runConfirmation(
+            String agentId, String userId, String sessionId,
+            String confirmationCallId, boolean confirmed) {
+        AgentRuntimeObservability.Invocation invocation = observability.startInvocation(agentId, "confirmation");
+        return invocation.observe(() -> observeResult(invocation,
+                delegate.runConfirmation(agentId, userId, sessionId, confirmationCallId, confirmed)));
+    }
+
+    @Override
     public ChatStream runStream(String agentId, String userId, String sessionId, String message) {
         // 保持原有 fail-fast 行为：Agent 不存在时仍在创建流时直接失败。
         ChatStream delegateStream = delegate.runStream(agentId, userId, sessionId, message);
@@ -71,6 +80,28 @@ public class ObservedAgentRuntimePort implements AgentRuntimePort {
                 var subscription = delegateStream.subscribe(observedObserver(observer, invocation));
                 return () -> invocation.inScope(() -> {
                     // 终态幂等：完成或异常后的重复取消不能覆盖原始结果，也不能重复取消上游。
+                    if (invocation.cancel()) {
+                        subscription.cancel();
+                    }
+                });
+            } catch (RuntimeException | Error error) {
+                invocation.error(error);
+                throw error;
+            }
+        };
+    }
+
+    @Override
+    public ChatStream runConfirmationStream(
+            String agentId, String userId, String sessionId,
+            String confirmationCallId, boolean confirmed) {
+        ChatStream delegateStream = delegate.runConfirmationStream(
+                agentId, userId, sessionId, confirmationCallId, confirmed);
+        return observer -> {
+            AgentRuntimeObservability.Invocation invocation = observability.startInvocation(agentId, "confirmation-stream");
+            try {
+                var subscription = delegateStream.subscribe(observedObserver(observer, invocation));
+                return () -> invocation.inScope(() -> {
                     if (invocation.cancel()) {
                         subscription.cancel();
                     }

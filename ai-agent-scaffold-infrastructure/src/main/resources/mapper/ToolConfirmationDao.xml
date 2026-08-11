@@ -16,4 +16,31 @@
             request_message = VALUES(request_message),
             tool_name = VALUES(tool_name)
     </insert>
+
+    <select id="selectByIdentity" resultType="com.hh.infrastructure.agent.dao.po.ToolConfirmationPO">
+        SELECT confirmation_id, conversation_id, app_name, user_id, session_id,
+               invocation_id, adk_call_id, tool_name, request_message, status,
+               created_at, updated_at
+        FROM tool_confirmations
+        WHERE confirmation_id = #{confirmationId}
+          AND user_id = #{userId}
+        LIMIT 1
+    </select>
+
+    <update id="claimPending">
+        UPDATE tool_confirmations
+        SET status = #{processingStatus}, updated_at = CURRENT_TIMESTAMP
+        WHERE confirmation_id = #{confirmationId}
+          AND user_id = #{userId}
+          AND app_name = #{appName}
+          AND status = 'pending'
+    </update>
+
+    <update id="finish">
+        UPDATE tool_confirmations
+        SET status = #{status}, updated_at = CURRENT_TIMESTAMP
+        WHERE confirmation_id = #{confirmationId}
+          AND user_id = #{userId}
+          AND status = #{processingStatus}
+    </update>
 </mapper>

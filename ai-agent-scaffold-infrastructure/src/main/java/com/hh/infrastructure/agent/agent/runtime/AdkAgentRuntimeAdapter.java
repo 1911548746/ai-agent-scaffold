@@ -5,6 +5,7 @@ import com.google.adk.events.ToolConfirmation;
 import com.google.adk.agents.RunConfig;
 import com.google.adk.sessions.Session;
 import com.google.genai.types.FunctionCall;
+import com.google.genai.types.FunctionResponse;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
 import com.hh.application.agent.model.ChatEvent;
@@ -81,14 +82,47 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
 
     @Override
     public ChatResult run(String agentId, String userId, String sessionId, String message) {
+
         List<String> outputs = new ArrayList<>();
         List<ToolConfirmationRequest> confirmations = new ArrayList<>();
         Set<String> emittedConfirmations = new HashSet<>();
+
         AdkAgentRuntime runtime = requireRuntime(agentId);
         Content content = Content.fromParts(Part.fromText(message));
+
         SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
                 runtime, userId, sessionId, content);
         try {
+            runAsync(runtime, userId, sessionId, content, runtime.runConfig())
+                    .blockingForEach(event -> appendFinalResponse(
+                            outputs, confirmations, emittedConfirmations, event));
+            lease.success();
+            return new ChatResult(outputs, confirmations);
+        } catch (RuntimeException | Error error) {
+            lease.fail();
+            throw error;
+        }
+    }
+
+    @Override
+    public ChatResult runConfirmation(
+            String agentId,
+            String userId,
+            String sessionId,
+            String confirmationCallId,
+            boolean confirmed) {
+        // 恢复输入不是自然语言消息，而是 ADK 识别的确认 FunctionResponse。
+        List<String> outputs = new ArrayList<>();
+        List<ToolConfirmationRequest> confirmations = new ArrayList<>();
+        Set<String> emittedConfirmations = new HashSet<>();
+
+        AdkAgentRuntime runtime = requireRuntime(agentId);
+        Content content = confirmationContent(confirmationCallId, confirmed);
+
+        SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
+                runtime, userId, sessionId, content);
+        try {
+            // 仍使用原 Session 的 InvocationLease，避免恢复与同一会话中的新对话并发写入 Event。
             runAsync(runtime, userId, sessionId, content, runtime.runConfig())
                     .blockingForEach(event -> appendFinalResponse(
                             outputs, confirmations, emittedConfirmations, event));
@@ -128,6 +162,49 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
                 );
                 return () -> {
                     // 先停止上游继续产出 Event，再在同一 Session 许可内清理本轮已落地的上下文。
+                    disposable.dispose();
+                    lease.fail();
+                };
+            } catch (RuntimeException | Error error) {
+                lease.fail();
+                throw error;
+            }
+        };
+    }
+
+    @Override
+    public ChatStream runConfirmationStream(
+            String agentId,
+            String userId,
+            String sessionId,
+            String confirmationCallId,
+            boolean confirmed) {
+        // 原 SSE 已在首次请求暂停时结束；这里是独立的 SSE Runner 调用。
+        AdkAgentRuntime runtime = requireRuntime(agentId);
+        RunConfig runConfig = runtime.runConfig().toBuilder()
+                .streamingMode(RunConfig.StreamingMode.SSE)
+                .build();
+        Content content = confirmationContent(confirmationCallId, confirmed);
+
+        return observer -> {
+            SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
+                    runtime, userId, sessionId, content);
+            try {
+                Flowable<Event> events = runAsync(runtime, userId, sessionId, content, runConfig);
+                AtomicBoolean partialTextEmitted = new AtomicBoolean(false);
+                Set<String> emittedConfirmations = new HashSet<>();
+                var disposable = events.subscribe(
+                        event -> emitStreamingResponse(observer, event, partialTextEmitted, emittedConfirmations),
+                        error -> {
+                            lease.fail();
+                            observer.onError(error);
+                        },
+                        () -> {
+                            lease.success();
+                            observer.onComplete();
+                        });
+                return () -> {
+                    // 取消必须传递到上游，并由 lease 按失败调用清理或保留可恢复 Event。
                     disposable.dispose();
                     lease.fail();
                 };
@@ -190,6 +267,17 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
             Throwable mapped = ModelInvocationFailureMapper.map(error);
             throw mapped instanceof RuntimeException runtimeException ? runtimeException : error;
         }
+    }
+
+    /** ADK 要求恢复请求沿用确认 FunctionCall 的 id，并用保留函数名承载决策。 */
+    private Content confirmationContent(String confirmationCallId, boolean confirmed) {
+        // 不能改用原业务工具名：ADK 只会把 adk_request_confirmation 响应解释为 HITL 决策。
+        FunctionResponse response = FunctionResponse.builder()
+                .id(confirmationCallId)
+                .name("adk_request_confirmation")
+                .response(Map.of("confirmed", confirmed))
+                .build();
+        return Content.fromParts(Part.builder().functionResponse(response).build());
     }
 
     private void appendFinalResponse(

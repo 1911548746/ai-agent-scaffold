@@ -164,7 +164,11 @@ public class AgentServiceController implements IAgentService {
                 requestDTO.message()
         );
 
-        ChatResponseDTO chatResponseDTO = new ChatResponseDTO(result.joinContents());
+        ChatResponseDTO chatResponseDTO = new ChatResponseDTO(
+                result.joinContents(),
+                result.pendingConfirmations().stream()
+                        .map(this::toConfirmationResponse)
+                        .toList());
 
         return Response.success(chatResponseDTO);
     }

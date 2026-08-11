@@ -20,6 +20,9 @@ public enum ResponseCode {
     MODEL_REQUEST_REJECTED("0007", "模型请求未被接受，请检查 Agent 配置"),
     MODEL_UNAVAILABLE("0008", "模型服务暂时不可用，请稍后重试"),
     CONTEXT_COMPACTION_UNAVAILABLE("0009", "上下文压缩暂时不可用，请稍后重试"),
+    TOOL_CONFIRMATION_NOT_FOUND("0010", "工具确认单不存在"),
+    TOOL_CONFIRMATION_NOT_PENDING("0011", "工具确认单已处理，不能重复决策"),
+    TOOL_CONFIRMATION_EXECUTION_UNKNOWN("0012", "工具确认执行状态未知，请核对后再处理"),
     ;
 
     private String code;

@@ -3,7 +3,8 @@ package com.hh.domain.agent.model.enums;
 /**
  * 工具人工确认单的持久化状态。
  *
- * <p>本轮只使用 {@link #PENDING}；其余状态为后续 HITL-02/HITL-03 的状态机预留。</p>
+ * <p>HITL-02 使用 pending、processing、completed、rejected 和 execution_unknown；expired
+ * 为后续过期策略预留。</p>
  */
 public enum ToolConfirmationStatus {
 
@@ -22,5 +23,14 @@ public enum ToolConfirmationStatus {
 
     public String value() {
         return value;
+    }
+
+    public static ToolConfirmationStatus fromValue(String value) {
+        for (ToolConfirmationStatus status : values()) {
+            if (status.value.equalsIgnoreCase(value)) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("未知工具确认状态");
     }
 }

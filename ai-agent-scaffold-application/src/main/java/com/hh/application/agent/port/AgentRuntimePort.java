@@ -23,7 +23,22 @@ public interface AgentRuntimePort {
 
     ChatResult run(String agentId, String userId, String sessionId, String message);
 
+    /** 使用 ADK FunctionResponse 恢复同一 Session 中被暂停的工具调用。 */
+    ChatResult runConfirmation(
+            String agentId,
+            String userId,
+            String sessionId,
+            String confirmationCallId,
+            boolean confirmed);
+
     ChatStream runStream(String agentId, String userId, String sessionId, String message);
+
+    ChatStream runConfirmationStream(
+            String agentId,
+            String userId,
+            String sessionId,
+            String confirmationCallId,
+            boolean confirmed);
 
     ChatResult run(String agentId, ChatCommandEntity command);
 

@@ -87,6 +87,25 @@ class AdkAgentRuntimeAdapterRunConfigTest {
     }
 
     @Test
+    void resumesConfirmationWithAdkFunctionResponseOnSameSession() {
+        Runner runner = runner(session());
+        when(runner.runAsync(eq("user-a"), eq("session-a"), any(Content.class), any(RunConfig.class)))
+                .thenReturn(Flowable.empty());
+        AdkAgentRuntimeAdapter adapter = adapter(runner);
+
+        adapter.runConfirmation("agent-a", "user-a", "session-a", "confirmation-call", true);
+
+        ArgumentCaptor<Content> contentCaptor = ArgumentCaptor.forClass(Content.class);
+        verify(runner).runAsync(eq("user-a"), eq("session-a"), contentCaptor.capture(), any(RunConfig.class));
+        FunctionResponse response = contentCaptor.getValue().parts().orElseThrow().get(0)
+                .functionResponse().orElseThrow();
+        assertThat(response.id()).contains("confirmation-call");
+        assertThat(response.name()).contains("adk_request_confirmation");
+        assertThat(response.response()).isPresent();
+        assertThat(response.response().orElseThrow()).containsEntry("confirmed", true);
+    }
+
+    @Test
     void mapsAsyncModelFailureForSyncAndStreamingEntrypoints() {
         Runner runner = runner(session());
         when(runner.runAsync(eq("user-a"), eq("session-a"), any(Content.class), any(RunConfig.class)))
