@@ -28,7 +28,7 @@ public class ModelModuleConfig {
     @NotBlank
     private String modelName;
     @Min(1)
-    private Long timeout = 90L;
+    private Long timeout = 30L;
     @Min(0)
     private Integer maxRetries = 4;
     /** 流式调用等待首个文本或控制响应的最长秒数，不承担首响应后的逐段读取超时。 */

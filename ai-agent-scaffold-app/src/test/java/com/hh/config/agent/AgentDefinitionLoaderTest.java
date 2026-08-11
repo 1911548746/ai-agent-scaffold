@@ -57,7 +57,7 @@ class AgentDefinitionLoaderTest {
         assertThat(hello.getChatModel().getBaseUrl()).isEqualTo("https://api.siliconflow.cn");
         assertThat(hello.getChatModel().getApiKey()).isEqualTo(OFFLINE_MODEL_VALUE);
         assertThat(hello.getChatModel().getModelName()).isEqualTo("deepseek-ai/DeepSeek-V4-Flash");
-        assertThat(hello.getChatModel().getTimeout()).isEqualTo(90L);
+        assertThat(hello.getChatModel().getTimeout()).isEqualTo(30L);
         assertThat(hello.getChatModel().getMaxRetries()).isEqualTo(4);
         assertThat(hello.getChatModel().getStreamingFirstResponseTimeout()).isEqualTo(30L);
         assertThat(hello.getChatModel().getStreamingMaxRetries()).isEqualTo(2);
