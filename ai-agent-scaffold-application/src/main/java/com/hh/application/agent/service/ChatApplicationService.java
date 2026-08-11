@@ -8,6 +8,7 @@ import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.application.agent.port.MessageArchivePort;
+import com.hh.application.agent.port.ToolConfirmationPort;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.enums.MessageStatus;
@@ -31,14 +32,24 @@ public class ChatApplicationService implements ChatUseCase {
     private final AgentRuntimePort agentRuntimePort;
     private final ConversationArchivePort conversationArchivePort;
     private final MessageArchivePort messageArchivePort;
+    private final ToolConfirmationPort toolConfirmationPort;
 
     public ChatApplicationService(
             AgentRuntimePort agentRuntimePort,
             ConversationArchivePort conversationArchivePort,
             MessageArchivePort messageArchivePort) {
+        this(agentRuntimePort, conversationArchivePort, messageArchivePort, ToolConfirmationPort.noop());
+    }
+
+    public ChatApplicationService(
+            AgentRuntimePort agentRuntimePort,
+            ConversationArchivePort conversationArchivePort,
+            MessageArchivePort messageArchivePort,
+            ToolConfirmationPort toolConfirmationPort) {
         this.agentRuntimePort = agentRuntimePort;
         this.conversationArchivePort = conversationArchivePort;
         this.messageArchivePort = messageArchivePort;
+        this.toolConfirmationPort = toolConfirmationPort;
     }
 
     @Override
@@ -70,9 +81,15 @@ public class ChatApplicationService implements ChatUseCase {
 
         ChatResult result = agentRuntimePort.run(agentId, userId, sessionId, message);
 
+        // 保存待确认的工具调用请求
+        result.pendingConfirmations().forEach(request -> toolConfirmationPort.savePending(
+                conversationId, appName, userId, sessionId, request));
+
         // 保存AI回复
-        messageArchivePort.saveAssistantMessage(
-                conversationId, appName, userId, sessionId, result.joinContents());
+        if (!result.contents().isEmpty()) {
+            messageArchivePort.saveAssistantMessage(
+                    conversationId, appName, userId, sessionId, result.joinContents());
+        }
         return result;
     }
 
@@ -100,6 +117,7 @@ public class ChatApplicationService implements ChatUseCase {
 
             StringBuilder assistantBuffer = new StringBuilder();
             AtomicBoolean responseReceived = new AtomicBoolean(false);
+            AtomicBoolean confirmationReceived = new AtomicBoolean(false);
             AtomicBoolean terminal = new AtomicBoolean(false);
             AtomicReference<ChatSubscription> upstreamReference = new AtomicReference<>();
 
@@ -108,6 +126,13 @@ public class ChatApplicationService implements ChatUseCase {
                 public void onEvent(ChatEvent event) {
                     // infrastructure 已过滤 SDK 内部事件；application 只归档可展示的助手文本。
                     if (!terminal.get()) {
+                        if (event.isToolConfirmation()) {
+                            toolConfirmationPort.savePending(
+                                    conversationId, appName, userId, sessionId, event.confirmation());
+                            confirmationReceived.set(true);
+                            observer.onEvent(event);
+                            return;
+                        }
                         assistantBuffer.append(event.content());
                         responseReceived.set(true);
                         observer.onEvent(event);
@@ -129,6 +154,10 @@ public class ChatApplicationService implements ChatUseCase {
                         if (responseReceived.get()) {
                             messageArchivePort.completeAssistantMessage(
                                     conversationId, assistantMessageId, assistantBuffer.toString());
+                        } else if (confirmationReceived.get()) {
+                            // 等待人工确认是正常暂停，不应被当前空响应分支标记为失败。
+                            messageArchivePort.updateAssistantMessageStatus(
+                                    conversationId, assistantMessageId, MessageStatus.WAITING_CONFIRMATION);
                         } else {
                             // 没有任何可展示响应时不能把空消息标记为完成。
                             messageArchivePort.updateAssistantMessageStatus(

@@ -11,7 +11,8 @@ public enum MessageStatus {
     PENDING("pending"),
     COMPLETED("completed"),
     FAILED("failed"),
-    CANCELLED("cancelled");
+    CANCELLED("cancelled"),
+    WAITING_CONFIRMATION("waiting_confirmation");
 
     private final String value;
 

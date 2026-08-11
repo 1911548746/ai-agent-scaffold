@@ -8,6 +8,13 @@ spring:
   lifecycle:
     # Docker 默认 SIGTERM 等待时间会覆盖该值，确保停止容器时先停止接收请求并等待在途调用结束。
     timeout-per-shutdown-phase: ${SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE:30s}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # 非空历史库先建立 baseline 元数据，再执行 V1 及后续增量脚本。
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
 
 server:
   # 容器以 SIGTERM 停止时，等待 Web 容器完成在途请求后再关闭 Spring 上下文。

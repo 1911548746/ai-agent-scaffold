@@ -10,6 +10,7 @@ import com.hh.application.agent.model.ChatResult;
 import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.usecase.ChatUseCase;
+import com.hh.application.agent.model.ToolConfirmationRequest;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.support.SensitiveDataRedactor;
@@ -234,6 +235,7 @@ public class AgentServiceController implements IAgentService {
      * <p>响应说明：
      * <ul>
      *   <li><b>event:message</b> - 标准消息事件</li>
+     *   <li><b>event:tool-confirmation</b> - Agent 暂停并等待人工确认的公开请求摘要</li>
      *   <li><b>data:{content}</b> - 消息内容片段（需前端拼接）</li>
      *   <li><b>event:error</b> - 固定 JSON 错误对象，包含公开的 {@code code} 和 {@code info}</li>
      *   <li>重连和取消由 {@code fetch} 调用方控制；当前 POST 接口不提供 EventSource 自动重连。</li>
@@ -281,7 +283,11 @@ public class AgentServiceController implements IAgentService {
                 @Override
                 public void onEvent(ChatEvent event) {
                     try {
-                        sendEvent(emitter, "message", event.content());
+                        if (event.isToolConfirmation()) {
+                            sendEvent(emitter, "tool-confirmation", toConfirmationResponse(event.confirmation()));
+                        } else {
+                            sendEvent(emitter, "message", event.content());
+                        }
                     } catch (IOException e) {
                         // 写入失败通常表示客户端已断开；关闭项目流会由 infrastructure 继续取消 SDK 上游。
                         log.warn("智能体对话流式输出失败，异常类型: {}，异常详情: {}",
@@ -377,6 +383,11 @@ public class AgentServiceController implements IAgentService {
      */
     protected void sendEvent(SseEmitter emitter, String eventName, Object data) throws IOException {
         emitter.send(SseEmitter.event().name(eventName).data(data));
+    }
+
+    private ToolConfirmationResponseDTO toConfirmationResponse(ToolConfirmationRequest request) {
+        return new ToolConfirmationResponseDTO(
+                request.confirmationId(), request.toolName(), request.message());
     }
 
 }

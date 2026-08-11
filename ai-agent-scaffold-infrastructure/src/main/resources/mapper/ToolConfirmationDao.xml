@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hh.infrastructure.agent.dao.ToolConfirmationDao">
+
+    <insert id="upsertPending" parameterType="com.hh.infrastructure.agent.dao.po.ToolConfirmationPO">
+        INSERT INTO tool_confirmations
+            (confirmation_id, conversation_id, app_name, user_id, session_id,
+             invocation_id, adk_call_id, tool_name, request_message, status, created_at, updated_at)
+        VALUES
+            (#{confirmationId}, #{conversationId}, #{appName}, #{userId}, #{sessionId},
+             #{invocationId}, #{adkCallId}, #{toolName}, #{requestMessage}, #{status}, #{createdAt}, #{updatedAt})
+        ON DUPLICATE KEY UPDATE
+            updated_at = VALUES(updated_at),
+            request_message = VALUES(request_message),
+            tool_name = VALUES(tool_name)
+    </insert>
+</mapper>

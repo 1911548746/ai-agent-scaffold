@@ -1,14 +1,17 @@
 package com.hh.infrastructure.agent.agent.runtime;
 
 import com.google.adk.events.Event;
+import com.google.adk.events.ToolConfirmation;
 import com.google.adk.agents.RunConfig;
 import com.google.adk.sessions.Session;
+import com.google.genai.types.FunctionCall;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
 import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.model.ChatResult;
 import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.model.ChatStreamObserver;
+import com.hh.application.agent.model.ToolConfirmationRequest;
 import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
@@ -21,8 +24,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.UUID;
 
 /**
  * Google ADK Runner 的运行时适配器。
@@ -73,15 +82,18 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
     @Override
     public ChatResult run(String agentId, String userId, String sessionId, String message) {
         List<String> outputs = new ArrayList<>();
+        List<ToolConfirmationRequest> confirmations = new ArrayList<>();
+        Set<String> emittedConfirmations = new HashSet<>();
         AdkAgentRuntime runtime = requireRuntime(agentId);
         Content content = Content.fromParts(Part.fromText(message));
         SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
                 runtime, userId, sessionId, content);
         try {
             runAsync(runtime, userId, sessionId, content, runtime.runConfig())
-                    .blockingForEach(event -> appendFinalResponse(outputs, event));
+                    .blockingForEach(event -> appendFinalResponse(
+                            outputs, confirmations, emittedConfirmations, event));
             lease.success();
-            return new ChatResult(outputs);
+            return new ChatResult(outputs, confirmations);
         } catch (RuntimeException | Error error) {
             lease.fail();
             throw error;
@@ -101,9 +113,10 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
             try {
                 Flowable<Event> events = runAsync(runtime, userId, sessionId, content, runConfig);
                 AtomicBoolean partialTextEmitted = new AtomicBoolean(false);
+                Set<String> emittedConfirmations = new HashSet<>();
                 var disposable = events.subscribe(
                 // TODO 后期可以加入 思考过程、工具调用 等 trace，在前端展示
-                event -> emitStreamingResponse(observer, event, partialTextEmitted),
+                event -> emitStreamingResponse(observer, event, partialTextEmitted, emittedConfirmations),
                 error -> {
                     lease.fail();
                     observer.onError(error);
@@ -128,6 +141,9 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
     @Override
     public ChatResult run(String agentId, ChatCommandEntity command) {
         List<Part> parts = new ArrayList<>();
+        List<String> outputs = new ArrayList<>();
+        List<ToolConfirmationRequest> confirmations = new ArrayList<>();
+        Set<String> emittedConfirmations = new HashSet<>();
         if (command.getTexts() != null) {
             command.getTexts().forEach(text -> parts.add(Part.fromText(text.getMessage())));
         }
@@ -142,12 +158,12 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         Content content = Content.builder().parts(parts).build();
         SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
                 runtime, command.getUserId(), command.getSessionId(), content);
-        List<String> outputs = new ArrayList<>();
         try {
             runAsync(runtime, command.getUserId(), command.getSessionId(), content, runtime.runConfig())
-                    .blockingForEach(event -> appendFinalResponse(outputs, event));
+                    .blockingForEach(event -> appendFinalResponse(
+                            outputs, confirmations, emittedConfirmations, event));
             lease.success();
-            return new ChatResult(outputs);
+            return new ChatResult(outputs, confirmations);
         } catch (RuntimeException | Error error) {
             lease.fail();
             throw error;
@@ -176,9 +192,28 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         }
     }
 
-    private void appendFinalResponse(List<String> outputs, Event event) {
+    private void appendFinalResponse(
+            List<String> outputs,
+            List<ToolConfirmationRequest> confirmations,
+            Set<String> emittedConfirmations,
+            Event event) {
+        findToolConfirmation(event).ifPresent(request -> {
+            if (emittedConfirmations.add(request.confirmationId())) {
+                confirmations.add(request);
+            }
+        });
         if (event.finalResponse()) {
-            outputs.add(event.stringifyContent());
+            // finalResponse 只表示 ADK 阶段可以结束，不能把 FunctionCall/FunctionResponse
+            // 或 compaction 控制 Event 当作对话文本返回给业务接口。
+            if (!event.functionCalls().isEmpty()
+                    || !event.functionResponses().isEmpty()
+                    || (event.actions() != null && event.actions().compaction().isPresent())) {
+                return;
+            }
+            String text = displayableText(event);
+            if (!text.isBlank()) {
+                outputs.add(text);
+            }
         }
     }
 
@@ -188,7 +223,14 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
     private void emitStreamingResponse(
             ChatStreamObserver observer,
             Event event,
-            AtomicBoolean partialTextEmitted) {
+            AtomicBoolean partialTextEmitted,
+            Set<String> emittedConfirmations) {
+        findToolConfirmation(event).ifPresent(request -> {
+            if (emittedConfirmations.add(request.confirmationId())) {
+                observer.onEvent(ChatEvent.confirmation(request));
+            }
+        });
+
         if (!event.functionCalls().isEmpty() || !event.functionResponses().isEmpty()) {
             // 工具事件是模型阶段边界，但不属于当前 HTTP 对话协议。
             partialTextEmitted.set(false);
@@ -221,6 +263,68 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
                 .filter(part -> !part.thought().orElse(false))
                 .forEach(part -> part.text().ifPresent(text::append));
         return text.toString();
+    }
+
+    /**
+     * 将 ADK 的内部确认 FunctionCall 转换为项目内可持久化、可展示的确认请求。
+     *
+     * <p>只识别 ADK 保留的确认函数名；原始工具参数不向客户端传播，后续恢复阶段再由
+     * infrastructure 使用保存的 ADK call id 构造 FunctionResponse。</p>
+     */
+    private Optional<ToolConfirmationRequest> findToolConfirmation(Event event) {
+        for (FunctionCall call : event.functionCalls()) {
+            if (!"adk_request_confirmation".equals(call.name().orElse(null))) {
+                continue;
+            }
+            String adkCallId = call.id().orElse(event.id());
+            String invocationId = event.invocationId();
+            if (adkCallId == null || adkCallId.isBlank() || invocationId == null || invocationId.isBlank()) {
+                continue;
+            }
+
+            Map<String, Object> args = call.args().orElse(Map.of());
+            String toolName = functionCallName(args.get("originalFunctionCall"));
+            if (toolName == null || toolName.isBlank()) {
+                toolName = "unknown_tool";
+            }
+            String message = confirmationHint(args.get("toolConfirmation"));
+            if (message == null || message.isBlank()) {
+                message = "工具 " + toolName + " 需要人工确认";
+            }
+
+            String confirmationId = UUID.nameUUIDFromBytes(("adk-confirmation:" + invocationId + ":" + adkCallId)
+                    .getBytes(StandardCharsets.UTF_8)).toString();
+            return Optional.of(new ToolConfirmationRequest(
+                    confirmationId, adkCallId, invocationId, toolName, message));
+        }
+        return Optional.empty();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> nestedMap(Object value) {
+        return value instanceof Map<?, ?> map
+                ? (Map<String, Object>) map
+                : Map.of();
+    }
+
+    /** ADK 内存 Event 使用 FunctionCall 对象，数据库 JSON 回放后则可能变成 Map。 */
+    private String functionCallName(Object value) {
+        if (value instanceof FunctionCall functionCall) {
+            return functionCall.name().orElse(null);
+        }
+        return stringValue(nestedMap(value).get("name"));
+    }
+
+    /** ToolConfirmation 同样需要兼容 ADK 对象和 JSON Map 两种形态。 */
+    private String confirmationHint(Object value) {
+        if (value instanceof ToolConfirmation toolConfirmation) {
+            return toolConfirmation.hint();
+        }
+        return stringValue(nestedMap(value).get("hint"));
+    }
+
+    private String stringValue(Object value) {
+        return value instanceof String text ? text : null;
     }
 
     /**

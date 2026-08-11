@@ -5,6 +5,7 @@ import com.hh.application.agent.service.ConversationArchiveApplicationService;
 import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.application.agent.port.MessageArchivePort;
+import com.hh.application.agent.port.ToolConfirmationPort;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import org.springframework.context.annotation.Bean;
@@ -23,8 +24,10 @@ public class ApplicationUseCaseConfiguration {
     public ChatUseCase chatUseCase(
             AgentRuntimePort agentRuntimePort,
             ConversationArchivePort conversationArchivePort,
-            MessageArchivePort messageArchivePort) {
-        return new ChatApplicationService(agentRuntimePort, conversationArchivePort, messageArchivePort);
+            MessageArchivePort messageArchivePort,
+            ToolConfirmationPort toolConfirmationPort) {
+        return new ChatApplicationService(
+                agentRuntimePort, conversationArchivePort, messageArchivePort, toolConfirmationPort);
     }
 
     @Bean

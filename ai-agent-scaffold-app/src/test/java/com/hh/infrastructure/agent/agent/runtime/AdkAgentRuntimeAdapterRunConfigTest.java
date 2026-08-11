@@ -2,13 +2,17 @@ package com.hh.infrastructure.agent.agent.runtime;
 
 import com.google.adk.agents.RunConfig;
 import com.google.adk.events.Event;
+import com.google.adk.events.ToolConfirmation;
 import com.google.adk.runner.Runner;
 import com.google.adk.sessions.BaseSessionService;
 import com.google.adk.sessions.Session;
 import com.google.adk.summarizer.EventCompactor;
 import com.google.genai.types.Content;
+import com.google.genai.types.FunctionCall;
+import com.google.genai.types.FunctionResponse;
 import com.google.genai.types.Part;
 import com.hh.application.agent.model.ChatEvent;
+import com.hh.application.agent.model.ChatResult;
 import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.exception.ModelInvocationException;
@@ -25,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -203,6 +208,160 @@ class AdkAgentRuntimeAdapterRunConfigTest {
                 .subscribe(observer(toolOutputs, new AtomicBoolean()));
 
         assertThat(toolOutputs).containsExactly("正在查询", "查询完成");
+    }
+
+    @Test
+    void streamingMapsAdkConfirmationCallToProjectEventWithoutRawArguments() {
+        Runner runner = runner(session());
+        FunctionCall confirmationCall = FunctionCall.builder()
+                .id("confirmation-call")
+                .name("adk_request_confirmation")
+                .args(Map.of(
+                        "originalFunctionCall", Map.of("name", "request_refund", "args", Map.of("orderId", "o-1")),
+                        "toolConfirmation", Map.of("hint", "请确认退款")))
+                .build();
+        Event confirmationEvent = Event.builder()
+                .id("confirmation-event")
+                .invocationId("invocation-a")
+                .author("agent-a")
+                .content(Content.builder()
+                        .role("model")
+                        .parts(List.of(Part.builder().functionCall(confirmationCall).build()))
+                        .build())
+                .build();
+        when(runner.runAsync(eq("user-a"), eq("session-a"), any(Content.class), any(RunConfig.class)))
+                .thenReturn(Flowable.just(confirmationEvent));
+
+        AtomicReference<ChatEvent> received = new AtomicReference<>();
+        adapter(runner).runStream("agent-a", "user-a", "session-a", "refund")
+                .subscribe(new ChatStreamObserver() {
+                    @Override
+                    public void onEvent(ChatEvent event) {
+                        received.set(event);
+                    }
+
+                    @Override
+                    public void onError(Throwable error) {
+                    }
+
+                    @Override
+                    public void onComplete() {
+                    }
+                });
+
+        assertThat(received.get().isToolConfirmation()).isTrue();
+        assertThat(received.get().confirmation().toolName()).isEqualTo("request_refund");
+        assertThat(received.get().confirmation().message()).isEqualTo("请确认退款");
+        assertThat(received.get().confirmation().adkCallId()).isEqualTo("confirmation-call");
+    }
+
+    @Test
+    void streamingMapsTypedAdkConfirmationObjects() {
+        Runner runner = runner(session());
+        FunctionCall originalCall = FunctionCall.builder()
+                .id("refund-call")
+                .name("request_refund")
+                .args(Map.of())
+                .build();
+        ToolConfirmation toolConfirmation = ToolConfirmation.builder()
+                .hint("请确认退款")
+                .confirmed(false)
+                .payload(Map.of("orderId", "o-1"))
+                .build();
+        FunctionCall confirmationCall = FunctionCall.builder()
+                .id("confirmation-call")
+                .name("adk_request_confirmation")
+                .args(Map.of(
+                        "originalFunctionCall", originalCall,
+                        "toolConfirmation", toolConfirmation))
+                .build();
+        Event confirmationEvent = Event.builder()
+                .id("confirmation-event")
+                .invocationId("invocation-a")
+                .author("agent-a")
+                .content(Content.builder()
+                        .role("model")
+                        .parts(List.of(Part.builder().functionCall(confirmationCall).build()))
+                        .build())
+                .build();
+        when(runner.runAsync(eq("user-a"), eq("session-a"), any(Content.class), any(RunConfig.class)))
+                .thenReturn(Flowable.just(confirmationEvent));
+
+        AtomicReference<ChatEvent> received = new AtomicReference<>();
+        adapter(runner).runStream("agent-a", "user-a", "session-a", "refund")
+                .subscribe(new ChatStreamObserver() {
+                    @Override
+                    public void onEvent(ChatEvent event) {
+                        received.set(event);
+                    }
+
+                    @Override
+                    public void onError(Throwable error) {
+                    }
+
+                    @Override
+                    public void onComplete() {
+                    }
+                });
+
+        assertThat(received.get().confirmation().toolName()).isEqualTo("request_refund");
+        assertThat(received.get().confirmation().message()).isEqualTo("请确认退款");
+    }
+
+    @Test
+    void syncDoesNotExposeToolProtocolEventsAsAssistantText() {
+        Runner runner = runner(session());
+        Event ordinaryFunctionCall = Event.builder()
+                .id("tool-call")
+                .invocationId("invocation-a")
+                .author("agent-a")
+                .content(Content.builder()
+                        .role("model")
+                        .parts(List.of(Part.fromFunctionCall("lookup", Map.of("key", "value"))))
+                        .build())
+                .build();
+        Event ordinaryFunctionResponse = Event.builder()
+                .id("tool-response")
+                .invocationId("invocation-a")
+                .author("agent-a")
+                .content(Content.builder()
+                        .role("user")
+                        .parts(List.of(Part.builder()
+                                .functionResponse(FunctionResponse.builder()
+                                        .id("tool-call")
+                                        .name("lookup")
+                                        .response(Map.of("result", "ok"))
+                                        .build())
+                                .build()))
+                        .build())
+                .build();
+        FunctionCall confirmationCall = FunctionCall.builder()
+                .id("confirmation-call")
+                .name("adk_request_confirmation")
+                .args(Map.of(
+                        "originalFunctionCall", Map.of("name", "request_refund"),
+                        "toolConfirmation", Map.of("hint", "请确认退款")))
+                .build();
+        Event hitlConfirmation = Event.builder()
+                .id("confirmation-event")
+                .invocationId("invocation-a")
+                .author("agent-a")
+                .content(Content.builder()
+                        .role("model")
+                        .parts(List.of(Part.builder().functionCall(confirmationCall).build()))
+                        .build())
+                .build();
+        Event finalText = textEvent("final-a", "您的退款申请正在等待人工审批。", false);
+        when(runner.runAsync(eq("user-a"), eq("session-a"), any(Content.class), any(RunConfig.class)))
+                .thenReturn(Flowable.just(ordinaryFunctionCall, ordinaryFunctionResponse, hitlConfirmation, finalText));
+
+        ChatResult result = adapter(runner).run("agent-a", "user-a", "session-a", "refund");
+
+        assertThat(result.contents()).containsExactly("您的退款申请正在等待人工审批。");
+        assertThat(result.pendingConfirmations())
+                .singleElement()
+                .extracting(request -> request.toolName())
+                .isEqualTo("request_refund");
     }
 
     private ChatStreamObserver observer(List<String> outputs, AtomicBoolean completed) {

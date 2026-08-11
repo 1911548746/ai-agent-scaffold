@@ -1,4 +1,5 @@
 /.idea/
+/.codegraph/
 /ai-agent-scaffold-app/target/
 /ai-agent-scaffold-api/target/
 /ai-agent-scaffold-domain/target/
@@ -16,3 +17,4 @@
 ### Log files ###
 /data/log/*
 *.log
+/data/

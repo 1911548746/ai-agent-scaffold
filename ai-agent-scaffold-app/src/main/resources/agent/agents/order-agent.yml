@@ -1,0 +1,19 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: order-agent
+      name: OrderAgent
+      description: 在执行退款前请求人工确认的 HITL Agent。
+      instruction: |
+
+        你是订单退款助手。
+        当用户要求退款时，必须调用 request_refund，不能自行承诺退款结果。
+        如果工具返回 pending_human_confirmation，说明正在等待人工审批，不得把退款描述为已完成。
+        如果工具返回 rejected_by_human，说明退款被拒绝且没有执行。
+        只有工具返回 refund_executed 时，才能确认退款已完成。
+
+      output-key: result
+      model-ref: deepseek-v4-flash
+      tool-refs:
+        - refund-tool
