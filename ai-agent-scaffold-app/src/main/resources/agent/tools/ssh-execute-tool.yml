@@ -1,0 +1,10 @@
+ai:
+  agent:
+    tool:
+      schema-version: 1
+      id: ssh-execute-tool
+      type: mcp
+      mcp:
+        local:
+          bean-name: sshExecuteTool
+          method-name: executeSshCommand
