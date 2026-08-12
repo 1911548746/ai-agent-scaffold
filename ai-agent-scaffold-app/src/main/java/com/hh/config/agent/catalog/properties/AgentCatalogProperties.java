@@ -42,6 +42,9 @@ public class AgentCatalogProperties {
     private List<@NotBlank String> toolResources = new ArrayList<>();
 
     @NotNull
+    private List<@NotBlank String> skillResources = new ArrayList<>();
+
+    @NotNull
     private List<@NotBlank String> agentResources = new ArrayList<>();
 
     @NotNull

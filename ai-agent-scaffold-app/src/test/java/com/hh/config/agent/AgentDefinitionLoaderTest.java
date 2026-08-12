@@ -68,7 +68,7 @@ class AgentDefinitionLoaderTest {
             assertThat(agent.getMcpToolList()).isNotEmpty();
             assertThat(agent.getMcpToolList()).allSatisfy(tool ->
                     assertThat(tool.getLocal()).isNotNull());
-            assertThat(agent.getSkillsDir()).isEqualTo("classpath:agent/skills");
+            assertThat(agent.getSkillsDir()).isEqualTo("classpath:agent/skill-resources");
         });
         assertThat(hello.getRunner().getPersistence()).isTrue();
         assertThat(hello.getRunner().getGroupFunctionResponsesInHistory()).isTrue();
@@ -102,7 +102,7 @@ class AgentDefinitionLoaderTest {
         AgentDefinition chrome = definition(definitions, "chrome-devtools-agent");
         assertThat(chrome.isEnabled()).isFalse();
         assertThat(chrome.getAppName()).isEqualTo("ChromeDevtoolsAgent");
-        assertThat(chrome.getAgentDescriptor().getAgentId()).isEqualTo("100002");
+        assertThat(chrome.getAgentDescriptor().getAgentId()).isEqualTo("100004");
         assertThat(chrome.getAgents()).singleElement().satisfies(agent -> {
             assertThat(agent.getName()).isEqualTo("ChromeDevtoolsAgent");
             assertThat(agent.getInstruction()).contains("通过工具真实操作浏览器完成任务");

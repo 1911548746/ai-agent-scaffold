@@ -1,8 +1,0 @@
-ai:
-  agent:
-    tool:
-      schema-version: 1
-      id: release-note-skill
-      type: skill
-      skill:
-        directory: classpath:agent/skills

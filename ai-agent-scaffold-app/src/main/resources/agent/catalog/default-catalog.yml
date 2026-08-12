@@ -8,6 +8,8 @@ ai:
         - classpath:agent/models/**/*.yml
       tool-resources:
         - classpath:agent/tools/**/*.yml
+      skill-resources:
+        - classpath:agent/skills/**/*.yml
       agent-resources:
         - classpath:agent/agents/**/*.yml
       workflow-resources:

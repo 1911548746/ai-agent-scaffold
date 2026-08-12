@@ -2,6 +2,7 @@ package com.hh.config.agent.catalog;
 
 import com.hh.config.agent.catalog.binding.AgentModuleConfig;
 import com.hh.config.agent.catalog.binding.ModelModuleConfig;
+import com.hh.config.agent.catalog.binding.SkillModuleConfig;
 import com.hh.config.agent.catalog.binding.ToolModuleConfig;
 import com.hh.config.agent.catalog.binding.WorkflowModuleConfig;
 import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
@@ -36,7 +37,6 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 import static org.springframework.boot.context.properties.source.ConfigurationPropertySources.from;
 
 /**
- * 将 catalog 和五类模块 YAML 编译为完整 AgentDefinition。
+ * 将 catalog 和六类模块 YAML 编译为完整 AgentDefinition。
  *
  * <p>编译顺序固定为：读取并绑定资源、Bean Validation、稳定 ID 索引、引用校验、工作流拓扑排序、
  * application 聚合。这样能在创建 ADK Runner 之前报告配置错误，且错误消息只包含路径和 ID。</p>
@@ -103,6 +103,11 @@ public class AgentDefinitionLoader {
                 ToolModuleConfig::getId,
                 ToolModuleConfig::getSourcePath,
                 "tool");
+        Map<String, SkillModuleConfig> skills = index(
+                loadModules(catalog.getSkillResources(), "ai.agent.skill", SkillModuleConfig.class),
+                SkillModuleConfig::getId,
+                SkillModuleConfig::getSourcePath,
+                "skill");
         Map<String, AgentModuleConfig> agents = index(
                 loadModules(catalog.getAgentResources(), "ai.agent.agent", AgentModuleConfig.class),
                 AgentModuleConfig::getId,
@@ -115,7 +120,7 @@ public class AgentDefinitionLoader {
                 "workflow");
 
         // ID 表完整后再校验跨文件引用，避免把“文件加载顺序”误当作依赖关系。
-        validateModules(models, tools, agents, workflows);
+        validateModules(models, tools, skills, agents, workflows);
         // 子工作流必须先于父工作流交给旧 Armory 创建，否则运行时会得到空子节点。
         List<String> workflowOrder = topologicalSort(workflows);
         List<LocatedApplication> applications = loadApplications(catalog, catalogPath);
@@ -128,6 +133,7 @@ public class AgentDefinitionLoader {
                     application.sourcePath(),
                     models,
                     tools,
+                    skills,
                     agents,
                     workflows,
                     workflowOrder));
@@ -141,6 +147,7 @@ public class AgentDefinitionLoader {
     private void validateModules(
             Map<String, ModelModuleConfig> models,
             Map<String, ToolModuleConfig> tools,
+            Map<String, SkillModuleConfig> skills,
             Map<String, AgentModuleConfig> agents,
             Map<String, WorkflowModuleConfig> workflows) {
         models.values().forEach(model -> {
@@ -156,6 +163,10 @@ public class AgentDefinitionLoader {
             validateTool(tool);
         });
 
+        skills.values().forEach(skill ->
+                requireSchemaVersion(skill.getSchemaVersion(), skill.getSourcePath() + ".schema-version"));
+        validateCapabilityIds(tools, skills);
+
         agents.values().forEach(agent -> {
             requireSchemaVersion(agent.getSchemaVersion(), agent.getSourcePath() + ".schema-version");
             if (!models.containsKey(agent.getModelRef())) {
@@ -165,6 +176,12 @@ public class AgentDefinitionLoader {
                 String toolRef = agent.getToolRefs().get(i);
                 if (!tools.containsKey(toolRef)) {
                     throw error(agent.getSourcePath() + ".tool-refs[" + i + "]", "unknown tool id '" + toolRef + "'");
+                }
+            }
+            for (int i = 0; i < agent.getSkillRefs().size(); i++) {
+                String skillRef = agent.getSkillRefs().get(i);
+                if (!skills.containsKey(skillRef)) {
+                    throw error(agent.getSourcePath() + ".skill-refs[" + i + "]", "unknown skill id '" + skillRef + "'");
                 }
             }
         });
@@ -193,26 +210,35 @@ public class AgentDefinitionLoader {
     }
 
     /**
-     * 把 tool.type 与实际内容交叉校验，阻止一个 MCP 配置同时携带多个 transport 后被 if 顺序静默选择。
+     * 校验 Tool 的 MCP transport，阻止一个配置同时携带多个 transport 后被 if 顺序静默选择。
      */
     private void validateTool(ToolModuleConfig tool) {
-        String type = tool.getType().toLowerCase(Locale.ROOT);
-        if ("skill".equals(type)) {
-            if (tool.getSkill() == null || tool.getMcp() != null) {
-                throw error(tool.getSourcePath(), "skill tool must configure only skill.directory");
-            }
-            return;
-        }
-        if (!"mcp".equals(type)) {
+        if (!"mcp".equalsIgnoreCase(tool.getType())) {
             throw error(tool.getSourcePath() + ".type", "unsupported tool type '" + tool.getType() + "'");
         }
-        if (tool.getMcp() == null || tool.getSkill() != null) {
+        if (tool.getMcp() == null) {
             throw error(tool.getSourcePath(), "MCP tool must configure exactly one transport");
         }
         ToolModuleConfig.McpDefinition mcp = tool.getMcp();
         int transportCount = countPresent(mcp.getSse(), mcp.getHttp(), mcp.getStdio(), mcp.getLocal());
         if (transportCount != 1) {
             throw error(tool.getSourcePath() + ".mcp", "MCP tool must configure exactly one transport");
+        }
+    }
+
+    /**
+     * Tool 与 Skill 使用不同引用字段，但仍不能共享 ID，避免 catalog 维护者产生歧义。
+     */
+    private void validateCapabilityIds(
+            Map<String, ToolModuleConfig> tools,
+            Map<String, SkillModuleConfig> skills) {
+        for (Map.Entry<String, SkillModuleConfig> skill : skills.entrySet()) {
+            ToolModuleConfig tool = tools.get(skill.getKey());
+            if (tool != null) {
+                throw error(
+                        tool.getSourcePath() + ", " + skill.getValue().getSourcePath(),
+                        "duplicate capability id '" + skill.getKey() + "'");
+            }
         }
     }
 
@@ -237,6 +263,7 @@ public class AgentDefinitionLoader {
             String applicationPath,
             Map<String, ModelModuleConfig> models,
             Map<String, ToolModuleConfig> tools,
+            Map<String, SkillModuleConfig> skills,
             Map<String, AgentModuleConfig> agents,
             Map<String, WorkflowModuleConfig> workflows,
             List<String> workflowOrder) {
@@ -276,7 +303,7 @@ public class AgentDefinitionLoader {
 
         List<LlmAgentDefinition> compiledAgents = reachableAgents.stream()
                 .map(agents::get)
-                .map(agent -> compileAgent(agent, tools))
+                .map(agent -> compileAgent(agent, tools, skills))
                 .toList();
         // 使用全局拓扑序过滤可达工作流，保证父工作流引用其子工作流时子节点已经创建。
         List<AgentWorkflowDefinition> compiledWorkflows = workflowOrder.stream()
@@ -322,9 +349,12 @@ public class AgentDefinitionLoader {
     }
 
     /**
-     * 将稳定的 tool-ref 列表转换为 LLM Agent 定义的 MCP 列表和单个 Skill 目录字段。
+     * 将独立的 Tool/Skill 引用转换为 LLM Agent 定义的 MCP 列表和 Skill 目录字段。
      */
-    private LlmAgentDefinition compileAgent(AgentModuleConfig agent, Map<String, ToolModuleConfig> tools) {
+    private LlmAgentDefinition compileAgent(
+            AgentModuleConfig agent,
+            Map<String, ToolModuleConfig> tools,
+            Map<String, SkillModuleConfig> skills) {
         LlmAgentDefinition result = new LlmAgentDefinition();
         result.setName(agent.getName());
         result.setDescription(agent.getDescription());
@@ -333,17 +363,16 @@ public class AgentDefinitionLoader {
 
         List<McpToolDefinition> mcpTools = new ArrayList<>();
         String skillsDirectory = null;
-        for (int i = 0; i < agent.getToolRefs().size(); i++) {
-            ToolModuleConfig tool = tools.get(agent.getToolRefs().get(i));
-            if ("skill".equalsIgnoreCase(tool.getType())) {
-                // 当前定义只有 skillsDir 一个字段，多个 Skill 目录不能被悄悄丢弃。
-                if (skillsDirectory != null) {
-                    throw error(agent.getSourcePath() + ".tool-refs[" + i + "]", "current ADK assembly supports one skill directory per agent");
-                }
-                skillsDirectory = resolveRequired(tool.getSkill().getDirectory(), tool.getSourcePath() + ".skill.directory");
-            } else {
-                mcpTools.add(toMcpTool(tool));
+        for (String toolRef : agent.getToolRefs()) {
+            mcpTools.add(toMcpTool(tools.get(toolRef)));
+        }
+        for (int i = 0; i < agent.getSkillRefs().size(); i++) {
+            SkillModuleConfig skill = skills.get(agent.getSkillRefs().get(i));
+            // 当前领域定义只有一个 skillsDir，多个 Skill Toolset 不能被悄悄覆盖。
+            if (skillsDirectory != null) {
+                throw error(agent.getSourcePath() + ".skill-refs[" + i + "]", "current ADK assembly supports one skill toolset per agent");
             }
+            skillsDirectory = resolveRequired(skill.getDirectory(), skill.getSourcePath() + ".directory");
         }
         result.setMcpToolList(mcpTools);
         result.setSkillsDir(skillsDirectory);
@@ -660,6 +689,8 @@ public class AgentDefinitionLoader {
             model.setSourcePath(sourcePath);
         } else if (value instanceof ToolModuleConfig tool) {
             tool.setSourcePath(sourcePath);
+        } else if (value instanceof SkillModuleConfig skill) {
+            skill.setSourcePath(sourcePath);
         } else if (value instanceof AgentModuleConfig agent) {
             agent.setSourcePath(sourcePath);
         } else if (value instanceof WorkflowModuleConfig workflow) {

@@ -16,9 +16,9 @@ class ClassPathSkillSourceFactoryTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "classpath:agent/skills",
-            "classpath*:agent/skills/",
-            "/agent/skills"
+            "classpath:agent/skill-resources",
+            "classpath*:agent/skill-resources/",
+            "/agent/skill-resources"
     })
     void loadsSkillAndReferencedResourceFromSupportedPathForms(String skillsDir) throws Exception {
         SkillSource source = new ClassPathSkillSourceFactory().createSkillSource(skillsDir);

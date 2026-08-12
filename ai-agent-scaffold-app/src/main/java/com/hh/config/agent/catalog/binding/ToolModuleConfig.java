@@ -15,8 +15,8 @@ import java.util.Map;
 /**
  * 一个 tools/*.yml 文件的绑定模型。
  *
- * <p>type 为 mcp 时必须在四种 transport 中选择一种；type 为 skill 时只能声明本地 Skill 目录。
- * 具体互斥规则由 AgentDefinitionLoader 统一校验，避免依赖 YAML 字段出现顺序。</p>
+ * <p>一个 Tool 必须在四种 MCP transport 中选择一种。Skill 使用独立的 {@link SkillModuleConfig}
+ * 配置模型，避免把两类能力混在同一个资源目录和绑定对象中。</p>
  */
 @Data
 @Validated
@@ -31,8 +31,6 @@ public class ToolModuleConfig {
     private String type;
     @Valid
     private McpDefinition mcp;
-    @Valid
-    private SkillDefinition skill;
     // 只用于错误定位，绝不作为运行时工具参数传递。
     private transient String sourcePath;
 
@@ -101,12 +99,4 @@ public class ToolModuleConfig {
         private String methodName;
     }
 
-    /**
-     * Skill 不走 MCP 客户端，而是交给现有 SkillSourceFactory 从该目录加载技能描述。
-     */
-    @Data
-    public static class SkillDefinition {
-        @NotBlank
-        private String directory;
-    }
 }

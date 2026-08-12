@@ -1,0 +1,6 @@
+ai:
+  agent:
+    skill:
+      schema-version: 1
+      id: local-skill-toolset
+      directory: classpath:agent/skill-resources

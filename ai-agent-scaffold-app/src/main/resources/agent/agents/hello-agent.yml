@@ -10,4 +10,5 @@ ai:
       model-ref: deepseek-v4-flash
       tool-refs:
         - weather-tool
-        - release-note-skill
+      skill-refs:
+        - local-skill-toolset

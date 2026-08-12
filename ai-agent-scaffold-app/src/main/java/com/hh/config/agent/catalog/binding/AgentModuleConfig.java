@@ -30,9 +30,12 @@ public class AgentModuleConfig {
     private String outputKey;
     @NotBlank
     private String modelRef;
-    // 保持 YAML 声明顺序，编译后同样按该顺序向 Agent 注入 MCP 与 Skill 工具。
+    // 仅保存 MCP/Local Tool 引用；Skill 使用下方独立的 skill-refs 字段。
     @NotNull
     private List<@NotBlank String> toolRefs = new ArrayList<>();
+    // 当前运行时只支持一个 SkillToolset，但使用列表为后续多 Toolset 扩展保留配置形态。
+    @NotNull
+    private List<@NotBlank String> skillRefs = new ArrayList<>();
     // 仅用于在未知引用或校验失败时指向具体 YAML 文件。
     private transient String sourcePath;
 }
