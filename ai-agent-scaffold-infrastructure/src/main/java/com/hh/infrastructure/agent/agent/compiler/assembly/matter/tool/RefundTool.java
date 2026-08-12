@@ -5,12 +5,11 @@ import com.google.adk.tools.Annotations.Schema;
 import com.google.adk.tools.ToolContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
 @Slf4j
-@Service("refundTool")
+@Component("refundTool")
 public class RefundTool {
 
     private RefundTool() {

@@ -1,14 +1,14 @@
-package com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.server;
+package com.hh.infrastructure.agent.agent.compiler.assembly.matter.tool;
 
 import com.google.adk.tools.Annotations;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
 @Slf4j
-@Service("myTestMcpServer")
-public class MyTestMcpServer {
+@Component("weatherTool")
+public class WeatherTool {
 
     @Annotations.Schema(name = "get_weather", description = "获取指定城市的天气信息")
     public Map<String, Object> getWeather(

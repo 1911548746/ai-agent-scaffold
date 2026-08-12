@@ -3,7 +3,7 @@ package com.hh.infrastructure.agent.agent.compiler.assembly.matter.tool;
 import com.google.adk.events.ToolConfirmation;
 import com.google.adk.tools.Annotations.Schema;
 import com.google.adk.tools.ToolContext;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  * <p>本类不会建立 SSH 连接或执行系统命令，只返回模拟结果。危险命令必须先请求 HITL 确认，
  * 恢复调用时再根据确认结果决定是否返回“已模拟执行”。</p>
  */
-@Service("sshExecuteTool")
+@Component("sshExecuteTool")
 public class SshExecuteTool {
 
     private static final Pattern DANGEROUS_PATTERN = Pattern.compile(

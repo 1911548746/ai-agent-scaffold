@@ -2,9 +2,9 @@ ai:
   agent:
     tool:
       schema-version: 1
-      id: local-weather
+      id: weather-tool
       type: mcp
       mcp:
         local:
-          bean-name: myTestMcpServer
+          bean-name: weatherTool
           method-name: getWeather

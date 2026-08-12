@@ -9,5 +9,5 @@ ai:
       output-key: result
       model-ref: deepseek-v4-flash
       tool-refs:
-        - local-weather
+        - weather-tool
         - release-note-skill
