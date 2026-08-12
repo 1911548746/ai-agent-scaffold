@@ -20,11 +20,19 @@ public interface ToolConfirmationPort {
 
     Optional<ToolConfirmationRecord> find(String confirmationId, String userId);
 
-    /** 仅允许 pending 被一个请求原子领取，返回 false 表示已经被其他请求处理。 */
-    boolean claimPending(String confirmationId, String userId, String appName);
+    /**
+     * 仅允许指定版本的 pending 确认单被一个请求领取。
+     *
+     * <p>版本不匹配表示其他请求已经推进状态，调用方不得再次恢复同一工具调用。</p>
+     */
+    boolean claimPending(String confirmationId, String userId, String appName, long expectedVersion);
 
     /** 将 processing 确认单推进到终态；重复回调不会覆盖已完成状态。 */
-    boolean finish(String confirmationId, String userId, ToolConfirmationStatus status);
+    boolean finish(
+            String confirmationId,
+            String userId,
+            ToolConfirmationStatus status,
+            long expectedVersion);
 
     /** 供离线 application 测试保留最小组合方式。 */
     static ToolConfirmationPort noop() {
@@ -41,12 +49,17 @@ public interface ToolConfirmationPort {
             }
 
             @Override
-            public boolean claimPending(String confirmationId, String userId, String appName) {
+            public boolean claimPending(
+                    String confirmationId, String userId, String appName, long expectedVersion) {
                 return false;
             }
 
             @Override
-            public boolean finish(String confirmationId, String userId, ToolConfirmationStatus status) {
+            public boolean finish(
+                    String confirmationId,
+                    String userId,
+                    ToolConfirmationStatus status,
+                    long expectedVersion) {
                 return false;
             }
         };

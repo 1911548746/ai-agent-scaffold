@@ -13,6 +13,8 @@ import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.model.ToolConfirmationRecord;
 import com.hh.application.agent.usecase.ToolConfirmationUseCase;
 import com.hh.types.support.SensitiveDataRedactor;
+import com.hh.types.enums.ResponseCode;
+import com.hh.types.exception.AppException;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -59,7 +61,8 @@ public class ToolConfirmationController {
      *     "sessionId": "session-id",
      *     "toolName": "request_refund",
      *     "message": "请确认是否提交退款申请",
-     *     "status": "pending"
+     *     "status": "pending",
+     *     "expiresAt": "2026-08-12T15:20:00"
      *   }
      * }
      * </pre>
@@ -133,7 +136,7 @@ public class ToolConfirmationController {
     public SseEmitter resolveStream(
             @PathVariable String confirmationId,
             @Valid @RequestBody ToolConfirmationDecisionRequestDTO request) {
-        SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MILLIS);
+        SseEmitter emitter = createEmitter();
         AtomicReference<ChatSubscription> subscriptionReference = new AtomicReference<>();
         AtomicBoolean terminal = new AtomicBoolean(false);
         Runnable cancel = () -> {
@@ -204,11 +207,17 @@ public class ToolConfirmationController {
             subscriptionReference.set(subscription);
         } catch (RuntimeException error) {
             terminal.set(true);
-            // 建立订阅阶段失败同样按 SSE 错误协议处理，避免 Spring 将内部异常序列化给客户端。
-            log.warn("确认恢复 SSE 建立失败，异常类型: {}，异常详情: {}",
-                    error.getClass().getName(), SensitiveDataRedactor.formatStackTrace(error));
+            // 建流阶段尚未进入异步回调：已知业务异常保留原错误码，不能降级为未知错误 0001。
+            StreamErrorResponseDTO response = toStreamError(error);
+            if (error instanceof AppException appException) {
+                log.warn("确认恢复 SSE 建立失败，业务码: {}，异常类型: {}",
+                        appException.getCode(), error.getClass().getName());
+            } else {
+                log.warn("确认恢复 SSE 建立失败，异常类型: {}，异常详情: {}",
+                        error.getClass().getName(), SensitiveDataRedactor.formatStackTrace(error));
+            }
             try {
-                send(emitter, "error", StreamErrorResponseDTO.internalError());
+                send(emitter, "error", response);
             } catch (IOException ignored) {
                 // SSE 尚未建立或客户端已断开时无法发送错误事件。
             } finally {
@@ -224,7 +233,8 @@ public class ToolConfirmationController {
                 record.confirmationId(), record.appName(), record.sessionId(), record.toolName(),
                 record.message(), record.status().value(),
                 record.createdAt() == null ? null : record.createdAt().toString(),
-                record.updatedAt() == null ? null : record.updatedAt().toString());
+                record.updatedAt() == null ? null : record.updatedAt().toString(),
+                record.expiresAt() == null ? null : record.expiresAt().toString());
     }
 
     private ChatResponseDTO toChatResponse(ChatResult result) {
@@ -240,7 +250,26 @@ public class ToolConfirmationController {
                 request.confirmationId(), request.toolName(), request.message());
     }
 
-    private void send(SseEmitter emitter, String eventName, Object data) throws IOException {
+    /** 单元测试可替换发送器，验证错误事件而无需启动 Servlet 容器。 */
+    protected void send(SseEmitter emitter, String eventName, Object data) throws IOException {
         emitter.send(SseEmitter.event().name(eventName).data(data));
+    }
+
+    /** 单元测试可使用内存 emitter；生产环境仍使用标准 Spring SSE emitter。 */
+    protected SseEmitter createEmitter() {
+        return new SseEmitter(STREAM_TIMEOUT_MILLIS);
+    }
+
+    /** 只有项目内置错误码允许进入 SSE，避免把客户端可控或 SDK 异常文本作为协议返回。 */
+    private StreamErrorResponseDTO toStreamError(Throwable error) {
+        if (!(error instanceof AppException appException)) {
+            return StreamErrorResponseDTO.internalError();
+        }
+        for (ResponseCode responseCode : ResponseCode.values()) {
+            if (responseCode.getCode().equals(appException.getCode())) {
+                return StreamErrorResponseDTO.knownError(responseCode);
+            }
+        }
+        return StreamErrorResponseDTO.internalError();
     }
 }

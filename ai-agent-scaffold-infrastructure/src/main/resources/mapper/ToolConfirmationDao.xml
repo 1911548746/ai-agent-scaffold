@@ -7,10 +7,12 @@
     <insert id="upsertPending" parameterType="com.hh.infrastructure.agent.dao.po.ToolConfirmationPO">
         INSERT INTO tool_confirmations
             (confirmation_id, conversation_id, app_name, user_id, session_id,
-             invocation_id, adk_call_id, tool_name, request_message, status, created_at, updated_at)
+             invocation_id, adk_call_id, tool_name, request_message, status, created_at, updated_at,
+             expires_at, version)
         VALUES
             (#{confirmationId}, #{conversationId}, #{appName}, #{userId}, #{sessionId},
-             #{invocationId}, #{adkCallId}, #{toolName}, #{requestMessage}, #{status}, #{createdAt}, #{updatedAt})
+             #{invocationId}, #{adkCallId}, #{toolName}, #{requestMessage}, #{status}, #{createdAt}, #{updatedAt},
+             #{expiresAt}, #{version})
         ON DUPLICATE KEY UPDATE
             updated_at = VALUES(updated_at),
             request_message = VALUES(request_message),
@@ -20,7 +22,7 @@
     <select id="selectByIdentity" resultType="com.hh.infrastructure.agent.dao.po.ToolConfirmationPO">
         SELECT confirmation_id, conversation_id, app_name, user_id, session_id,
                invocation_id, adk_call_id, tool_name, request_message, status,
-               created_at, updated_at
+               created_at, updated_at, expires_at, version
         FROM tool_confirmations
         WHERE confirmation_id = #{confirmationId}
           AND user_id = #{userId}
@@ -29,18 +31,31 @@
 
     <update id="claimPending">
         UPDATE tool_confirmations
-        SET status = #{processingStatus}, updated_at = CURRENT_TIMESTAMP
+        SET status = #{processingStatus}, version = version + 1, updated_at = CURRENT_TIMESTAMP
         WHERE confirmation_id = #{confirmationId}
           AND user_id = #{userId}
           AND app_name = #{appName}
           AND status = 'pending'
+          AND expires_at > CURRENT_TIMESTAMP
+          AND version = #{expectedVersion}
     </update>
 
     <update id="finish">
         UPDATE tool_confirmations
-        SET status = #{status}, updated_at = CURRENT_TIMESTAMP
+        SET status = #{status}, version = version + 1, updated_at = CURRENT_TIMESTAMP
         WHERE confirmation_id = #{confirmationId}
           AND user_id = #{userId}
           AND status = #{processingStatus}
+          AND version = #{expectedVersion}
+    </update>
+
+    <update id="expirePending">
+        UPDATE tool_confirmations
+        SET status = #{expiredStatus}, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE confirmation_id = #{confirmationId}
+          AND user_id = #{userId}
+          AND status = 'pending'
+          AND expires_at &lt;= CURRENT_TIMESTAMP
+          AND version = #{expectedVersion}
     </update>
 </mapper>

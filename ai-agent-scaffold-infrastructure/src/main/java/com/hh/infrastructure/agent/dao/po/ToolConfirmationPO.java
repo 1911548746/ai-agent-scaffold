@@ -29,4 +29,6 @@ public class ToolConfirmationPO {
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime expiresAt;
+    private Long version;
 }

@@ -18,11 +18,19 @@ public interface ToolConfirmationDao extends BaseMapper<ToolConfirmationPO> {
             @Param("confirmationId") String confirmationId,
             @Param("userId") String userId,
             @Param("appName") String appName,
-            @Param("processingStatus") String processingStatus);
+            @Param("processingStatus") String processingStatus,
+            @Param("expectedVersion") long expectedVersion);
 
     int finish(
             @Param("confirmationId") String confirmationId,
             @Param("userId") String userId,
             @Param("processingStatus") String processingStatus,
-            @Param("status") String status);
+            @Param("status") String status,
+            @Param("expectedVersion") long expectedVersion);
+
+    int expirePending(
+            @Param("confirmationId") String confirmationId,
+            @Param("userId") String userId,
+            @Param("expiredStatus") String expiredStatus,
+            @Param("expectedVersion") long expectedVersion);
 }

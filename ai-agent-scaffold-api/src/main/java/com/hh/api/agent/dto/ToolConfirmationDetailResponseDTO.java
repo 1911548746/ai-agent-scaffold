@@ -9,5 +9,6 @@ public record ToolConfirmationDetailResponseDTO(
         String message,
         String status,
         String createdAt,
-        String updatedAt) {
+        String updatedAt,
+        String expiresAt) {
 }

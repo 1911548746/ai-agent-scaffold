@@ -32,7 +32,7 @@ class ToolConfirmationApplicationServiceTest {
         MessageArchivePort messagePort = mock(MessageArchivePort.class);
         ToolConfirmationRecord record = record(ToolConfirmationStatus.PENDING);
         when(confirmationPort.find("confirmation-1", "user-1")).thenReturn(Optional.of(record));
-        when(confirmationPort.claimPending("confirmation-1", "user-1", "app-a")).thenReturn(true);
+        when(confirmationPort.claimPending("confirmation-1", "user-1", "app-a", 0L)).thenReturn(true);
         when(runtimePort.appName("agent-a")).thenReturn("app-a");
         when(conversationPort.findOrCreateConversation("app-a", "user-1", "session-1"))
                 .thenReturn(7L);
@@ -40,7 +40,7 @@ class ToolConfirmationApplicationServiceTest {
                 .thenReturn(8L);
         when(runtimePort.runConfirmation("agent-a", "user-1", "session-1", "adk-call-1", true))
                 .thenReturn(new ChatResult(java.util.List.of("退款已完成")));
-        when(confirmationPort.finish("confirmation-1", "user-1", ToolConfirmationStatus.COMPLETED))
+        when(confirmationPort.finish("confirmation-1", "user-1", ToolConfirmationStatus.COMPLETED, 1L))
                 .thenReturn(true);
 
         new ToolConfirmationApplicationService(
@@ -49,7 +49,7 @@ class ToolConfirmationApplicationServiceTest {
 
         verify(runtimePort).runConfirmation("agent-a", "user-1", "session-1", "adk-call-1", true);
         verify(messagePort).completeAssistantMessage(7L, 8L, "退款已完成");
-        verify(confirmationPort).finish("confirmation-1", "user-1", ToolConfirmationStatus.COMPLETED);
+        verify(confirmationPort).finish("confirmation-1", "user-1", ToolConfirmationStatus.COMPLETED, 1L);
     }
 
     @Test
@@ -71,6 +71,6 @@ class ToolConfirmationApplicationServiceTest {
         return new ToolConfirmationRecord(
                 "confirmation-1", 7L, "app-a", "user-1", "session-1", "invocation-1",
                 "adk-call-1", "refund", "请确认退款", status,
-                LocalDateTime.now(), LocalDateTime.now());
+                LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now().plusMinutes(15), 0L);
     }
 }

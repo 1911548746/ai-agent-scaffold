@@ -229,7 +229,7 @@ public class ToolConfirmationApplicationService implements ToolConfirmationUseCa
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
         }
         if (confirmation.status() != ToolConfirmationStatus.PENDING
-                || !confirmationPort.claimPending(confirmationId, userId, appName)) {
+                || !confirmationPort.claimPending(confirmationId, userId, appName, confirmation.version())) {
             throw new AppException(ResponseCode.TOOL_CONFIRMATION_NOT_PENDING);
         }
         return confirmation;
@@ -271,7 +271,9 @@ public class ToolConfirmationApplicationService implements ToolConfirmationUseCa
 
     /** 只有仍处于 processing 的确认单才能进入确定终态，更新失败按执行状态未知处理。 */
     private void finishOrFail(ToolConfirmationRecord confirmation, ToolConfirmationStatus status) {
-        if (!confirmationPort.finish(confirmation.confirmationId(), confirmation.userId(), status)
+        // 领取成功后版本已加一；终态更新必须使用这个期望版本，防止迟到回调覆盖并发状态。
+        if (!confirmationPort.finish(
+                confirmation.confirmationId(), confirmation.userId(), status, confirmation.version() + 1)
         ) {
             throw new AppException(ResponseCode.TOOL_CONFIRMATION_EXECUTION_UNKNOWN);
         }
@@ -280,12 +282,12 @@ public class ToolConfirmationApplicationService implements ToolConfirmationUseCa
     /**
      * 发生异常、取消或持久化故障后保守收尾。
      *
-     * <p>不将确认单退回 pending，因为无法证明工具没有产生外部副作用；后续 HITL-03 应提供人工
-     * 核验、审计与幂等键支撑的处置流程。</p>
+     * <p>不将确认单退回 pending，因为无法证明工具没有产生外部副作用；高风险业务工具需要在
+     * 其所属业务模块另行提供外部幂等键和人工核验。</p>
      */
     private void markExecutionUnknown(ToolConfirmationRecord confirmation) {
         confirmationPort.finish(
                 confirmation.confirmationId(), confirmation.userId(),
-                ToolConfirmationStatus.EXECUTION_UNKNOWN);
+                ToolConfirmationStatus.EXECUTION_UNKNOWN, confirmation.version() + 1);
     }
 }

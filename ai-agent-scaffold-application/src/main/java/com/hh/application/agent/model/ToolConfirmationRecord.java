@@ -22,7 +22,9 @@ public record ToolConfirmationRecord(
         String message,
         ToolConfirmationStatus status,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt) {
+        LocalDateTime updatedAt,
+        LocalDateTime expiresAt,
+        long version) {
 
     public ToolConfirmationRecord {
         Objects.requireNonNull(confirmationId, "confirmationId must not be null");
