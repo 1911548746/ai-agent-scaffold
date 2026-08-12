@@ -5,11 +5,9 @@ ai:
       schema-version: 1
       catalog-path: classpath:agent/catalog/pure-sliding-window-catalog.yml
       model-resources:
-        - classpath:agent/models/deepseek-v4-flash.yml
+        - classpath:agent/models/**/*.yml
       tool-resources:
-        - classpath:agent/tools/local-weather.yml
-        - classpath:agent/tools/refund-tool.yml
-        - classpath:agent/tools/release-note-skill.yml
+        - classpath:agent/tools/**/*.yml
       agent-resources:
         - classpath:agent/agents/hello-agent.yml
       workflow-resources: []

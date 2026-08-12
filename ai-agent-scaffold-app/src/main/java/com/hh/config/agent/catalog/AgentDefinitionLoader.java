@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 import static org.springframework.boot.context.properties.source.ConfigurationPropertySources.from;
 
 /**
- * 将 catalog 和四类模块 YAML 编译为完整 AgentDefinition。
+ * 将 catalog 和五类模块 YAML 编译为完整 AgentDefinition。
  *
  * <p>编译顺序固定为：读取并绑定资源、Bean Validation、稳定 ID 索引、引用校验、工作流拓扑排序、
  * application 聚合。这样能在创建 ADK Runner 之前报告配置错误，且错误消息只包含路径和 ID。</p>
@@ -118,14 +118,14 @@ public class AgentDefinitionLoader {
         validateModules(models, tools, agents, workflows);
         // 子工作流必须先于父工作流交给旧 Armory 创建，否则运行时会得到空子节点。
         List<String> workflowOrder = topologicalSort(workflows);
-        validateApplicationIds(catalog, catalogPath);
+        List<LocatedApplication> applications = loadApplications(catalog, catalogPath);
+        validateApplicationIds(applications);
 
         List<AgentDefinition> definitions = new ArrayList<>();
-        for (int i = 0; i < catalog.getApplications().size(); i++) {
-            // application 下标写入错误路径，用户无需从整份 catalog 猜测失败条目。
+        for (LocatedApplication application : applications) {
             definitions.add(compileApplication(
-                    catalog.getApplications().get(i),
-                    catalogPath + ".applications[" + i + "]",
+                    application.definition(),
+                    application.sourcePath(),
                     models,
                     tools,
                     agents,
@@ -524,11 +524,11 @@ public class AgentDefinitionLoader {
     /**
      * 校验 catalog application 的稳定 ID 唯一，避免两个对外入口覆盖同一个运行时表项。
      */
-    private void validateApplicationIds(AgentCatalogProperties catalog, String catalogPath) {
+    private void validateApplicationIds(List<LocatedApplication> applications) {
         Map<String, String> paths = new LinkedHashMap<>();
-        for (int i = 0; i < catalog.getApplications().size(); i++) {
-            String id = catalog.getApplications().get(i).getId();
-            String path = catalogPath + ".applications[" + i + "]";
+        for (LocatedApplication application : applications) {
+            String id = application.definition().getId();
+            String path = application.sourcePath();
             String previous = paths.putIfAbsent(id, path);
             if (previous != null) {
                 throw error(path + ", " + previous, "duplicate application id '" + id + "'");
@@ -571,6 +571,28 @@ public class AgentDefinitionLoader {
             values.add(value);
         }
         return values;
+    }
+
+    /**
+     * 合并兼容的内联 application 与模块化 application YAML。
+     *
+     * <p>内联项先于自动发现项，确保已有外部 catalog 在迁移前后的发布顺序不变；自动发现项则由
+     * {@link #resolveModuleResources(List)} 按稳定路径排序。</p>
+     */
+    private List<LocatedApplication> loadApplications(AgentCatalogProperties catalog, String catalogPath) {
+        List<LocatedApplication> applications = new ArrayList<>();
+        for (int i = 0; i < catalog.getApplications().size(); i++) {
+            applications.add(new LocatedApplication(
+                    catalog.getApplications().get(i),
+                    catalogPath + ".applications[" + i + "]"));
+        }
+        for (LocatedResource resource : resolveModuleResources(catalog.getApplicationResources())) {
+            AgentCatalogProperties.ApplicationDefinition application = bind(
+                    resource.resource(), resource.sourcePath(), "ai.agent.application",
+                    AgentCatalogProperties.ApplicationDefinition.class);
+            applications.add(new LocatedApplication(application, resource.sourcePath()));
+        }
+        return List.copyOf(applications);
     }
 
     /**
@@ -684,6 +706,11 @@ public class AgentDefinitionLoader {
     }
 
     private record LocatedResource(Resource resource, String sourcePath) {
+    }
+
+    private record LocatedApplication(
+            AgentCatalogProperties.ApplicationDefinition definition,
+            String sourcePath) {
     }
 
     /**

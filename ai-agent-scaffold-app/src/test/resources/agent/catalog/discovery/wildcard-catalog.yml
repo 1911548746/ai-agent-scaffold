@@ -11,12 +11,5 @@ ai:
       agent-resources:
         - classpath:agent-fixtures/discovery/agents/**/*.yml
       workflow-resources: []
-      applications:
-        - id: discovered-app
-          app-name: DiscoveredApp
-          agent-id: "test-discovery-001"
-          agent-name: 自动发现测试智能体
-          agent-desc: 验证目录通配资源加载
-          agent-ref: discovered-agent
-          runner:
-            persistence: false
+      application-resources:
+        - classpath:agent-fixtures/discovery/applications/**/*.yml

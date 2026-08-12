@@ -143,6 +143,9 @@ class AgentDefinitionLoaderTest {
         AgentDefinition definition = loader.load("classpath:agent/catalog/discovery/wildcard-catalog.yml")
                 .get(0);
 
+        // application 与其他模块一样从递归目录发现，catalog 不再需要维护发布入口的内联列表。
+        assertThat(definition.getId()).isEqualTo("discovered-app");
+        assertThat(definition.getAppName()).isEqualTo("DiscoveredApp");
         // 未显式配置时使用安全的流式首响应默认值，旧模型 YAML 无需迁移即可加载。
         assertThat(definition.getChatModel().getStreamingFirstResponseTimeout()).isEqualTo(30L);
         assertThat(definition.getChatModel().getStreamingMaxRetries()).isEqualTo(2);

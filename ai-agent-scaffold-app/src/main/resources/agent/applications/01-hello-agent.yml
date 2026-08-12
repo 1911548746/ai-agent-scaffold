@@ -1,0 +1,24 @@
+ai:
+  agent:
+    application:
+      id: hello-agent
+      app-name: HelloAgent
+      agent-id: "100000"
+      agent-name: HelloAgent
+      agent-desc: 一个测试的智能体
+      agent-ref: hello-agent
+      runner:
+        persistence: true
+        # 仅供要求 FC1/FC2/FR1/FR2 历史格式的兼容模型端点使用。
+        group-function-responses-in-history: true
+        context-compress:
+          type: slidingWindow
+          compaction-interval: 3
+          overlap-size: 1
+#           type: pureSlidingWindow
+#           invocation-retention-size: 4
+#           type: fixedSize
+#           token-threshold: 500
+#           event-retention-size: 4
+        plugin-name-list:
+          - myLoggingPlugin

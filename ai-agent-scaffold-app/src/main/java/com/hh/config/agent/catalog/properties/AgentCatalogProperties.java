@@ -47,6 +47,10 @@ public class AgentCatalogProperties {
     @NotNull
     private List<@NotBlank String> workflowResources = new ArrayList<>();
 
+    // application 也支持按目录发现；显式 applications 保留用于兼容外部 catalog。
+    @NotNull
+    private List<@NotBlank String> applicationResources = new ArrayList<>();
+
     @Valid
     @NotNull
     private List<ApplicationDefinition> applications = new ArrayList<>();
@@ -54,14 +58,14 @@ public class AgentCatalogProperties {
     /**
      * 仅在启用配置时要求 catalog 完整；禁用模式允许应用不导入任何 Agent 资源而正常启动。
      */
-    @AssertTrue(message = "enabled catalog requires catalog-path, model-resources, agent-resources and applications")
+    @AssertTrue(message = "enabled catalog requires catalog-path, model-resources, agent-resources and applications or application-resources")
     public boolean isCatalogComplete() {
         return !enabled
                 || (schemaVersion != null
                 && hasText(catalogPath)
                 && !modelResources.isEmpty()
                 && !agentResources.isEmpty()
-                && !applications.isEmpty());
+                && (!applications.isEmpty() || !applicationResources.isEmpty()));
     }
 
     private boolean hasText(String value) {

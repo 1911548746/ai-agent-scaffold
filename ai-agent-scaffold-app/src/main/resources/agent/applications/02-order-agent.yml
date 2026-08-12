@@ -1,0 +1,17 @@
+ai:
+  agent:
+    application:
+      id: order-agent
+      app-name: OrderAgent
+      agent-id: "100002"
+      agent-name: 退款智能体
+      agent-desc: 一个退款智能体
+      agent-ref: order-agent
+      runner:
+        persistence: true
+        group-function-responses-in-history: true
+        context-compress:
+          type: pureSlidingWindow
+          invocation-retention-size: 4
+        plugin-name-list:
+          - myLoggingPlugin

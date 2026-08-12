@@ -1,0 +1,13 @@
+ai:
+  agent:
+    application:
+      id: pipeline-agent
+      app-name: PipelineAgent
+      agent-id: "100001"
+      agent-name: 代码生成 pipeline 智能体
+      agent-desc: 代码生成 pipeline 智能体
+      workflow-ref: code-pipeline
+      runner:
+        persistence: true
+        plugin-name-list:
+          - myLoggingPlugin

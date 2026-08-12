@@ -1,0 +1,17 @@
+ai:
+  agent:
+    application:
+      id: ssh-agent
+      app-name: SshAgent
+      agent-id: "100003"
+      agent-name: ssh运维智能体
+      agent-desc: 一个ssh运维智能体
+      agent-ref: ssh-agent
+      runner:
+        persistence: true
+        group-function-responses-in-history: true
+        context-compress:
+          type: pureSlidingWindow
+          invocation-retention-size: 4
+        plugin-name-list:
+          - myLoggingPlugin
