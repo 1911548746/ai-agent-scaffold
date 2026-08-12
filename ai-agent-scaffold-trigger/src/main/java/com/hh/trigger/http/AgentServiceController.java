@@ -3,8 +3,6 @@ package com.hh.trigger.http;
 import com.hh.api.agent.IAgentService;
 import com.hh.api.agent.dto.*;
 import com.hh.api.agent.response.Response;
-import com.hh.application.agent.exception.ModelInvocationException;
-import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.model.ChatResult;
 import com.hh.application.agent.model.ChatStreamObserver;
@@ -12,7 +10,7 @@ import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.application.agent.model.ToolConfirmationRequest;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
-import com.hh.types.enums.ResponseCode;
+import com.hh.trigger.http.support.StreamErrorResponseMapper;
 import com.hh.types.support.SensitiveDataRedactor;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -357,20 +355,8 @@ public class AgentServiceController implements IAgentService {
      * 再次走异常响应流程，供应商错误文本仍有机会到达客户端。</p>
      */
     private void completeWithSafeError(SseEmitter emitter, Throwable error) {
-        StreamErrorResponseDTO response = StreamErrorResponseDTO.internalError();
-        if (error instanceof ModelInvocationException modelError) {
-            // 已知模型失败只输出分类和根因类型，避免每次重试及最终失败重复打印长堆栈。
-            log.error("流式模型调用最终失败，失败类型: {}，根因类型: {}",
-                    modelError.failureType(), modelError.rootCauseType());
-            response = StreamErrorResponseDTO.knownError(modelError.failureType().responseCode());
-        } else if (error instanceof ContextCompactionException compactionError) {
-            log.error("前置上下文压缩失败，根因类型: {}", compactionError.rootCauseType());
-            response = StreamErrorResponseDTO.knownError(ResponseCode.CONTEXT_COMPACTION_UNAVAILABLE);
-        } else {
-            // 非模型异常仍保留脱敏堆栈，否则工具、Session 或程序缺陷会失去诊断线索。
-            log.error("智能体对话流式输出出错，异常类型: {}，异常详情: {}",
-                    error.getClass().getName(), SensitiveDataRedactor.formatStackTrace(error));
-        }
+        StreamErrorResponseDTO response = StreamErrorResponseMapper.map(error);
+        StreamErrorResponseMapper.logFailure("智能体对话流式输出", error);
         try {
             sendEvent(emitter, "error", response);
         } catch (IOException sendError) {

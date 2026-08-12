@@ -9,6 +9,8 @@ import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.usecase.ChatUseCase;
+import com.hh.trigger.http.support.StreamErrorResponseMapper;
+import com.hh.types.exception.AppException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +32,8 @@ import static org.mockito.Mockito.when;
  */
 class AgentServiceControllerTest {
 
-    private final Logger logger = (Logger) LoggerFactory.getLogger(AgentServiceController.class);
+    // SSE 错误诊断已统一收敛到映射器，测试也应监听实际的日志责任边界。
+    private final Logger logger = (Logger) LoggerFactory.getLogger(StreamErrorResponseMapper.class);
     private final ListAppender<ILoggingEvent> logAppender = new ListAppender<>();
 
     @BeforeEach
@@ -96,6 +99,58 @@ class AgentServiceControllerTest {
                         .contains(IllegalStateException.class.getName())
                         .doesNotContain(sensitiveValue)
                         .doesNotContain("\tat "));
+    }
+
+    @Test
+    void setupBusinessFailurePreservesBuiltInCodeInSseErrorEvent() {
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
+                .thenThrow(new AppException(ResponseCode.AGENT_NOT_FOUND));
+        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
+
+        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+
+        assertThat(controller.eventName).isEqualTo("error");
+        assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO
+                .knownError(ResponseCode.AGENT_NOT_FOUND));
+        assertThat(controller.emitter.completed).isTrue();
+    }
+
+    @Test
+    void asyncWrappedBusinessFailurePreservesBuiltInCodeInSseErrorEvent() {
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(observer -> {
+                    // 模拟异步框架在回调边界额外包装业务异常的情形。
+                    observer.onError(new IllegalStateException(
+                            "async wrapper", new AppException(ResponseCode.AGENT_NOT_FOUND)));
+                    return () -> { };
+                });
+        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
+
+        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+
+        assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO
+                .knownError(ResponseCode.AGENT_NOT_FOUND));
+    }
+
+    @Test
+    void nestedModelFailureKeepsSpecificModelCodeWhenOuterErrorIsGeneric() {
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(observer -> {
+                    observer.onError(new AppException(ResponseCode.UN_ERROR.getCode(),
+                            new ModelInvocationException(
+                                    ModelInvocationException.FailureType.TIMEOUT,
+                                    new IllegalStateException("provider detail"))));
+                    return () -> { };
+                });
+        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
+
+        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+
+        assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO
+                .knownError(ResponseCode.MODEL_TIMEOUT));
     }
 
     @Test

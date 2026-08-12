@@ -3,6 +3,7 @@ package com.hh.trigger.http;
 import com.hh.api.agent.dto.StreamErrorResponseDTO;
 import com.hh.api.agent.dto.ToolConfirmationDecisionRequestDTO;
 import com.hh.application.agent.model.ChatStream;
+import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.usecase.ToolConfirmationUseCase;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
@@ -47,6 +48,27 @@ class ToolConfirmationControllerTest {
                 new ToolConfirmationDecisionRequestDTO("agent-a", "user-1", true));
 
         assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO.internalError());
+    }
+
+    @Test
+    void asyncBusinessFailurePreservesBuiltInCodeInSseErrorEvent() {
+        ToolConfirmationUseCase useCase = mock(ToolConfirmationUseCase.class);
+        when(useCase.resolveStream(anyString(), anyString(), anyString(), anyBoolean()))
+                .thenReturn(observer -> {
+                    // 模拟 Runner 在订阅完成后才报告重复决策的情况。
+                    observer.onError(new IllegalStateException(
+                            "async wrapper", new AppException(ResponseCode.TOOL_CONFIRMATION_NOT_PENDING)));
+                    return () -> { };
+                });
+        CapturingController controller = new CapturingController(useCase);
+
+        controller.resolveStream("confirmation-1",
+                new ToolConfirmationDecisionRequestDTO("agent-a", "user-1", true));
+
+        assertThat(controller.eventName).isEqualTo("error");
+        assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO
+                .knownError(ResponseCode.TOOL_CONFIRMATION_NOT_PENDING));
+        assertThat(controller.emitter.completed).isTrue();
     }
 
     private static final class CapturingController extends ToolConfirmationController {

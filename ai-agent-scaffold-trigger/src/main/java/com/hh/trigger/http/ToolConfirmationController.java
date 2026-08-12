@@ -12,9 +12,7 @@ import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.model.ToolConfirmationRecord;
 import com.hh.application.agent.usecase.ToolConfirmationUseCase;
-import com.hh.types.support.SensitiveDataRedactor;
-import com.hh.types.enums.ResponseCode;
-import com.hh.types.exception.AppException;
+import com.hh.trigger.http.support.StreamErrorResponseMapper;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -185,15 +183,7 @@ public class ToolConfirmationController {
                         public void onError(Throwable error) {
                             if (terminal.compareAndSet(false, true)) {
                                 // SSE 已开始响应时只能发送稳定错误事件，不能回传 SDK 原始异常。
-                                log.error("确认恢复执行失败，异常类型: {}，异常详情: {}",
-                                        error.getClass().getName(), SensitiveDataRedactor.formatStackTrace(error));
-                                try {
-                                    send(emitter, "error", StreamErrorResponseDTO.internalError());
-                                } catch (IOException ignored) {
-                                    // 客户端已断开时无法再发送错误事件。
-                                } finally {
-                                    emitter.complete();
-                                }
+                                completeWithSafeError(emitter, error);
                             }
                         }
 
@@ -207,22 +197,8 @@ public class ToolConfirmationController {
             subscriptionReference.set(subscription);
         } catch (RuntimeException error) {
             terminal.set(true);
-            // 建流阶段尚未进入异步回调：已知业务异常保留原错误码，不能降级为未知错误 0001。
-            StreamErrorResponseDTO response = toStreamError(error);
-            if (error instanceof AppException appException) {
-                log.warn("确认恢复 SSE 建立失败，业务码: {}，异常类型: {}",
-                        appException.getCode(), error.getClass().getName());
-            } else {
-                log.warn("确认恢复 SSE 建立失败，异常类型: {}，异常详情: {}",
-                        error.getClass().getName(), SensitiveDataRedactor.formatStackTrace(error));
-            }
-            try {
-                send(emitter, "error", response);
-            } catch (IOException ignored) {
-                // SSE 尚未建立或客户端已断开时无法发送错误事件。
-            } finally {
-                emitter.complete();
-            }
+            // 建流阶段尚未进入异步回调，也使用同一白名单映射，避免两种异常边界返回不同协议。
+            completeWithSafeError(emitter, error);
         }
         return emitter;
     }
@@ -260,16 +236,17 @@ public class ToolConfirmationController {
         return new SseEmitter(STREAM_TIMEOUT_MILLIS);
     }
 
-    /** 只有项目内置错误码允许进入 SSE，避免把客户端可控或 SDK 异常文本作为协议返回。 */
-    private StreamErrorResponseDTO toStreamError(Throwable error) {
-        if (!(error instanceof AppException appException)) {
-            return StreamErrorResponseDTO.internalError();
+    /** 为已开始的确认恢复流发送稳定错误事件并正常结束。 */
+    private void completeWithSafeError(SseEmitter emitter, Throwable error) {
+        StreamErrorResponseMapper.logFailure("确认恢复 SSE", error);
+        try {
+            send(emitter, "error", StreamErrorResponseMapper.map(error));
+        } catch (IOException sendError) {
+            // 客户端已断开时无法再发送错误事件；服务端已由统一映射器记录诊断信息。
+            log.warn("确认恢复 SSE 安全错误事件发送失败，异常类型: {}",
+                    sendError.getClass().getName());
+        } finally {
+            emitter.complete();
         }
-        for (ResponseCode responseCode : ResponseCode.values()) {
-            if (responseCode.getCode().equals(appException.getCode())) {
-                return StreamErrorResponseDTO.knownError(responseCode);
-            }
-        }
-        return StreamErrorResponseDTO.internalError();
     }
 }
