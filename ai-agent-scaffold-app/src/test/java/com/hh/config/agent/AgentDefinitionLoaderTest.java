@@ -64,6 +64,7 @@ class AgentDefinitionLoaderTest {
         assertThat(hello.getAgents()).singleElement().satisfies(agent -> {
             assertThat(agent.getName()).isEqualTo("HelloAgent");
             assertThat(agent.getInstruction()).isEqualTo("You are a concise assistant. Say hello in a friendly way.");
+            assertThat(agent.getMaxSteps()).isEqualTo(8);
             // 新增本地 Tool 只需落入受管理目录，catalog 不再维护逐文件清单。
             assertThat(agent.getMcpToolList()).isNotEmpty();
             assertThat(agent.getMcpToolList()).allSatisfy(tool ->
@@ -87,6 +88,9 @@ class AgentDefinitionLoaderTest {
                 .containsExactly("CodeWriterAgent", "CodeReviewerAgent", "CodeRefactorerAgent");
         assertThat(pipeline.getAgents()).extracting(agent -> agent.getOutputKey())
                 .containsExactly("generated_code", "review_comments", "refactored_code");
+        // 其他 Agent 未声明时由 AgentModuleConfig 的默认值统一限制为 8 步。
+        assertThat(pipeline.getAgents()).extracting(agent -> agent.getMaxSteps())
+                .containsOnly(8);
         assertThat(pipeline.getAgentWorkflows()).singleElement().satisfies(workflow -> {
             assertThat(workflow.getType()).isEqualTo("sequential");
             assertThat(workflow.getName()).isEqualTo("CodePipelineAgent");

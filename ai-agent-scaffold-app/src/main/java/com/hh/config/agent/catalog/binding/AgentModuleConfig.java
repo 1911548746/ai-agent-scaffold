@@ -30,6 +30,10 @@ public class AgentModuleConfig {
     private String outputKey;
     @NotBlank
     private String modelRef;
+    // 限制单个 LLM Agent 在一次 invocation 中执行的最大 ReAct 步数，防止工具链意外循环。
+    @NotNull
+    @Min(1)
+    private Integer maxSteps = 8;
     // 仅保存 MCP/Local Tool 引用；Skill 使用下方独立的 skill-refs 字段。
     @NotNull
     private List<@NotBlank String> toolRefs = new ArrayList<>();

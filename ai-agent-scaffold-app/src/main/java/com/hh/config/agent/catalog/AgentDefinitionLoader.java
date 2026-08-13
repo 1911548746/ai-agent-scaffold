@@ -355,11 +355,13 @@ public class AgentDefinitionLoader {
             AgentModuleConfig agent,
             Map<String, ToolModuleConfig> tools,
             Map<String, SkillModuleConfig> skills) {
+
         LlmAgentDefinition result = new LlmAgentDefinition();
         result.setName(agent.getName());
         result.setDescription(agent.getDescription());
         result.setInstruction(agent.getInstruction());
         result.setOutputKey(agent.getOutputKey());
+        result.setMaxSteps(agent.getMaxSteps());
 
         List<McpToolDefinition> mcpTools = new ArrayList<>();
         String skillsDirectory = null;

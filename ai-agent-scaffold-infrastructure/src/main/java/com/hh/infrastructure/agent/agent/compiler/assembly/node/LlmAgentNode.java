@@ -71,6 +71,7 @@ public class LlmAgentNode extends AgentAssemblySupport {
                     .model(llmModel)
                     .instruction(agentDefinition.getInstruction())
                     .outputKey(agentDefinition.getOutputKey())
+                    .maxSteps(agentDefinition.getMaxSteps())
                     .tools(toolsets)
                     .build();
 
