@@ -77,6 +77,8 @@ public class RunnerNode extends AgentAssemblySupport {
         AdkAgentRuntime runtime = new AdkAgentRuntime(
                 appName, agentId, agentName, agentDesc, runner, runConfig, compactionPlan);
 
+        log.info("Ai Agent 装配完成 - {} - {}", agentName, agentDesc);
+
         // 返回临时构建结果；AgentCompiler 在所有 Agent 成功后统一发布 Registry 快照。
         return runtime;
     }
