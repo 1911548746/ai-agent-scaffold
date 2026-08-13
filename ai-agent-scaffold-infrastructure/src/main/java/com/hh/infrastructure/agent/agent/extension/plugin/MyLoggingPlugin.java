@@ -1,4 +1,4 @@
-package com.hh.infrastructure.agent.agent.compiler.assembly.matter.plugin;
+package com.hh.infrastructure.agent.agent.extension.plugin;
 
 import com.google.adk.plugins.LoggingPlugin;
 import lombok.extern.slf4j.Slf4j;
