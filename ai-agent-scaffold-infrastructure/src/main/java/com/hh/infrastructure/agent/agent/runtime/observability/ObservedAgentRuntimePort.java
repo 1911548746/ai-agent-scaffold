@@ -53,6 +53,11 @@ public class ObservedAgentRuntimePort implements AgentRuntimePort {
     }
 
     @Override
+    public void requireSession(String agentId, String userId, String sessionId) {
+        delegate.requireSession(agentId, userId, sessionId);
+    }
+
+    @Override
     public ChatResult run(String agentId, String userId, String sessionId, String message) {
         AgentRuntimeObservability.Invocation invocation = observability.startInvocation(agentId, "sync");
         return invocation.observe(() -> observeResult(

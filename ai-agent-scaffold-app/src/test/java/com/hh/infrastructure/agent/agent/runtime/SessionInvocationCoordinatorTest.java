@@ -17,6 +17,8 @@ import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPla
 import com.hh.infrastructure.agent.agent.runtime.invocation.SessionInvocationCoordinator;
 import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
 import com.hh.types.enums.ContextCompressTypeEnum;
+import com.hh.types.enums.ResponseCode;
+import com.hh.types.exception.AppException;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Maybe;
 import org.junit.jupiter.api.Test;
@@ -99,6 +101,24 @@ class SessionInvocationCoordinatorTest {
         // Coordinator 只读取历史 Session；调用失败前没有机会由 Runner 写入当前用户 Event。
         assertThat(session.events()).extracting(Event::id).containsExactly("history-a");
         verify(compactor).compact(any(Session.class), any(BaseSessionService.class));
+    }
+
+    @Test
+    void missingSessionIsNotMappedToContextCompactionFailure() {
+        BaseSessionService sessionService = mock(BaseSessionService.class);
+        when(sessionService.getSession(any(), any(), any(), any())).thenReturn(Maybe.empty());
+        Runner runner = mock(Runner.class);
+        when(runner.sessionService()).thenReturn(sessionService);
+        AdkAgentRuntime runtime = new AdkAgentRuntime(
+                "app-a", "agent-a", "Agent A", "test", runner, RunConfig.builder().build(),
+                fixedSizePlan(Integer.MAX_VALUE));
+
+        assertThatThrownBy(() -> new SessionInvocationCoordinator(Runnable::run).begin(
+                runtime, "user-a", "missing-session", Content.fromParts(Part.fromText("hello"))))
+                .isInstanceOf(AppException.class)
+                .isNotInstanceOf(ContextCompactionException.class)
+                .extracting("code")
+                .isEqualTo(ResponseCode.SESSION_NOT_FOUND.getCode());
     }
 
     @Test

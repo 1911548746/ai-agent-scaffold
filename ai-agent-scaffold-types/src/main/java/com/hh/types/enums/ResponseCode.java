@@ -23,6 +23,7 @@ public enum ResponseCode {
     TOOL_CONFIRMATION_NOT_FOUND("0010", "工具确认单不存在"),
     TOOL_CONFIRMATION_NOT_PENDING("0011", "工具确认单已处理，不能重复决策"),
     TOOL_CONFIRMATION_EXECUTION_UNKNOWN("0012", "工具确认执行状态未知，请核对后再处理"),
+    SESSION_NOT_FOUND("0013", "会话不存在或已失效"),
     ;
 
     private String code;

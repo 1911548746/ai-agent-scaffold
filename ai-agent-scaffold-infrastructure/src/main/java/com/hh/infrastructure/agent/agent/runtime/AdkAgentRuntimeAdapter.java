@@ -81,6 +81,17 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
     }
 
     @Override
+    public void requireSession(String agentId, String userId, String sessionId) {
+        AdkAgentRuntime runtime = requireRuntime(agentId);
+        Session session = runtime.runner().sessionService()
+                .getSession(runtime.appName(), userId, sessionId, Optional.empty())
+                .blockingGet();
+        if (session == null) {
+            throw new AppException(ResponseCode.SESSION_NOT_FOUND);
+        }
+    }
+
+    @Override
     public ChatResult run(String agentId, String userId, String sessionId, String message) {
 
         List<String> outputs = new ArrayList<>();

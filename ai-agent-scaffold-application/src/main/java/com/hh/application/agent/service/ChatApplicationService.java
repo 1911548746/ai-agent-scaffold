@@ -74,6 +74,9 @@ public class ChatApplicationService implements ChatUseCase {
     public ChatResult handleMessage(String agentId, String userId, String sessionId, String message) {
         String appName = agentRuntimePort.appName(agentId);
 
+        // 无效会话不能创建归档记录，否则会留下永远无法被 Runner 使用的孤立消息。
+        agentRuntimePort.requireSession(agentId, userId, sessionId);
+
         // 查找或创建会话记录，拿到 conversationId
         Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
         // 保存用户消息
@@ -96,6 +99,9 @@ public class ChatApplicationService implements ChatUseCase {
     @Override
     public ChatStream handleMessageStream(String agentId, String userId, String sessionId, String message) {
         String appName = agentRuntimePort.appName(agentId);
+
+        // SSE 建立后只能发送 error 事件，因此必须在创建 pending 消息前完成会话校验。
+        agentRuntimePort.requireSession(agentId, userId, sessionId);
 
         // 查找或创建会话记录，拿到 conversationId
         Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
@@ -190,6 +196,9 @@ public class ChatApplicationService implements ChatUseCase {
         String appName = agentRuntimePort.appName(chatCommandEntity.getAgentId());
         String userId = chatCommandEntity.getUserId();
         String sessionId = chatCommandEntity.getSessionId();
+
+        // 多模态入口与纯文本入口保持同一会话存在性约束。
+        agentRuntimePort.requireSession(chatCommandEntity.getAgentId(), userId, sessionId);
 
         // 查找或创建会话记录，拿到 conversationId
         Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);

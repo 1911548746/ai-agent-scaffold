@@ -8,6 +8,8 @@ import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.application.agent.port.MessageArchivePort;
 import com.hh.domain.agent.model.enums.MessageStatus;
+import com.hh.types.enums.ResponseCode;
+import com.hh.types.exception.AppException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -83,6 +86,24 @@ class ChatApplicationServiceStreamingTest {
         assertThat(upstreamCancellations).hasValue(1);
         verify(messageArchivePort).updateAssistantMessageStatus(1L, 2L, MessageStatus.CANCELLED);
         verify(messageArchivePort, never()).completeAssistantMessage(any(), any(), any());
+    }
+
+    @Test
+    void streamRejectsMissingSessionBeforeCreatingPendingArchives() {
+        when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
+        org.mockito.Mockito.doThrow(new AppException(ResponseCode.SESSION_NOT_FOUND))
+                .when(agentRuntimePort).requireSession("agent-a", "user-1", "missing-session");
+
+        assertThatThrownBy(() -> chatService.handleMessageStream(
+                "agent-a", "user-1", "missing-session", "hello"))
+                .isInstanceOf(AppException.class)
+                .extracting("code")
+                .isEqualTo(ResponseCode.SESSION_NOT_FOUND.getCode());
+
+        verify(conversationArchivePort, never()).findOrCreateConversation(any(), any(), any());
+        verify(messageArchivePort, never()).saveUserMessage(any(), any(), any(), any(), any());
+        verify(messageArchivePort, never()).createPendingAssistantMessage(any(), any(), any(), any());
+        verify(agentRuntimePort, never()).runStream(any(), any(), any(), any());
     }
 
     private void prepareStream(ChatStream stream) {

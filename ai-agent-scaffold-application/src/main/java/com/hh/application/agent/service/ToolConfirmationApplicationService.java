@@ -228,6 +228,8 @@ public class ToolConfirmationApplicationService implements ToolConfirmationUseCa
         if (!appName.equals(confirmation.appName())) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
         }
+        // 领取确认单会将状态推进到 processing；必须先确认原会话还存在，避免留下无法恢复的确认单。
+        agentRuntimePort.requireSession(agentId, userId, confirmation.sessionId());
         if (confirmation.status() != ToolConfirmationStatus.PENDING
                 || !confirmationPort.claimPending(confirmationId, userId, appName, confirmation.version())) {
             throw new AppException(ResponseCode.TOOL_CONFIRMATION_NOT_PENDING);

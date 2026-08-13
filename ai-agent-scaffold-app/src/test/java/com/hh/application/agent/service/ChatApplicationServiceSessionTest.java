@@ -3,6 +3,8 @@ package com.hh.application.agent.service;
 import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.application.agent.port.MessageArchivePort;
+import com.hh.types.enums.ResponseCode;
+import com.hh.types.exception.AppException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -10,6 +12,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -58,6 +62,28 @@ class ChatApplicationServiceSessionTest {
 
         verify(conversationArchivePort).findOrCreateConversation("app-a", "user-1", "session-a");
         verify(conversationArchivePort).findOrCreateConversation("app-b", "user-1", "session-b");
+    }
+
+    @Test
+    void handleMessage_rejectsMissingSessionBeforeCreatingArchives() {
+        when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
+        org.mockito.Mockito.doThrow(new AppException(ResponseCode.SESSION_NOT_FOUND))
+                .when(agentRuntimePort).requireSession("agent-a", "user-1", "missing-session");
+
+        assertThatThrownBy(() -> chatService.handleMessage(
+                "agent-a", "user-1", "missing-session", "hello"))
+                .isInstanceOf(AppException.class)
+                .extracting("code")
+                .isEqualTo(ResponseCode.SESSION_NOT_FOUND.getCode());
+
+        verify(conversationArchivePort, never())
+                .findOrCreateConversation("app-a", "user-1", "missing-session");
+        verify(messageArchivePort, never())
+                .saveUserMessage(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString());
+        verify(agentRuntimePort, never()).run(
+                "agent-a", "user-1", "missing-session", "hello");
     }
 
 }

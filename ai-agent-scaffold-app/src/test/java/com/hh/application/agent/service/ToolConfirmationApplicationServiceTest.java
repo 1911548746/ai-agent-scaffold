@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -65,6 +66,28 @@ class ToolConfirmationApplicationServiceTest {
                 mock(MessageArchivePort.class))
                 .resolve("confirmation-1", "agent-a", "user-1", true))
                 .isInstanceOf(AppException.class);
+    }
+
+    @Test
+    void resolveRejectsMissingSessionBeforeClaimingConfirmation() {
+        ToolConfirmationPort confirmationPort = mock(ToolConfirmationPort.class);
+        AgentRuntimePort runtimePort = mock(AgentRuntimePort.class);
+        ToolConfirmationRecord record = record(ToolConfirmationStatus.PENDING);
+        when(confirmationPort.find("confirmation-1", "user-1")).thenReturn(Optional.of(record));
+        when(runtimePort.appName("agent-a")).thenReturn("app-a");
+        org.mockito.Mockito.doThrow(new AppException(com.hh.types.enums.ResponseCode.SESSION_NOT_FOUND))
+                .when(runtimePort).requireSession("agent-a", "user-1", "session-1");
+
+        assertThatThrownBy(() -> new ToolConfirmationApplicationService(
+                confirmationPort, runtimePort, mock(ConversationArchivePort.class),
+                mock(MessageArchivePort.class))
+                .resolve("confirmation-1", "agent-a", "user-1", true))
+                .isInstanceOf(AppException.class)
+                .extracting("code")
+                .isEqualTo(com.hh.types.enums.ResponseCode.SESSION_NOT_FOUND.getCode());
+
+        verify(confirmationPort, never()).claimPending(any(), any(), any(), any(Long.class));
+        verify(runtimePort, never()).runConfirmation(any(), any(), any(), any(), any(Boolean.class));
     }
 
     private ToolConfirmationRecord record(ToolConfirmationStatus status) {

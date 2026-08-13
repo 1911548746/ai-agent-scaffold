@@ -11,6 +11,8 @@ import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
+import com.hh.types.enums.ResponseCode;
+import com.hh.types.exception.AppException;
 import com.hh.types.support.SensitiveDataRedactor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -71,18 +73,23 @@ public class SessionInvocationCoordinator {
 
         try {
             Session session = loadSession(runtime, userId, sessionId);
-            if (plan.enabled()) {
-                if (plan.preflightRequired(session, pendingUserMessage)) {
-                    // fixedSize 只压缩既有历史，当前用户消息尚未进入 ADK Session。
-                    plan.compact(session, runtime.runner().sessionService()).blockingAwait();
+            try {
+                if (plan.enabled()) {
+                    if (plan.preflightRequired(session, pendingUserMessage)) {
+                        // fixedSize 只压缩既有历史，当前用户消息尚未进入 ADK Session。
+                        plan.compact(session, runtime.runner().sessionService()).blockingAwait();
+                    }
                 }
+                // 预检可能追加摘要或清理旧 Event，必须在预检完成后记录本轮调用的真实起点。
+                InvocationBaseline baseline = InvocationBaseline.capture(session.events());
+                return new InvocationLease(key, permit, runtime, userId, sessionId, baseline);
+            } catch (Throwable error) {
+                // 只有预压缩链路失败才映射为 0009；会话缺失和 SessionStore 故障不能被错误归类。
+                throw new ContextCompactionException(error);
             }
-            // 预检可能追加摘要或清理旧 Event，必须在预检完成后记录本轮调用的真实起点。
-            InvocationBaseline baseline = InvocationBaseline.capture(session.events());
-            return new InvocationLease(key, permit, runtime, userId, sessionId, baseline);
-        } catch (Throwable error) {
+        } catch (RuntimeException | Error error) {
             permit.release();
-            throw new ContextCompactionException(error);
+            throw error;
         }
     }
 
@@ -91,7 +98,7 @@ public class SessionInvocationCoordinator {
                 .getSession(runtime.appName(), userId, sessionId, Optional.empty())
                 .blockingGet();
         if (session == null) {
-            throw new IllegalStateException("session must exist before context compaction");
+            throw new AppException(ResponseCode.SESSION_NOT_FOUND);
         }
         return session;
     }

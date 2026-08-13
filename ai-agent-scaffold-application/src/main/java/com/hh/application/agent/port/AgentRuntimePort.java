@@ -21,6 +21,14 @@ public interface AgentRuntimePort {
 
     String createSession(String agentId, String userId);
 
+    /**
+     * 校验指定 Agent、用户和会话组成的运行时会话存在。
+     *
+     * <p>该校验必须发生在归档写入和 Runner 调用之前，避免无效 sessionId 产生孤立的
+     * conversation/message 数据。</p>
+     */
+    void requireSession(String agentId, String userId, String sessionId);
+
     ChatResult run(String agentId, String userId, String sessionId, String message);
 
     /** 使用 ADK FunctionResponse 恢复同一 Session 中被暂停的工具调用。 */
