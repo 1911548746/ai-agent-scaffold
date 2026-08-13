@@ -104,6 +104,21 @@ class SessionInvocationCoordinatorTest {
     }
 
     @Test
+    void compactionPreflightFailureIsNotMappedToContextCompactionFailure() {
+        RuntimeCompactionPlan plan = mock(RuntimeCompactionPlan.class);
+        when(plan.enabled()).thenReturn(true);
+        when(plan.preflightRequired(any(), any()))
+                .thenThrow(new IllegalStateException("preflight failure"));
+        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+
+        assertThatThrownBy(() -> coordinator.begin(
+                runtime(plan, session()), "user-a", "session-a", Content.fromParts(Part.fromText("hello"))))
+                .isInstanceOf(IllegalStateException.class)
+                .isNotInstanceOf(ContextCompactionException.class)
+                .hasMessage("preflight failure");
+    }
+
+    @Test
     void missingSessionIsNotMappedToContextCompactionFailure() {
         BaseSessionService sessionService = mock(BaseSessionService.class);
         when(sessionService.getSession(any(), any(), any(), any())).thenReturn(Maybe.empty());

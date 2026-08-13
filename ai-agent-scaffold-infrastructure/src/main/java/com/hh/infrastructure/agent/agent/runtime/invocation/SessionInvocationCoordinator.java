@@ -73,20 +73,18 @@ public class SessionInvocationCoordinator {
 
         try {
             Session session = loadSession(runtime, userId, sessionId);
-            try {
-                if (plan.enabled()) {
-                    if (plan.preflightRequired(session, pendingUserMessage)) {
-                        // fixedSize 只压缩既有历史，当前用户消息尚未进入 ADK Session。
-                        plan.compact(session, runtime.runner().sessionService()).blockingAwait();
-                    }
+            if (plan.enabled() && plan.preflightRequired(session, pendingUserMessage)) {
+                try {
+                    // fixedSize 只压缩既有历史，当前用户消息尚未进入 ADK Session。
+                    plan.compact(session, runtime.runner().sessionService()).blockingAwait();
+                } catch (RuntimeException error) {
+                    // 仅摘要模型或压缩器执行失败才属于上下文压缩不可用。
+                    throw new ContextCompactionException(error);
                 }
-                // 预检可能追加摘要或清理旧 Event，必须在预检完成后记录本轮调用的真实起点。
-                InvocationBaseline baseline = InvocationBaseline.capture(session.events());
-                return new InvocationLease(key, permit, runtime, userId, sessionId, baseline);
-            } catch (Throwable error) {
-                // 只有预压缩链路失败才映射为 0009；会话缺失和 SessionStore 故障不能被错误归类。
-                throw new ContextCompactionException(error);
             }
+            // 预检可能追加摘要或清理旧 Event，必须在预检完成后记录本轮调用的真实起点。
+            InvocationBaseline baseline = InvocationBaseline.capture(session.events());
+            return new InvocationLease(key, permit, runtime, userId, sessionId, baseline);
         } catch (RuntimeException | Error error) {
             permit.release();
             throw error;
