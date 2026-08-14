@@ -1,0 +1,10 @@
+ai:
+  agent:
+    tool:
+      schema-version: 1
+      id: legacy-local-tool
+      type: mcp
+      mcp:
+        local:
+          bean-name: fixtureBean
+          method-name: fixtureMethod

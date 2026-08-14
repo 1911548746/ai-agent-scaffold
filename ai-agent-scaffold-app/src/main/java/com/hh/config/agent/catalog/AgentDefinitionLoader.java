@@ -12,6 +12,7 @@ import com.hh.domain.agent.model.definition.ChatModelDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
 import com.hh.domain.agent.model.definition.LlmAgentDefinition;
 import com.hh.domain.agent.model.definition.McpToolDefinition;
+import com.hh.domain.agent.model.definition.LocalToolDefinition;
 import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.domain.agent.model.enums.AgentWorkflowTypeEnum;
@@ -210,20 +211,30 @@ public class AgentDefinitionLoader {
     }
 
     /**
-     * 校验 Tool 的 MCP transport，阻止一个配置同时携带多个 transport 后被 if 顺序静默选择。
+     * 校验 MCP 或 Local Tool 的互斥配置，阻止错误类型被静默装配。
      */
     private void validateTool(ToolModuleConfig tool) {
-        if (!"mcp".equalsIgnoreCase(tool.getType())) {
-            throw error(tool.getSourcePath() + ".type", "unsupported tool type '" + tool.getType() + "'");
+        if ("mcp".equalsIgnoreCase(tool.getType())) {
+            if (tool.getMcp() == null || tool.getBeanName() != null || tool.getMethodName() != null) {
+                throw error(tool.getSourcePath(), "MCP tool must configure exactly one transport and no local fields");
+            }
+            ToolModuleConfig.McpDefinition mcp = tool.getMcp();
+            int transportCount = countPresent(mcp.getSse(), mcp.getHttp(), mcp.getStdio());
+            if (transportCount != 1) {
+                throw error(tool.getSourcePath() + ".mcp", "MCP tool must configure exactly one transport");
+            }
+            return;
         }
-        if (tool.getMcp() == null) {
-            throw error(tool.getSourcePath(), "MCP tool must configure exactly one transport");
+        if ("local".equalsIgnoreCase(tool.getType())) {
+            if (tool.getMcp() != null) {
+                throw error(tool.getSourcePath(), "Local tool cannot configure mcp transport");
+            }
+            if (!hasText(tool.getBeanName()) || !hasText(tool.getMethodName())) {
+                throw error(tool.getSourcePath(), "Local tool must configure bean-name and method-name");
+            }
+            return;
         }
-        ToolModuleConfig.McpDefinition mcp = tool.getMcp();
-        int transportCount = countPresent(mcp.getSse(), mcp.getHttp(), mcp.getStdio(), mcp.getLocal());
-        if (transportCount != 1) {
-            throw error(tool.getSourcePath() + ".mcp", "MCP tool must configure exactly one transport");
-        }
+        throw error(tool.getSourcePath() + ".type", "unsupported tool type '" + tool.getType() + "'");
     }
 
     /**
@@ -349,7 +360,7 @@ public class AgentDefinitionLoader {
     }
 
     /**
-     * 将独立的 Tool/Skill 引用转换为 LLM Agent 定义的 MCP 列表和 Skill 目录字段。
+     * 将独立的 Tool/Skill 引用转换为 LLM Agent 定义的 MCP/Local 工具列表和 Skill 目录字段。
      */
     private LlmAgentDefinition compileAgent(
             AgentModuleConfig agent,
@@ -364,9 +375,15 @@ public class AgentDefinitionLoader {
         result.setMaxSteps(agent.getMaxSteps());
 
         List<McpToolDefinition> mcpTools = new ArrayList<>();
+        List<LocalToolDefinition> localTools = new ArrayList<>();
         String skillsDirectory = null;
         for (String toolRef : agent.getToolRefs()) {
-            mcpTools.add(toMcpTool(tools.get(toolRef)));
+            ToolModuleConfig tool = tools.get(toolRef);
+            if ("local".equalsIgnoreCase(tool.getType())) {
+                localTools.add(toLocalTool(tool));
+            } else {
+                mcpTools.add(toMcpTool(tool));
+            }
         }
         for (int i = 0; i < agent.getSkillRefs().size(); i++) {
             SkillModuleConfig skill = skills.get(agent.getSkillRefs().get(i));
@@ -377,12 +394,13 @@ public class AgentDefinitionLoader {
             skillsDirectory = resolveRequired(skill.getDirectory(), skill.getSourcePath() + ".directory");
         }
         result.setMcpToolList(mcpTools);
+        result.setLocalToolList(localTools);
         result.setSkillsDir(skillsDirectory);
         return result;
     }
 
     /**
-     * 将已经通过 transport 互斥校验的工具映射到现有 MCP 工厂使用的值对象。
+     * 将已经通过 transport 互斥校验的 MCP 工具映射到 MCP 工厂使用的值对象。
      */
     private McpToolDefinition toMcpTool(ToolModuleConfig tool) {
         McpToolDefinition result = new McpToolDefinition();
@@ -422,12 +440,14 @@ public class AgentDefinitionLoader {
             target.setEnv(env);
             result.setStdio(target);
         }
-        if (source.getLocal() != null) {
-            McpToolDefinition.LocalServerParameters target = new McpToolDefinition.LocalServerParameters();
-            target.setBeanName(source.getLocal().getBeanName());
-            target.setMethodName(source.getLocal().getMethodName());
-            result.setLocal(target);
-        }
+        return result;
+    }
+
+    /** 将 Local Tool 的 Bean 方法映射到独立领域定义。 */
+    private LocalToolDefinition toLocalTool(ToolModuleConfig tool) {
+        LocalToolDefinition result = new LocalToolDefinition();
+        result.setBeanName(tool.getBeanName());
+        result.setMethodName(tool.getMethodName());
         return result;
     }
 

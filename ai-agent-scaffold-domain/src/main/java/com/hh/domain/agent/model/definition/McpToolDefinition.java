@@ -14,7 +14,6 @@ public class McpToolDefinition {
     private SSEServerParameters sse;
     private HttpServerParameters http;
     private StdioServerParameters stdio;
-    private LocalServerParameters local;
 
     @Data
     public static class SSEServerParameters {
@@ -42,9 +41,4 @@ public class McpToolDefinition {
         private Map<String, String> env;
     }
 
-    @Data
-    public static class LocalServerParameters {
-        private String beanName;
-        private String methodName;
-    }
 }

@@ -1,0 +1,7 @@
+ai:
+  agent:
+    tool:
+      schema-version: 1
+      id: invalid-local-tool
+      type: local
+      bean-name: fixtureBean

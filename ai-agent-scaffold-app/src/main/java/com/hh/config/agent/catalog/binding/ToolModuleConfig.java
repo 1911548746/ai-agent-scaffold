@@ -15,7 +15,7 @@ import java.util.Map;
 /**
  * 一个 tools/*.yml 文件的绑定模型。
  *
- * <p>一个 Tool 必须在四种 MCP transport 中选择一种。Skill 使用独立的 {@link SkillModuleConfig}
+ * <p>MCP Tool 必须在三种 transport 中选择一种；Local Tool 使用顶层 Bean 方法配置。Skill 使用独立的 {@link SkillModuleConfig}
  * 配置模型，避免把两类能力混在同一个资源目录和绑定对象中。</p>
  */
 @Data
@@ -31,6 +31,9 @@ public class ToolModuleConfig {
     private String type;
     @Valid
     private McpDefinition mcp;
+    /** Local Tool 使用 Spring Bean 方法，不再伪装成 MCP transport。 */
+    private String beanName;
+    private String methodName;
     // 只用于错误定位，绝不作为运行时工具参数传递。
     private transient String sourcePath;
 
@@ -45,8 +48,6 @@ public class ToolModuleConfig {
         private HttpTransport http;
         @Valid
         private StdioTransport stdio;
-        @Valid
-        private LocalTransport local;
     }
 
     @Data
@@ -89,14 +90,6 @@ public class ToolModuleConfig {
         private List<String> args = new ArrayList<>();
         @NotNull
         private Map<String, String> env = new LinkedHashMap<>();
-    }
-
-    @Data
-    public static class LocalTransport {
-        @NotBlank
-        private String beanName;
-        @NotBlank
-        private String methodName;
     }
 
 }

@@ -3,8 +3,6 @@ ai:
     tool:
       schema-version: 1
       id: weather-tool
-      type: mcp
-      mcp:
-        local:
-          bean-name: weatherTool
-          method-name: getWeather
+      type: local
+      bean-name: weatherTool
+      method-name: getWeather

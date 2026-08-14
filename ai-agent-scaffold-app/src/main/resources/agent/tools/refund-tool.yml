@@ -3,8 +3,6 @@ ai:
     tool:
       schema-version: 1
       id: refund-tool
-      type: mcp
-      mcp:
-        local:
-          bean-name: refundTool
-          method-name: requestRefund
+      type: local
+      bean-name: refundTool
+      method-name: requestRefund

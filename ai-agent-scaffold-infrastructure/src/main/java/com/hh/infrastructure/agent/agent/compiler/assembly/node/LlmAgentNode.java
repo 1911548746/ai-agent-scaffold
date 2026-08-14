@@ -14,6 +14,7 @@ import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblySupport;
 import com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.client.McpToolCreateService;
 import com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.client.factory.DefaultMcpClientFactory;
+import com.hh.infrastructure.agent.agent.compiler.assembly.matter.tool.LocalToolCreateService;
 import com.hh.infrastructure.agent.agent.compiler.assembly.matter.skill.SkillSourceFactory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,9 @@ public class LlmAgentNode extends AgentAssemblySupport {
 
     @Resource
     private DefaultMcpClientFactory mcpClientFactory;
+
+    @Resource
+    private LocalToolCreateService localToolCreateService;
 
     @Resource
     private SkillSourceFactory skillSourceFactory;
@@ -55,6 +59,12 @@ public class LlmAgentNode extends AgentAssemblySupport {
                     McpToolCreateService mcpToolCreateService = mcpClientFactory.getMcpToolCreateService(mcpToolConfig);
                     toolsets.add(mcpToolCreateService.buildMcpToolset(mcpToolConfig));
                 }
+            }
+
+            // 本地 tool
+            if (agentDefinition.getLocalToolList() != null && !agentDefinition.getLocalToolList().isEmpty()) {
+                agentDefinition.getLocalToolList().forEach(localTool ->
+                        toolsets.add(localToolCreateService.buildTool(localTool)));
             }
 
             // 判断是否配置了skills

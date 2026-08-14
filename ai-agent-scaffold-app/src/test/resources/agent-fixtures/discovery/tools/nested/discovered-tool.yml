@@ -3,8 +3,6 @@ ai:
     tool:
       schema-version: 1
       id: discovered-tool
-      type: mcp
-      mcp:
-        local:
-          bean-name: myTestMcpServer
-          method-name: getWeather
+      type: local
+      bean-name: myTestMcpServer
+      method-name: getWeather

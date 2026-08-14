@@ -1,0 +1,19 @@
+ai:
+  agent:
+    config:
+      enabled: true
+      schema-version: 1
+      catalog-path: classpath:agent/catalog/invalid/invalid-local-catalog.yml
+      model-resources:
+        - classpath:agent/models/deepseek-v4-flash.yml
+      tool-resources:
+        - classpath:agent-fixtures/tools/invalid-local-tool.yml
+      agent-resources:
+        - classpath:agent-fixtures/agents/invalid-local-agent.yml
+      applications:
+        - id: invalid-local-fixture
+          app-name: InvalidLocalFixture
+          agent-id: invalid-local-agent
+          agent-name: Invalid local fixture
+          agent-desc: Invalid local fixture
+          agent-ref: invalid-local-agent

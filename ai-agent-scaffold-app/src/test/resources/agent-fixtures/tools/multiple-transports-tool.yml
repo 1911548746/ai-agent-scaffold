@@ -10,6 +10,6 @@ ai:
           url: https://example.invalid/mcp
           headers:
             X-Test-Header: sentinel-header-value
-        local:
-          bean-name: fixtureBean
-          method-name: fixtureMethod
+        stdio:
+          name: Fixture stdio
+          command: fixture-command

@@ -2,7 +2,6 @@ package com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.client.fa
 
 import com.hh.domain.agent.model.definition.McpToolDefinition;
 import com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.client.impl.HttpMcpToolCreateService;
-import com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.client.impl.LocalMcpToolCreateService;
 import com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.client.impl.SSEMcpToolCreateService;
 import com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.client.impl.StdioMcpToolCreateService;
 import com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.client.McpToolCreateService;
@@ -18,9 +17,6 @@ public class DefaultMcpClientFactory {
     private StdioMcpToolCreateService stdioMcpToolCreateService;
     @Resource
     private SSEMcpToolCreateService sseMcpToolCreateService;
-    @Resource
-    private LocalMcpToolCreateService localMcpToolCreateService;
-
     public McpToolCreateService getMcpToolCreateService(McpToolDefinition mcpToolConfig) {
         if (null != mcpToolConfig.getSse()) {
             return sseMcpToolCreateService;
@@ -30,9 +26,6 @@ public class DefaultMcpClientFactory {
         }
         if (null != mcpToolConfig.getStdio()) {
             return stdioMcpToolCreateService;
-        }
-        if (null != mcpToolConfig.getLocal()) {
-            return localMcpToolCreateService;
         }
         throw new IllegalArgumentException("Invalid mcpToolConfig: " + mcpToolConfig);
     }

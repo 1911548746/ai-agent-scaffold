@@ -48,7 +48,7 @@ class AgentDefinitionLoaderTest {
                 // 允许脚手架使用者继续增加应用，但既有示例的声明顺序必须保持稳定。
                 .containsSubsequence("hello-agent", "pipeline-agent", "chrome-devtools-agent");
 
-        // Hello 示例覆盖 Local MCP、Skill、Plugin、持久化和 slidingWindow 压缩配置的兼容转换。
+        // Hello 示例覆盖 Local Tool、Skill、Plugin、持久化和 slidingWindow 压缩配置的转换。
         AgentDefinition hello = definition(definitions, "hello-agent");
         assertThat(hello.isEnabled()).isTrue();
         assertThat(hello.getAppName()).isEqualTo("HelloAgent");
@@ -66,9 +66,9 @@ class AgentDefinitionLoaderTest {
             assertThat(agent.getInstruction()).isEqualTo("You are a concise assistant. Say hello in a friendly way.");
             assertThat(agent.getMaxSteps()).isEqualTo(8);
             // 新增本地 Tool 只需落入受管理目录，catalog 不再维护逐文件清单。
-            assertThat(agent.getMcpToolList()).isNotEmpty();
-            assertThat(agent.getMcpToolList()).allSatisfy(tool ->
-                    assertThat(tool.getLocal()).isNotNull());
+            assertThat(agent.getLocalToolList()).isNotEmpty();
+            assertThat(agent.getLocalToolList()).allSatisfy(tool ->
+                    assertThat(tool.getMethodName()).isNotBlank());
             assertThat(agent.getSkillsDir()).isEqualTo("classpath:agent/skill-resources");
         });
         assertThat(hello.getRunner().getPersistence()).isTrue();
@@ -155,9 +155,8 @@ class AgentDefinitionLoaderTest {
         assertThat(definition.getChatModel().getStreamingMaxRetries()).isEqualTo(2);
         // Tool 位于 tools 的嵌套目录中，证明 **/*.yml 能递归发现而无需逐文件登记。
         assertThat(definition.getAgents()).singleElement().satisfies(agent ->
-                assertThat(agent.getMcpToolList()).singleElement().satisfies(tool -> {
-                    assertThat(tool.getLocal()).isNotNull();
-                    assertThat(tool.getLocal().getMethodName()).isEqualTo("getWeather");
+                assertThat(agent.getLocalToolList()).singleElement().satisfies(tool -> {
+                    assertThat(tool.getMethodName()).isEqualTo("getWeather");
                 }));
     }
 
@@ -168,7 +167,7 @@ class AgentDefinitionLoaderTest {
 
         // 同一 Tool 同时被递归模式和精确路径命中时不能被误报为重复 ID。
         assertThat(definition.getAgents()).singleElement().satisfies(agent ->
-                assertThat(agent.getMcpToolList()).singleElement());
+                assertThat(agent.getLocalToolList()).singleElement());
     }
 
     @Test
@@ -228,6 +227,22 @@ class AgentDefinitionLoaderTest {
                 .hasMessageContaining("exactly one transport")
                 .hasMessageNotContaining("sentinel-header-value")
                 .hasMessageNotContaining(OFFLINE_MODEL_VALUE);
+    }
+
+    @Test
+    void rejectsLegacyLocalTransportShape() {
+        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/invalid/legacy-local-catalog.yml"))
+                .isInstanceOf(AgentConfigurationException.class)
+                .hasMessageContaining("legacy-local-tool.yml")
+                .hasMessageContaining("no local fields");
+    }
+
+    @Test
+    void rejectsIncompleteLocalTool() {
+        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/invalid/invalid-local-catalog.yml"))
+                .isInstanceOf(AgentConfigurationException.class)
+                .hasMessageContaining("invalid-local-tool.yml")
+                .hasMessageContaining("bean-name and method-name");
     }
 
     /**
