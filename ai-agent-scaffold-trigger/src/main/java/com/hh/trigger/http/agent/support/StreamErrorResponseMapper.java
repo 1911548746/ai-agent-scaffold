@@ -1,4 +1,4 @@
-package com.hh.trigger.http.support;
+package com.hh.trigger.http.agent.support;
 
 import com.hh.api.agent.dto.StreamErrorResponseDTO;
 import com.hh.application.agent.exception.ContextCompactionException;

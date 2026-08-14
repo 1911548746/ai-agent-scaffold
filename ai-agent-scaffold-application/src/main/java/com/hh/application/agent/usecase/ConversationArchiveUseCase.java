@@ -15,7 +15,20 @@ public interface ConversationArchiveUseCase {
 
     ConversationVO getConversation(Long conversationId);
 
+    default ConversationVO getConversation(Long conversationId, String userId) {
+        ConversationVO conversation = getConversation(conversationId);
+        if (conversation == null || userId == null || !userId.equals(conversation.getUserId())) {
+            throw new com.hh.types.exception.AppException(com.hh.types.enums.ResponseCode.ACCESS_DENIED);
+        }
+        return conversation;
+    }
+
     List<MessageVO> listMessages(Long conversationId);
+
+    default List<MessageVO> listMessages(Long conversationId, String userId) {
+        getConversation(conversationId, userId);
+        return listMessages(conversationId);
+    }
 
     /**
      * 删除归档 Conversation 与同一身份下的 ADK Session/Event。

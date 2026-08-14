@@ -60,6 +60,14 @@ management:
 
 # DATA-03：生产默认删除被 compaction marker 覆盖的 Event；开发环境可覆盖为 false 以保留调试轨迹。
 ai:
+  auth:
+    # 不提供默认密钥；所有运行环境必须显式设置 JWT_SECRET，避免弱密钥误部署。
+#    jwt-secret: ${JWT_SECRET}
+#    jwt-issuer: ${JWT_ISSUER:ai-agent-scaffold}
+#    access-token-ttl-seconds: ${JWT_EXPIRATION_SECONDS:7200}
+    jwt-secret: 75d9e833-324a-4674-8fe1-1cf534ea0e9e
+    jwt-issuer: AI-AGENT_SCAFFOLD
+    access-token-ttl-seconds: 7200
   agent:
     session:
       compaction:

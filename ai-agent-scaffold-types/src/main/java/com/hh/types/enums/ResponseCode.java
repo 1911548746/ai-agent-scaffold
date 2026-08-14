@@ -24,6 +24,11 @@ public enum ResponseCode {
     TOOL_CONFIRMATION_NOT_PENDING("0011", "工具确认单已处理，不能重复决策"),
     TOOL_CONFIRMATION_EXECUTION_UNKNOWN("0012", "工具确认执行状态未知，请核对后再处理"),
     SESSION_NOT_FOUND("0013", "会话不存在或已失效"),
+    AUTHENTICATION_REQUIRED("0014", "登录状态无效或已过期"),
+    INVALID_CREDENTIALS("0015", "用户名或密码错误"),
+    USERNAME_ALREADY_EXISTS("0016", "用户名已存在"),
+    ACCESS_DENIED("0017", "无权访问该资源"),
+    CONVERSATION_NOT_FOUND("0018", "会话记录不存在"),
     ;
 
     private String code;

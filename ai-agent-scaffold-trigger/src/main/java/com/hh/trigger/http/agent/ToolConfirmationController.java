@@ -1,7 +1,6 @@
-package com.hh.trigger.http;
+package com.hh.trigger.http.agent;
 
 import com.hh.api.agent.dto.ChatResponseDTO;
-import com.hh.api.agent.dto.StreamErrorResponseDTO;
 import com.hh.api.agent.dto.ToolConfirmationDecisionRequestDTO;
 import com.hh.api.agent.dto.ToolConfirmationDetailResponseDTO;
 import com.hh.api.agent.dto.ToolConfirmationResponseDTO;
@@ -12,7 +11,8 @@ import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.model.ToolConfirmationRecord;
 import com.hh.application.agent.usecase.ToolConfirmationUseCase;
-import com.hh.trigger.http.support.StreamErrorResponseMapper;
+import com.hh.trigger.http.agent.support.StreamErrorResponseMapper;
+import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -41,7 +41,7 @@ public class ToolConfirmationController {
     /**
      * 查询待确认工具调用。
      *
-     * <p>HTTP：GET /api/v1/tool-confirmations/{confirmationId}?userId=100000
+     * <p>HTTP：GET /api/v1/tool-confirmations/{confirmationId}
      *
      * <p>curl：
      * <pre>
@@ -65,13 +65,11 @@ public class ToolConfirmationController {
      * }
      * </pre>
      *
-     * <p>当前阶段以请求中的 userId 查询确认单；SEC-04 接入后应改为使用认证上下文。</p>
      */
     @GetMapping("/{confirmationId}")
     public Response<ToolConfirmationDetailResponseDTO> get(
-            @PathVariable String confirmationId,
-            @RequestParam String userId) {
-        // SEC-04 之前临时信任 userId；正式鉴权后由认证主体提供，不允许客户端自由指定。
+            @PathVariable String confirmationId) {
+        String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
         return Response.success(toDetail(toolConfirmationUseCase.get(confirmationId, userId)));
     }
 
@@ -86,7 +84,6 @@ public class ToolConfirmationController {
      *   -H 'Content-Type: application/json' \
      *   -d '{
      *     "agentId": "100000",
-     *     "userId": "100000",
      *     "confirmed": true
      *   }'
      * </pre>
@@ -99,8 +96,9 @@ public class ToolConfirmationController {
     public Response<ChatResponseDTO> resolve(
             @PathVariable String confirmationId,
             @Valid @RequestBody ToolConfirmationDecisionRequestDTO request) {
+        String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
         ChatResult result = toolConfirmationUseCase.resolve(
-                confirmationId, request.agentId(), request.userId(), request.confirmed());
+                confirmationId, request.agentId(), userId, request.confirmed());
         return Response.success(toChatResponse(result));
     }
 
@@ -115,7 +113,6 @@ public class ToolConfirmationController {
      *   -H 'Content-Type: application/json' \
      *   -d '{
      *     "agentId": "100000",
-     *     "userId": "100000",
      *     "confirmed": true
      *   }'
      * </pre>
@@ -134,6 +131,7 @@ public class ToolConfirmationController {
     public SseEmitter resolveStream(
             @PathVariable String confirmationId,
             @Valid @RequestBody ToolConfirmationDecisionRequestDTO request) {
+        String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
         SseEmitter emitter = createEmitter();
         AtomicReference<ChatSubscription> subscriptionReference = new AtomicReference<>();
         AtomicBoolean terminal = new AtomicBoolean(false);
@@ -155,7 +153,7 @@ public class ToolConfirmationController {
 
         try {
             ChatSubscription subscription = toolConfirmationUseCase.resolveStream(
-                    confirmationId, request.agentId(), request.userId(), request.confirmed())
+                    confirmationId, request.agentId(), userId, request.confirmed())
                     .subscribe(new ChatStreamObserver() {
                         @Override
                         public void onEvent(ChatEvent event) {

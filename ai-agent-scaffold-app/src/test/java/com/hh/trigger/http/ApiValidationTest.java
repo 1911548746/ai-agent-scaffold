@@ -2,6 +2,10 @@ package com.hh.trigger.http;
 
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
+import com.hh.application.auth.model.AuthenticatedPrincipal;
+import com.hh.trigger.http.agent.AgentServiceController;
+import com.hh.trigger.http.agent.ConversationController;
+import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.handler.GlobalExceptionHandler;
 import com.hh.types.validation.RequestPayloadLimits;
@@ -9,7 +13,9 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,10 +46,21 @@ class ApiValidationTest {
         validator = validatorFactory.getValidator();
     }
 
+    @BeforeEach
+    void setPrincipal() {
+        // standalone MockMvc 不会自动创建 Spring AOP 代理，测试中显式提供已认证主体。
+        AuthenticatedPrincipalContext.set(new AuthenticatedPrincipal("user-1", "test-user"));
+    }
+
     @AfterAll
     static void closeValidator() {
         // ValidatorFactory 可能持有缓存；测试结束后主动释放，避免污染其他离线测试。
         validatorFactory.close();
+    }
+
+    @AfterEach
+    void clearPrincipal() {
+        AuthenticatedPrincipalContext.clear();
     }
 
     @Test
@@ -56,7 +73,7 @@ class ApiValidationTest {
                         .content("{\"agentId\":\"hello\",\"userId\":\"user-1\",\"sessionId\":\"session-1\",\"message\":\" \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("0002"))
-                .andExpect(jsonPath("$.info").value("请求参数不合法"))
+                .andExpect(jsonPath("$.info").value("message不能为空"))
                 .andExpect(jsonPath("$.data").doesNotExist());
 
         verifyNoInteractions(chatUseCase);

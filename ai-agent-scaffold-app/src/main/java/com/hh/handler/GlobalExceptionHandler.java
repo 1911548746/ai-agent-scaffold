@@ -5,6 +5,7 @@ import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.types.exception.AppException;
 import com.hh.types.enums.ResponseCode;
+import com.hh.types.exception.AuthenticationException;
 import com.hh.types.support.SensitiveDataRedactor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
 
 @RestControllerAdvice
 @Slf4j
@@ -53,8 +55,8 @@ public class GlobalExceptionHandler {
     /**
      * 统一处理 JSON 请求体的 Bean Validation 失败。
      *
-     * <p>字段名足以帮助定位接口契约问题，但被拒绝的原始值可能包含用户消息或其他敏感内容，
-     * 因此日志和响应都不记录它。</p>
+     * <p>校验注解中的 message 属于项目定义的接口提示，直接作为 info 返回；被拒绝的原始值可能
+     * 包含用户消息或其他敏感内容，因此日志和响应都不记录 rejectedValue。</p>
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Response<Void>> handleValidationException(
@@ -69,7 +71,12 @@ public class GlobalExceptionHandler {
         log.warn("请求参数校验失败，请求: [{} {}]，字段: {}",
                 request.getMethod(), request.getRequestURI(), invalidFields);
 
-        return badRequest();
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getDefaultMessage)
+                .filter(this::hasText)
+                .findFirst()
+                .orElse("请求参数不合法");
+        return badRequest(message);
     }
 
     /**
@@ -101,6 +108,16 @@ public class GlobalExceptionHandler {
         return Response.error(ex.getCode(), info);
     }
 
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Response<Void>> handleAuthenticationException(
+            HttpServletRequest request, AuthenticationException ex) {
+        log.warn("认证失败，请求: [{} {}]", request.getMethod(), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Response.error(ResponseCode.AUTHENTICATION_REQUIRED.getCode(),
+                        ResponseCode.AUTHENTICATION_REQUIRED.getInfo()));
+    }
+
     /**
      * 捕获未预期的系统异常。
      *
@@ -125,15 +142,19 @@ public class GlobalExceptionHandler {
         return value != null && !value.isBlank();
     }
 
-    /**
-     * 参数错误统一使用 HTTP 400 和稳定业务码；响应不携带约束消息，避免把内部字段规则
-     * 或用户输入回显给调用方。
-     */
+    /** 未知格式错误仍统一使用通用提示，不能透传 Jackson 或容器的原始异常文本。 */
     private ResponseEntity<Response<Void>> badRequest() {
+        return badRequest("请求参数不合法");
+    }
+
+    /**
+     * 参数错误统一使用 HTTP 400 和稳定业务码；可公开的具体校验提示由调用方预先筛选。
+     */
+    private ResponseEntity<Response<Void>> badRequest(String info) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 // 未指定 Accept 时 classpath 中的 XML converter 也可能被选中；API 错误契约固定为 JSON。
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Response.error(ResponseCode.ILLEGAL_PARAMETER.getCode(), "请求参数不合法"));
+                .body(Response.error(ResponseCode.ILLEGAL_PARAMETER.getCode(), info));
     }
 
     /**

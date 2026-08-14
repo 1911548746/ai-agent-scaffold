@@ -52,6 +52,23 @@
             <artifactId>micrometer-observation</artifactId>
         </dependency>
 
+        <!-- JJWT 的实现和 JSON 支持只停留在认证基础设施边界。 -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+
         <!-- 系统模块 -->
         <dependency>
             <groupId>com.hh</groupId>

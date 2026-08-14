@@ -9,7 +9,10 @@ import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.usecase.ChatUseCase;
-import com.hh.trigger.http.support.StreamErrorResponseMapper;
+import com.hh.application.auth.model.AuthenticatedPrincipal;
+import com.hh.trigger.http.agent.AgentServiceController;
+import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
+import com.hh.trigger.http.agent.support.StreamErrorResponseMapper;
 import com.hh.types.exception.AppException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,12 +41,15 @@ class AgentServiceControllerTest {
 
     @BeforeEach
     void attachLogAppender() {
+        // 此测试直接实例化 Controller，不经过 Spring AOP；显式建立测试认证主体。
+        AuthenticatedPrincipalContext.set(new AuthenticatedPrincipal("user-1", "test-user"));
         logAppender.start();
         logger.addAppender(logAppender);
     }
 
     @AfterEach
     void detachLogAppender() {
+        AuthenticatedPrincipalContext.clear();
         logger.detachAppender(logAppender);
         logAppender.stop();
     }

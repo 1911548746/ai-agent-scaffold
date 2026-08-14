@@ -2,12 +2,15 @@ package com.hh.trigger.http;
 
 import com.hh.api.agent.dto.StreamErrorResponseDTO;
 import com.hh.api.agent.dto.ToolConfirmationDecisionRequestDTO;
-import com.hh.application.agent.model.ChatStream;
-import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.usecase.ToolConfirmationUseCase;
+import com.hh.application.auth.model.AuthenticatedPrincipal;
+import com.hh.trigger.http.agent.ToolConfirmationController;
+import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -20,6 +23,17 @@ import static org.mockito.Mockito.when;
 
 /** HITL SSE 建流阶段必须保留业务错误码，未知异常才可降级为 0001。 */
 class ToolConfirmationControllerTest {
+
+    @BeforeEach
+    void setPrincipal() {
+        // 直接调用 Controller 时模拟切面已经完成 JWT 验证。
+        AuthenticatedPrincipalContext.set(new AuthenticatedPrincipal("user-1", "test-user"));
+    }
+
+    @AfterEach
+    void clearPrincipal() {
+        AuthenticatedPrincipalContext.clear();
+    }
 
     @Test
     void duplicateDecisionPreservesBusinessCodeInSseErrorEvent() {

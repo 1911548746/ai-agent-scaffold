@@ -1,4 +1,4 @@
-package com.hh.trigger.http;
+package com.hh.trigger.http.agent;
 
 import com.hh.api.agent.IConversationService;
 import com.hh.api.agent.dto.ConversationDeleteRequestDTO;
@@ -10,6 +10,7 @@ import com.hh.application.agent.model.ConversationDeletionCommand;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
+import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -29,7 +30,7 @@ public class ConversationController implements IConversationService {
     /**
      * 查询会话列表
      *
-     * <p>HTTP：GET /api/v1/conversations?userId=100000
+     * <p>HTTP：GET /api/v1/conversations/list
      *
      * <p>成功响应示例：
      * <pre>
@@ -51,7 +52,8 @@ public class ConversationController implements IConversationService {
      */
     @GetMapping("/list")
     @Override
-    public Response<List<ConversationListResponseDTO>> listConversations(@RequestParam String userId) {
+    public Response<List<ConversationListResponseDTO>> listConversations() {
+        String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
         log.info("查询会话列表 userId:{}", userId);
 
         List<ConversationVO> conversations = conversationArchiveUseCase.listConversations(userId);
@@ -110,10 +112,11 @@ public class ConversationController implements IConversationService {
     @GetMapping("/detail/{conversationId}")
     @Override
     public Response<ConversationDetailResponseDTO> getConversationDetail(@PathVariable Long conversationId) {
+        String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
         log.info("查询会话详情 conversationId:{}", conversationId);
 
-        ConversationVO conversation = conversationArchiveUseCase.getConversation(conversationId);
-        List<MessageVO> messages = conversationArchiveUseCase.listMessages(conversationId);
+        ConversationVO conversation = conversationArchiveUseCase.getConversation(conversationId, userId);
+        List<MessageVO> messages = conversationArchiveUseCase.listMessages(conversationId, userId);
 
         List<MessageItemDTO> messageDTOs = messages.stream()
                 .map(m -> new MessageItemDTO(
@@ -155,13 +158,14 @@ public class ConversationController implements IConversationService {
     @DeleteMapping("/delete")
     @Override
     public Response<Void> deleteConversation(@Valid @RequestBody ConversationDeleteRequestDTO requestDTO) {
+        String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
         log.info("删除会话 conversationId:{}", requestDTO.conversationId());
 
         // 删除编排必须只有一个用例入口，避免 Controller 先后调用两个独立删除造成部分成功。
         conversationArchiveUseCase.deleteConversation(new ConversationDeletionCommand(
                 requestDTO.conversationId(),
                 requestDTO.agentId(),
-                requestDTO.userId(),
+                userId,
                 requestDTO.sessionId()));
 
         return Response.success(null);

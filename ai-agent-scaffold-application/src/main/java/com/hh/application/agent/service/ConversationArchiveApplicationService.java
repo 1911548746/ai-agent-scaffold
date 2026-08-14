@@ -35,7 +35,7 @@ public class ConversationArchiveApplicationService implements ConversationArchiv
     public ConversationVO getConversation(Long conversationId) {
         ConversationVO conversation = conversationArchivePort.getConversation(conversationId);
         if (conversation == null) {
-            // 保持现有接口错误码语义，避免迁移 application 层时改变客户端可见行为。
+            // 保持旧客户端对不存在归档的稳定错误码；真实归属失败仍由接口层返回 ACCESS_DENIED。
             throw new AppException(ResponseCode.AGENT_NOT_FOUND);
         }
         return conversation;

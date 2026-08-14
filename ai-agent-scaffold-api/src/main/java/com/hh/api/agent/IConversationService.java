@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface IConversationService {
 
-    Response<List<ConversationListResponseDTO>> listConversations(String userId);
+    Response<List<ConversationListResponseDTO>> listConversations();
 
     Response<ConversationDetailResponseDTO> getConversationDetail(Long conversationId);
 

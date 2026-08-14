@@ -1,11 +1,14 @@
 package com.hh.api.agent.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
-/** 工具确认决策请求；当前版本暂信任请求中的 userId，认证上下文接入后移除该字段。 */
+/** 工具确认决策请求；userId 从已验证 JWT 主体取得。 */
 public record ToolConfirmationDecisionRequestDTO(
-        @NotBlank String agentId,
-        @NotBlank String userId,
+        @jakarta.validation.constraints.NotBlank String agentId,
         @NotNull Boolean confirmed) {
+
+    /** 兼容旧测试和灰度客户端；userId 参数被有意忽略。 */
+    public ToolConfirmationDecisionRequestDTO(String agentId, String ignoredUserId, Boolean confirmed) {
+        this(agentId, confirmed);
+    }
 }

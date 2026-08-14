@@ -5,17 +5,16 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * 创建会话响应DTO
+ * 创建会话请求DTO
  * @param agentId AgentID
- * @param userId 用户ID
  */
 public record CreateSessionRequestDTO(
     @NotBlank(message = "agentId不能为空")
     @Size(max = RequestPayloadLimits.MAX_IDENTIFIER_LENGTH, message = "agentId长度不能超过128个字符")
-    String agentId,
-
-    @NotBlank(message = "userId不能为空")
-    @Size(max = RequestPayloadLimits.MAX_IDENTIFIER_LENGTH, message = "userId长度不能超过128个字符")
-    String userId
+    String agentId
 ) {
+    /** 兼容旧测试与灰度客户端；userId 不再参与认证或业务处理。 */
+    public CreateSessionRequestDTO(String agentId, String ignoredUserId) {
+        this(agentId);
+    }
 }

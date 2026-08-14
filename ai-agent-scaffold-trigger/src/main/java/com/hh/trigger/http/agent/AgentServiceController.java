@@ -1,4 +1,4 @@
-package com.hh.trigger.http;
+package com.hh.trigger.http.agent;
 
 import com.hh.api.agent.IAgentService;
 import com.hh.api.agent.dto.*;
@@ -10,7 +10,8 @@ import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.application.agent.model.ToolConfirmationRequest;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
-import com.hh.trigger.http.support.StreamErrorResponseMapper;
+import com.hh.trigger.http.agent.support.StreamErrorResponseMapper;
+import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
 import com.hh.types.support.SensitiveDataRedactor;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -90,8 +91,7 @@ public class AgentServiceController implements IAgentService {
      * curl -X POST 'https://localhost:8080/api/v1/create-session' \
      *   -H 'Content-Type: application/json' \
      *   -d '{
-     *     "agentId": "100000",
-     *     "userId": "100000"
+     *     "agentId": "100000"
      *   }'
      * </pre>
      *
@@ -110,10 +110,10 @@ public class AgentServiceController implements IAgentService {
     @Override
     public Response<CreateSessionResponseDTO> createSession(@Valid @RequestBody CreateSessionRequestDTO requestDTO) {
 
-        log.info("创建会话 agentId:{} userId:{}",
-                requestDTO.agentId(), requestDTO.userId());
+        String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
+        log.info("创建会话 agentId:{} userId:{}", requestDTO.agentId(), userId);
 
-        String sessionId = chatUseCase.createSession(requestDTO.agentId(), requestDTO.userId());
+        String sessionId = chatUseCase.createSession(requestDTO.agentId(), userId);
 
         CreateSessionResponseDTO createSessionResponseDTO = new CreateSessionResponseDTO(sessionId);
 
@@ -131,7 +131,6 @@ public class AgentServiceController implements IAgentService {
      *   -H 'Content-Type: application/json' \
      *   -d '{
      *     "agentId": "100000",
-     *     "userId": "100000",
      *     "sessionId": "eecf9e2e-6913-4898-b20b-12a8d00cf848",
      *     "message": "你好"
      *   }'
@@ -152,12 +151,13 @@ public class AgentServiceController implements IAgentService {
     @Override
     public Response<ChatResponseDTO> chat(@Valid @RequestBody ChatRequestDTO requestDTO) {
 
+        String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
         log.info("智能体对话 agentId:{} userId:{} sessionId:{}",
-                requestDTO.agentId(), requestDTO.userId(), requestDTO.sessionId());
+                requestDTO.agentId(), userId, requestDTO.sessionId());
 
         ChatResult result = chatUseCase.handleMessage(
                 requestDTO.agentId(),
-                requestDTO.userId(),
+                userId,
                 requestDTO.sessionId(),
                 requestDTO.message()
         );
@@ -182,7 +182,6 @@ public class AgentServiceController implements IAgentService {
      *   -H 'Content-Type: application/json' \
      *   -d '{
      *     "agentId": "100000",
-     *     "userId": "100000",
      *     "sessionId": "eecf9e2e-6913-4898-b20b-12a8d00cf848",
      *     "message": "你好"
      *   }'
@@ -210,7 +209,7 @@ public class AgentServiceController implements IAgentService {
      * const response = await fetch('/api/v1/chat-stream', {
      *   method: 'POST',
      *   headers: {'Content-Type': 'application/json'},
-     *   body: JSON.stringify({agentId, userId, sessionId, message}),
+     *   body: JSON.stringify({agentId, sessionId, message}),
      *   signal: abortController.signal
      * });
      * if (!response.ok || !response.body) throw new Error('SSE request failed');
@@ -246,8 +245,9 @@ public class AgentServiceController implements IAgentService {
     @PostMapping(value = "/chat-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStream(@Valid @RequestBody ChatRequestDTO requestDTO) {
 
+        String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
         log.info("智能体对话流式输出 agentId:{} userId:{} sessionId:{}",
-                requestDTO.agentId(), requestDTO.userId(), requestDTO.sessionId());
+                requestDTO.agentId(), userId, requestDTO.sessionId());
 
         SseEmitter emitter = createEmitter();
 
@@ -278,7 +278,7 @@ public class AgentServiceController implements IAgentService {
             // trigger 只把项目 ChatEvent 编码为 SSE，不接触 ADK Event 或 RxJava Disposable。
             ChatSubscription subscription = chatUseCase.handleMessageStream(
                     requestDTO.agentId(),
-                    requestDTO.userId(),
+                    userId,
                     requestDTO.sessionId(),
                     requestDTO.message()
             ).subscribe(new ChatStreamObserver() {

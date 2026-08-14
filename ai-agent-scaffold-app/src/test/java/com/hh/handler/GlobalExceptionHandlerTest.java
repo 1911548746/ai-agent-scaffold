@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.hh.api.agent.response.Response;
+import com.hh.api.auth.dto.RegisterRequestDTO;
 import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.types.enums.ResponseCode;
@@ -15,6 +16,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.MethodParameter;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+
+import java.lang.reflect.Method;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -105,10 +112,42 @@ class GlobalExceptionHandlerTest {
                 .doesNotContain("provider details");
     }
 
+    @Test
+    void validationFailureReturnsDeclaredFieldMessage() throws Exception {
+        MethodArgumentNotValidException exception = validationException(
+                "password", "123", "password长度必须在8到128个字符之间");
+
+        ResponseEntity<Response<Void>> entity = handler.handleValidationException(request(), exception);
+
+        assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(entity.getBody()).isNotNull();
+        assertThat(entity.getBody().getCode()).isEqualTo(ResponseCode.ILLEGAL_PARAMETER.getCode());
+        assertThat(entity.getBody().getInfo()).isEqualTo("password长度必须在8到128个字符之间");
+        assertThat(entity.getBody().getData()).isNull();
+        assertThat(entity.getBody().getInfo()).doesNotContain("123");
+    }
+
     /**
      * 请求路径属于排障所需上下文；测试只提供最小 servlet 请求对象，不加载数据库或 Agent 配置。
      */
     private MockHttpServletRequest request() {
         return new MockHttpServletRequest("POST", "/api/v1/chat");
+    }
+
+    /** 构造与 Spring MVC @Valid 相同的字段校验异常，不启动 Web 容器。 */
+    private MethodArgumentNotValidException validationException(
+            String field, Object rejectedValue, String defaultMessage) throws Exception {
+        RegisterRequestDTO target = new RegisterRequestDTO("alice", "valid-password");
+        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(target, "registerRequestDTO");
+        bindingResult.addError(new FieldError(
+                "registerRequestDTO", field, rejectedValue, false, null, null, defaultMessage));
+        Method method = GlobalExceptionHandlerTest.class
+                .getDeclaredMethod("validationTarget", RegisterRequestDTO.class);
+        return new MethodArgumentNotValidException(new MethodParameter(method, 0), bindingResult);
+    }
+
+    @SuppressWarnings("unused")
+    private void validationTarget(RegisterRequestDTO requestDTO) {
+        // 仅用于构造 Spring MVC 校验异常所需的 MethodParameter。
     }
 }
