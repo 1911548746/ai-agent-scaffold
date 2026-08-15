@@ -67,7 +67,7 @@ ai:
 #    access-token-ttl-seconds: ${JWT_EXPIRATION_SECONDS:7200}
     jwt-secret: 75d9e833-324a-4674-8fe1-1cf534ea0e9e
     jwt-issuer: AI-AGENT_SCAFFOLD
-    access-token-ttl-seconds: 7200
+    access-token-ttl-seconds: 72000
   agent:
     session:
       compaction:

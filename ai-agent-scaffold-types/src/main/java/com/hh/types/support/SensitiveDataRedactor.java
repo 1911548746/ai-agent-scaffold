@@ -1,6 +1,8 @@
 package com.hh.types.support;
 
 import java.util.IdentityHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 
 /**
@@ -17,6 +19,12 @@ public final class SensitiveDataRedactor {
     );
 
     private static final String REDACTED_VALUE = "$1***";
+    private static final int MAX_CAUSE_DEPTH = 8;
+    private static final int MAX_ROOT_FRAMES = 16;
+    private static final int MAX_WRAPPER_FRAMES = 4;
+    private static final int MAX_MESSAGE_LENGTH = 4096;
+    private static final int MAX_DIAGNOSTIC_LENGTH = 16 * 1024;
+    private static final String TRUNCATED = "\n... [异常诊断已截断]";
 
     private SensitiveDataRedactor() {
     }
@@ -29,35 +37,90 @@ public final class SensitiveDataRedactor {
     }
 
     /**
-     * 生成可用于日志的异常链和堆栈，避免第三方异常中的凭据未经处理直接进入日志。
+     * 生成有界的异常诊断信息，避免完整 SDK 堆栈造成超大日志。
+     *
+     * <p>最深层 cause 的类型、message 和有限栈帧优先保留；外层包装异常只保留少量栈帧。
+     * message 仍执行脱敏，且整个结果限制在 16KiB 以内。</p>
      */
     public static String formatStackTrace(Throwable exception) {
-        StringBuilder trace = new StringBuilder();
+        if (exception == null) {
+            return "null";
+        }
+
+        List<Throwable> causes = new ArrayList<>();
         IdentityHashMap<Throwable, Boolean> visited = new IdentityHashMap<>();
         Throwable current = exception;
-        boolean rootException = true;
 
-        while (current != null && visited.put(current, Boolean.TRUE) == null) {
-            if (!rootException) {
-                trace.append("Caused by: ");
-            }
-            trace.append(current.getClass().getName());
-            if (current.getMessage() != null) {
-                trace.append(": ").append(redact(current.getMessage()));
-            }
-            for (StackTraceElement stackTraceElement : current.getStackTrace()) {
-                trace.append("\n\tat ").append(stackTraceElement);
-            }
-            trace.append('\n');
+        while (current != null && visited.put(current, Boolean.TRUE) == null
+                && causes.size() < MAX_CAUSE_DEPTH) {
+            causes.add(current);
             current = current.getCause();
-            rootException = false;
         }
 
-        // 少数自定义异常可能形成 cause 环，日志格式化不能因此陷入无限循环。
-        if (current != null) {
-            trace.append("Caused by: [检测到循环异常引用，后续原因链已省略]");
+        StringBuilder trace = new StringBuilder(Math.min(MAX_DIAGNOSTIC_LENGTH, 2048));
+        boolean truncated = false;
+        for (int i = causes.size() - 1; i >= 0; i--) {
+            Throwable cause = causes.get(i);
+            if (!append(trace, i == causes.size() - 1 ? "Root cause: " : "Caused by: ")) {
+                truncated = true;
+                break;
+            }
+            if (!append(trace, cause.getClass().getName())) {
+                truncated = true;
+                break;
+            }
+            if (cause.getMessage() != null) {
+                String message = cause.getMessage();
+                if (message.length() > MAX_MESSAGE_LENGTH) {
+                    message = message.substring(0, MAX_MESSAGE_LENGTH) + "...";
+                }
+                if (!append(trace, ": " + redact(message))) {
+                    truncated = true;
+                    break;
+                }
+            }
+
+            StackTraceElement[] frames = cause.getStackTrace();
+            int frameLimit = i == causes.size() - 1 ? MAX_ROOT_FRAMES : MAX_WRAPPER_FRAMES;
+            int writtenFrames = Math.min(frames.length, frameLimit);
+            for (int frameIndex = 0; frameIndex < writtenFrames; frameIndex++) {
+                if (!append(trace, "\n\tat " + frames[frameIndex])) {
+                    truncated = true;
+                    break;
+                }
+            }
+            if (truncated) {
+                break;
+            }
+            if (frames.length > writtenFrames && !append(trace,
+                    "\n\t... [省略 " + (frames.length - writtenFrames) + " 个栈帧]")) {
+                truncated = true;
+                break;
+            }
+            if (!append(trace, "\n")) {
+                truncated = true;
+                break;
+            }
+        }
+
+        if (current != null && visited.containsKey(current)) {
+            truncated = true;
+        } else if (current != null) {
+            truncated = true;
+        }
+        if (truncated) {
+            append(trace, TRUNCATED);
         }
         return trace.toString();
+    }
+
+    /** 在固定上限内追加日志片段，避免异常 message 或栈帧突破日志大小限制。 */
+    private static boolean append(StringBuilder target, String value) {
+        if (target.length() + value.length() > MAX_DIAGNOSTIC_LENGTH) {
+            return false;
+        }
+        target.append(value);
+        return true;
     }
 
 }

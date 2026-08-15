@@ -81,7 +81,7 @@ class AgentServiceControllerTest {
     }
 
     @Test
-    void classifiedModelFailureUsesStableSseCodeAndCompactLog() {
+    void classifiedModelFailureUsesStableSseCodeAndSanitizedStackTrace() {
         String sensitiveValue = "must-not-reach-client-or-log";
         ChatUseCase chatUseCase = mock(ChatUseCase.class);
         when(chatUseCase.handleMessageStream(anyString(), anyString(), anyString(), anyString()))
@@ -105,7 +105,7 @@ class AgentServiceControllerTest {
                         .contains(ModelInvocationException.FailureType.TIMEOUT.name())
                         .contains(IllegalStateException.class.getName())
                         .doesNotContain(sensitiveValue)
-                        .doesNotContain("\tat "));
+                        .contains("\tat "));
     }
 
     @Test

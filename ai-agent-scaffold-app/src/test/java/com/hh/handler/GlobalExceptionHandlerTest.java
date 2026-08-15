@@ -77,7 +77,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void modelTimeoutReturnsGatewayTimeoutAndLogsOnlyCompactCauseType() {
+    void modelTimeoutReturnsGatewayTimeoutAndLogsSanitizedStackTrace() {
         String secret = "must-not-appear";
         ModelInvocationException exception = new ModelInvocationException(
                 ModelInvocationException.FailureType.TIMEOUT,
@@ -94,7 +94,7 @@ class GlobalExceptionHandlerTest {
                 .contains(ModelInvocationException.FailureType.TIMEOUT.name())
                 .contains(IllegalStateException.class.getName())
                 .doesNotContain(secret)
-                .doesNotContain("\tat ");
+                .contains("\tat ");
     }
 
     @Test
@@ -109,7 +109,8 @@ class GlobalExceptionHandlerTest {
         assertThat(logAppender.list).hasSize(1);
         assertThat(logAppender.list.get(0).getFormattedMessage())
                 .contains(IllegalStateException.class.getName())
-                .doesNotContain("provider details");
+                .contains("provider details")
+                .contains("\tat ");
     }
 
     @Test

@@ -350,8 +350,9 @@ public class SessionInvocationCoordinator {
     private void logPostCompactionFailure(SessionKey key, Throwable error) {
         Throwable mapped = ModelInvocationFailureMapper.map(error);
         if (mapped instanceof ModelInvocationException modelError) {
-            log.error("后置上下文压缩失败，appName: {}，sessionId: {}，失败类型: {}，根因类型: {}",
-                    key.appName(), key.sessionId(), modelError.failureType(), modelError.rootCauseType());
+            log.error("后置上下文压缩失败，appName: {}，sessionId: {}，失败类型: {}，根因类型: {}，异常链:\n{}",
+                    key.appName(), key.sessionId(), modelError.failureType(), modelError.rootCauseType(),
+                    SensitiveDataRedactor.formatStackTrace(error));
             return;
         }
         log.error("后置上下文压缩异常，appName: {}，sessionId: {}，异常类型: {}，异常详情: {}",

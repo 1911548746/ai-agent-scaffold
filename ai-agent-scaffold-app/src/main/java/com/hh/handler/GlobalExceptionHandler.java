@@ -24,17 +24,18 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     /**
-     * 模型重试耗尽后返回稳定错误码，并只记录一次精简诊断信息。
+     * 模型重试耗尽后返回稳定错误码，并在服务端记录一次脱敏完整诊断信息。
      *
-     * <p>中间重试由 LangChain4j 负责；这里不重复重试，也不记录可能包含请求或供应商响应的
-     * 原始 message。未知系统异常仍交由兜底处理器记录脱敏完整堆栈。</p>
+     * <p>中间重试由 LangChain4j 负责；这里不重复重试。原始异常只写入经过脱敏的服务端日志，
+     * 不进入客户端响应。</p>
      */
     @ExceptionHandler(ModelInvocationException.class)
     public ResponseEntity<Response<Void>> handleModelInvocationException(
             HttpServletRequest request, ModelInvocationException ex) {
 
-        log.error("模型调用最终失败，请求: [{} {}]，失败类型: {}，根因类型: {}",
-                request.getMethod(), request.getRequestURI(), ex.failureType(), ex.rootCauseType());
+        log.error("模型调用最终失败，请求: [{} {}]，失败类型: {}，根因类型: {}，异常链:\n{}",
+                request.getMethod(), request.getRequestURI(), ex.failureType(), ex.rootCauseType(),
+                SensitiveDataRedactor.formatStackTrace(ex));
 
         return ResponseEntity.status(modelFailureStatus(ex.failureType()))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -45,8 +46,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ContextCompactionException.class)
     public ResponseEntity<Response<Void>> handleContextCompactionException(
             HttpServletRequest request, ContextCompactionException ex) {
-        log.error("上下文压缩失败，请求: [{} {}]，根因类型: {}",
-                request.getMethod(), request.getRequestURI(), ex.rootCauseType());
+        log.error("上下文压缩失败，请求: [{} {}]，根因类型: {}，异常链:\n{}",
+                request.getMethod(), request.getRequestURI(), ex.rootCauseType(),
+                SensitiveDataRedactor.formatStackTrace(ex));
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Response.error(ex.getCode(), ex.getInfo()));
@@ -121,7 +123,7 @@ public class GlobalExceptionHandler {
     /**
      * 捕获未预期的系统异常。
      *
-     * <p>客户端只能得到稳定的通用文案，完整的异常链和堆栈帧仅写入服务端日志。日志副本会先脱敏，
+     * <p>客户端只能得到稳定的通用文案；服务端保留经过脱敏的完整异常链和堆栈帧，
      * 防止供应商异常文本意外携带 apiKey、Authorization 或 MCP header。
      */
     @ExceptionHandler(Exception.class)

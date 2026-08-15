@@ -253,7 +253,6 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
             lease.success();
             return new ChatResult(outputs, confirmations);
         } catch (RuntimeException | Error error) {
-            error.printStackTrace();
             lease.fail();
             throw error;
         }
@@ -276,7 +275,6 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
                     .runAsync(userId, sessionId, content, runConfig)
                     .onErrorResumeNext(error -> Flowable.error(ModelInvocationFailureMapper.map(error)));
         } catch (RuntimeException error) {
-            error.printStackTrace();
             Throwable mapped = ModelInvocationFailureMapper.map(error);
             throw mapped instanceof RuntimeException runtimeException ? runtimeException : error;
         }

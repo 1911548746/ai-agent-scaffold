@@ -51,13 +51,16 @@ public final class StreamErrorResponseMapper {
     public static void logFailure(String operation, Throwable error) {
         Throwable classifiedError = findClassifiedError(error);
         if (classifiedError instanceof ModelInvocationException modelError) {
-            // 模型异常只记录分类与根因类型，避免供应商响应和凭据进入日志。
-            log.error("{}最终失败，失败类型: {}，根因类型: {}",
-                    operation, modelError.failureType(), modelError.rootCauseType());
+            // 日志保留完整诊断链，但先脱敏；对外 SSE 仍只返回稳定错误码。
+            log.error("{}最终失败，失败类型: {}，根因类型: {}，异常链:\n{}",
+                    operation, modelError.failureType(), modelError.rootCauseType(),
+                    SensitiveDataRedactor.formatStackTrace(error));
             return;
         }
         if (classifiedError instanceof ContextCompactionException compactionError) {
-            log.error("{}失败，根因类型: {}", operation, compactionError.rootCauseType());
+            log.error("{}失败，根因类型: {}，异常链:\n{}",
+                    operation, compactionError.rootCauseType(),
+                    SensitiveDataRedactor.formatStackTrace(error));
             return;
         }
         if (classifiedError instanceof AppException appException

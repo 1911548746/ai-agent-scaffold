@@ -3,6 +3,7 @@ package com.hh.config.agent.bootstrap;
 import com.hh.application.agent.port.AgentRuntimeCompiler;
 import com.hh.config.agent.catalog.AgentConfigurationException;
 import com.hh.domain.agent.model.definition.AgentDefinition;
+import com.hh.types.support.SensitiveDataRedactor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -38,8 +39,9 @@ public class AgentCompiler {
         } catch (AgentConfigurationException exception) {
             throw exception;
         } catch (Exception exception) {
-            // SDK 异常可能携带模型或 MCP 细节，只记录异常类型且不保留 cause 给启动日志展开。
-            log.error("Agent catalog ADK assembly failed, errorType={}", exception.getClass().getSimpleName());
+            // SDK 异常可能携带模型或 MCP 凭据；保留脱敏完整堆栈，便于定位启动装配失败。
+            log.error("Agent catalog ADK assembly failed, exceptionChain=\n{}",
+                    SensitiveDataRedactor.formatStackTrace(exception));
             throw new AgentConfigurationException("Agent catalog ADK assembly failed");
         }
     }
