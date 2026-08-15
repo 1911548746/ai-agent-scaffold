@@ -192,6 +192,7 @@ public class ChatApplicationService implements ChatUseCase {
     @Override
     public ChatResult handleMessage(ChatCommandEntity chatCommandEntity) {
         validateInlineDataSize(chatCommandEntity);
+        validateMessageInput(chatCommandEntity);
 
         String appName = agentRuntimePort.appName(chatCommandEntity.getAgentId());
         String userId = chatCommandEntity.getUserId();
@@ -203,17 +204,23 @@ public class ChatApplicationService implements ChatUseCase {
         // 查找或创建会话记录，拿到 conversationId
         Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
 
-        // 文本内容
+        // 文本内容；附件原始字节只进入本次 Runtime 调用，不写入消息表。
         List<ChatCommandEntity.Content.Text> texts = chatCommandEntity.getTexts();
-        if (texts != null) {
-            // 保存用户文本消息
-            String userText = texts.stream()
+        String userText = texts == null ? "" : texts.stream()
+                    .filter(text -> text != null && text.getMessage() != null)
                     .map(ChatCommandEntity.Content.Text::getMessage)
                     .reduce("", (left, right) -> left + right);
-            messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, userText);
+        if (userText.isBlank()) {
+            int attachmentCount = (chatCommandEntity.getInlineDatas() == null
+                    ? 0 : chatCommandEntity.getInlineDatas().size())
+                    + (chatCommandEntity.getFiles() == null ? 0 : chatCommandEntity.getFiles().size());
+            userText = "用户上传了 " + attachmentCount + " 个附件";
         }
+        messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, userText);
 
         ChatResult result = agentRuntimePort.run(chatCommandEntity.getAgentId(), chatCommandEntity);
+        result.pendingConfirmations().forEach(request -> toolConfirmationPort.savePending(
+                conversationId, appName, userId, sessionId, request));
         result.contents().forEach(content -> messageArchivePort.saveAssistantMessage(
                 conversationId, appName, userId, sessionId, content));
         return result;
@@ -241,6 +248,21 @@ public class ChatApplicationService implements ChatUseCase {
             if (totalBytes > RequestPayloadLimits.MAX_INLINE_DATA_TOTAL_BYTES) {
                 throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
             }
+        }
+    }
+
+    /** 多模态命令至少需要一段文本或一个附件，避免构造空的 ADK Content。 */
+    private void validateMessageInput(ChatCommandEntity chatCommandEntity) {
+        boolean hasText = chatCommandEntity.getTexts() != null
+                && chatCommandEntity.getTexts().stream()
+                .anyMatch(text -> text != null && text.getMessage() != null && !text.getMessage().isBlank());
+        boolean hasInlineData = chatCommandEntity.getInlineDatas() != null
+                && chatCommandEntity.getInlineDatas().stream()
+                .anyMatch(data -> data != null && data.getBytes() != null && data.getBytes().length > 0);
+        boolean hasFileReference = chatCommandEntity.getFiles() != null
+                && !chatCommandEntity.getFiles().isEmpty();
+        if (!hasText && !hasInlineData && !hasFileReference) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "message或files至少提供一项");
         }
     }
 

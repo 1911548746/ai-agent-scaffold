@@ -1,0 +1,12 @@
+ai:
+  agent:
+    model:
+      schema-version: 1
+      id: Nex-N2-Pro
+      base-url: https://api.siliconflow.cn
+      api-key: ${MODEL_API_KEY}
+      model-name: nex-agi/Nex-N2-Pro
+      timeout: 30
+      max-retries: 4
+      streaming-first-response-timeout: 30
+      streaming-max-retries: 2

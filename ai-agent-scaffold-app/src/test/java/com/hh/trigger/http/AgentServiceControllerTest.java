@@ -11,6 +11,7 @@ import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.application.auth.model.AuthenticatedPrincipal;
 import com.hh.trigger.http.agent.AgentServiceController;
+import com.hh.trigger.http.agent.parser.MultimodalAttachmentParser;
 import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
 import com.hh.trigger.http.agent.support.StreamErrorResponseMapper;
 import com.hh.types.exception.AppException;
@@ -231,7 +232,7 @@ class AgentServiceControllerTest {
         private Object eventData;
 
         private CapturingAgentServiceController(ChatUseCase chatUseCase) {
-            super(chatUseCase);
+            super(chatUseCase, new MultimodalAttachmentParser());
         }
 
         @Override

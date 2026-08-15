@@ -4,6 +4,7 @@ import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import com.hh.application.auth.model.AuthenticatedPrincipal;
 import com.hh.trigger.http.agent.AgentServiceController;
+import com.hh.trigger.http.agent.parser.MultimodalAttachmentParser;
 import com.hh.trigger.http.agent.ConversationController;
 import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
@@ -186,7 +187,8 @@ class ApiValidationTest {
     }
 
     private MockMvc agentMvc(ChatUseCase chatUseCase) {
-        return MockMvcBuilders.standaloneSetup(new AgentServiceController(chatUseCase))
+        return MockMvcBuilders.standaloneSetup(
+                        new AgentServiceController(chatUseCase, new MultimodalAttachmentParser()))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

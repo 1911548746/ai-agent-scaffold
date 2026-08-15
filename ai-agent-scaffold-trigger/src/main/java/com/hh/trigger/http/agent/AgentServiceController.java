@@ -9,14 +9,19 @@ import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.application.agent.model.ToolConfirmationRequest;
+import com.hh.domain.agent.model.entity.ChatCommandEntity;
+import com.hh.trigger.http.agent.parser.MultimodalAttachmentParser;
+import com.hh.trigger.http.agent.parser.ParsedAttachment;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.trigger.http.agent.support.StreamErrorResponseMapper;
 import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
 import com.hh.types.support.SensitiveDataRedactor;
+import com.hh.types.validation.RequestPayloadLimits;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -32,9 +37,11 @@ public class AgentServiceController implements IAgentService {
     private static final long STREAM_TIMEOUT_MILLIS = 5 * 60 * 1000L;
 
     private final ChatUseCase chatUseCase;
+    private final MultimodalAttachmentParser multimodalAttachmentParser;
 
-    public AgentServiceController(ChatUseCase chatUseCase) {
+    public AgentServiceController(ChatUseCase chatUseCase, MultimodalAttachmentParser multimodalAttachmentParser) {
         this.chatUseCase = chatUseCase;
+        this.multimodalAttachmentParser = multimodalAttachmentParser;
     }
 
     /**
@@ -167,6 +174,57 @@ public class AgentServiceController implements IAgentService {
                 result.pendingConfirmations().stream()
                         .map(this::toConfirmationResponse)
                         .toList());
+
+        return Response.success(chatResponseDTO);
+    }
+
+    /**
+     * 多模态同步对话。
+     *
+     * <p>HTTP：POST /api/v1/chat-multimodal，使用 multipart/form-data，files 可重复上传多个附件。
+     * 首版仅支持图片和 UTF-8 txt 文件；原始附件只在本次模型调用期间保留。</p>
+     */
+    @PostMapping(value = "/chat-multimodal", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Response<ChatResponseDTO> chatMultimodal(
+            @RequestParam String agentId,
+            @RequestParam String sessionId,
+            @RequestParam(required = false) String message,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+
+        if (agentId == null || agentId.isBlank() || agentId.length() > RequestPayloadLimits.MAX_IDENTIFIER_LENGTH
+                || sessionId == null || sessionId.isBlank()
+                || sessionId.length() > RequestPayloadLimits.MAX_SESSION_ID_LENGTH
+                || message != null && message.length() > RequestPayloadLimits.MAX_TEXT_LENGTH) {
+            throw new com.hh.types.exception.AppException(com.hh.types.enums.ResponseCode.ILLEGAL_PARAMETER);
+        }
+
+        List<ParsedAttachment> parsedAttachments = multimodalAttachmentParser.parse(files);
+        if ((message == null || message.isBlank()) && parsedAttachments.isEmpty()) {
+            throw new com.hh.types.exception.AppException(
+                    com.hh.types.enums.ResponseCode.ILLEGAL_PARAMETER.getCode(), "message或files至少提供一项");
+        }
+
+        List<ChatCommandEntity.Content.Text> texts = message == null || message.isBlank()
+                ? List.of()
+                : List.of(new ChatCommandEntity.Content.Text(message));
+
+        List<ChatCommandEntity.Content.InlineData> inlineDatas = parsedAttachments.stream()
+                .map(file -> new ChatCommandEntity.Content.InlineData(file.bytes(), file.mimeType()))
+                .toList();
+
+        ChatCommandEntity command = ChatCommandEntity.builder()
+                .agentId(agentId)
+                .userId(AuthenticatedPrincipalContext.requireCurrent().userId())
+                .sessionId(sessionId)
+                .texts(texts)
+                .inlineDatas(inlineDatas)
+                .build();
+
+        ChatResult result = chatUseCase.handleMessage(command);
+
+        ChatResponseDTO chatResponseDTO = new ChatResponseDTO(
+                result.joinContents(),
+                result.pendingConfirmations().stream().map(this::toConfirmationResponse).toList());
 
         return Response.success(chatResponseDTO);
     }
