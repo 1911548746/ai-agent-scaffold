@@ -4,6 +4,7 @@ import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.infrastructure.agent.agent.runtime.invocation.ModelInvocationFailureMapper;
 import dev.langchain4j.exception.AuthenticationException;
 import dev.langchain4j.exception.HttpException;
+import dev.langchain4j.exception.InvalidRequestException;
 import dev.langchain4j.exception.RateLimitException;
 import dev.langchain4j.exception.TimeoutException;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,11 @@ class ModelInvocationFailureMapperTest {
                 ModelInvocationException.FailureType.RATE_LIMITED);
         assertFailure(new AuthenticationException("invalid credential"),
                 ModelInvocationException.FailureType.CONFIGURATION_ERROR);
+        assertFailure(new InvalidRequestException(
+                        "{\"message\":\"The model is not a VLM (Vision Language Model). Please use text-only prompts.\"}"),
+                ModelInvocationException.FailureType.UNSUPPORTED_CAPABILITY);
+        assertFailure(new InvalidRequestException("invalid request payload"),
+                ModelInvocationException.FailureType.REQUEST_REJECTED);
         assertFailure(new HttpException(503, "provider unavailable"),
                 ModelInvocationException.FailureType.UNAVAILABLE);
     }

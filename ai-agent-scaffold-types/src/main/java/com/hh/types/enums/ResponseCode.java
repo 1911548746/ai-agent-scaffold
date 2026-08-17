@@ -29,6 +29,7 @@ public enum ResponseCode {
     USERNAME_ALREADY_EXISTS("0016", "用户名已存在"),
     ACCESS_DENIED("0017", "无权访问该资源"),
     CONVERSATION_NOT_FOUND("0018", "会话记录不存在"),
+    MODEL_CAPABILITY_UNSUPPORTED("0019", "当前模型不支持该类型的输入，请更换支持视觉能力的模型"),
     ;
 
     private String code;

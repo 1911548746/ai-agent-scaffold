@@ -48,6 +48,7 @@ public final class ModelInvocationException extends AppException {
         RATE_LIMITED(ResponseCode.MODEL_RATE_LIMITED),
         CONFIGURATION_ERROR(ResponseCode.MODEL_CONFIGURATION_ERROR),
         REQUEST_REJECTED(ResponseCode.MODEL_REQUEST_REJECTED),
+        UNSUPPORTED_CAPABILITY(ResponseCode.MODEL_CAPABILITY_UNSUPPORTED),
         UNAVAILABLE(ResponseCode.MODEL_UNAVAILABLE);
 
         private final ResponseCode responseCode;

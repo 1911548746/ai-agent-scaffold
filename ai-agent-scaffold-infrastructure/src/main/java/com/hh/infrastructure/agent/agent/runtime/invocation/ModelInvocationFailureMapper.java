@@ -22,6 +22,7 @@ import static com.hh.application.agent.exception.ModelInvocationException.Failur
 import static com.hh.application.agent.exception.ModelInvocationException.FailureType.RATE_LIMITED;
 import static com.hh.application.agent.exception.ModelInvocationException.FailureType.REQUEST_REJECTED;
 import static com.hh.application.agent.exception.ModelInvocationException.FailureType.TIMEOUT;
+import static com.hh.application.agent.exception.ModelInvocationException.FailureType.UNSUPPORTED_CAPABILITY;
 import static com.hh.application.agent.exception.ModelInvocationException.FailureType.UNAVAILABLE;
 
 /**
@@ -60,6 +61,10 @@ public final class ModelInvocationFailureMapper {
                 || contains(error, UnsupportedFeatureException.class)) {
             return CONFIGURATION_ERROR;
         }
+        // 供应商通常把“文本模型收到图片”包装成普通 400；必须先识别能力语义，避免落入通用请求拒绝。
+        if (isVisionCapabilityRejection(error)) {
+            return UNSUPPORTED_CAPABILITY;
+        }
         if (contains(error, InvalidRequestException.class)
                 || contains(error, ContentFilteredException.class)) {
             return REQUEST_REJECTED;
@@ -74,6 +79,26 @@ public final class ModelInvocationFailureMapper {
             return classifyHttpStatus(httpException.statusCode());
         }
         return null;
+    }
+
+    /** 只匹配明确的视觉模型能力提示，不把普通图片参数错误误报为模型能力缺失。 */
+    private static boolean isVisionCapabilityRejection(Throwable error) {
+        Throwable invalidRequest = find(error, InvalidRequestException.class);
+        if (invalidRequest == null) {
+            return false;
+        }
+
+        String message = invalidRequest.getMessage();
+        if (message == null) {
+            return false;
+        }
+        String normalized = message.toLowerCase(java.util.Locale.ROOT);
+        return normalized.contains("not a vlm")
+                || normalized.contains("vision language model")
+                || (normalized.contains("image")
+                && (normalized.contains("not support")
+                || normalized.contains("does not support")
+                || normalized.contains("unsupported")));
     }
 
     private static ModelInvocationException.FailureType classifyHttpStatus(int statusCode) {

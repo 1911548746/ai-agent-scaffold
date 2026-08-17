@@ -166,7 +166,7 @@ public class GlobalExceptionHandler {
         return switch (failureType) {
             case TIMEOUT -> HttpStatus.GATEWAY_TIMEOUT;
             case RATE_LIMITED, UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
-            case CONFIGURATION_ERROR, REQUEST_REJECTED -> HttpStatus.BAD_GATEWAY;
+            case CONFIGURATION_ERROR, REQUEST_REJECTED, UNSUPPORTED_CAPABILITY -> HttpStatus.BAD_GATEWAY;
         };
     }
 
