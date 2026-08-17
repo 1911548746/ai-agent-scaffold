@@ -24,12 +24,72 @@ public class AuthController implements IAuthService {
         this.authUseCase = authUseCase;
     }
 
+    /**
+     * 注册
+     *
+     * <p>HTTP：POST /api/v1/auth/register</p>
+     *
+     * <p>curl：</p>
+     * <pre>
+     * curl -X POST 'http://localhost:8080/api/v1/auth/register' \
+     *   -H 'Content-Type: application/json' \
+     *   -d '{
+     *     "username": "alice",
+     *     "password": "password123"
+     *   }'
+     * </pre>
+     *
+     * <p>成功响应示例：</p>
+     * <pre>
+     * {
+     *   "code": "0000",
+     *   "info": "成功",
+     *   "data": {
+     *     "accessToken": "eyJ...",
+     *     "tokenType": "Bearer",
+     *     "expiresInSeconds": 7200
+     *   }
+     * }
+     * </pre>
+     *
+     * <p>注册接口无需携带令牌；后续受保护接口应在 {@code Authorization: Bearer <token>} 请求头中携带该令牌。</p>
+     */
     @Override
     @PostMapping("/register")
     public Response<AuthTokenResponseDTO> register(@Valid @RequestBody RegisterRequestDTO requestDTO) {
         return Response.success(toResponse(authUseCase.register(requestDTO.username(), requestDTO.password())));
     }
 
+    /**
+     * 登录
+     *
+     * <p>HTTP：POST /api/v1/auth/login</p>
+     *
+     * <p>curl：</p>
+     * <pre>
+     * curl -X POST 'http://localhost:8080/api/v1/auth/login' \
+     *   -H 'Content-Type: application/json' \
+     *   -d '{
+     *     "username": "alice",
+     *     "password": "password123"
+     *   }'
+     * </pre>
+     *
+     * <p>成功响应示例：</p>
+     * <pre>
+     * {
+     *   "code": "0000",
+     *   "info": "成功",
+     *   "data": {
+     *     "accessToken": "eyJ...",
+     *     "tokenType": "Bearer",
+     *     "expiresInSeconds": 7200
+     *   }
+     * }
+     * </pre>
+     *
+     * <p>登录失败时仅返回稳定的业务错误信息，不回显密码或令牌解析细节。</p>
+     */
     @Override
     @PostMapping("/login")
     public Response<AuthTokenResponseDTO> login(@Valid @RequestBody LoginRequestDTO requestDTO) {

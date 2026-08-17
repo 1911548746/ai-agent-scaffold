@@ -30,9 +30,17 @@ public class ConversationController implements IConversationService {
     /**
      * 查询会话列表
      *
-     * <p>HTTP：GET /api/v1/conversations/list
+     * <p>HTTP：GET /api/v1/conversations/list</p>
      *
-     * <p>成功响应示例：
+     * <p>当前登录用户由认证上下文确定，接口不会接受客户端传入的 userId。</p>
+     *
+     * <p>curl：</p>
+     * <pre>
+     * curl -X GET 'http://localhost:8080/api/v1/conversations/list' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;'
+     * </pre>
+     *
+     * <p>成功响应示例：</p>
      * <pre>
      * {
      *   "code": "0000",
@@ -75,9 +83,17 @@ public class ConversationController implements IConversationService {
     /**
      * 查询会话详情（含消息记录）
      *
-     * <p>HTTP：GET /api/v1/conversations/{conversationId}
+     * <p>HTTP：GET /api/v1/conversations/detail/{conversationId}</p>
      *
-     * <p>成功响应示例：
+     * <p>当前登录用户由认证上下文确定，只返回该用户有权访问的会话及消息。</p>
+     *
+     * <p>curl：</p>
+     * <pre>
+     * curl -X GET 'http://localhost:8080/api/v1/conversations/detail/1' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;'
+     * </pre>
+     *
+     * <p>成功响应示例：</p>
      * <pre>
      * {
      *   "code": "0000",
@@ -90,18 +106,18 @@ public class ConversationController implements IConversationService {
      *     "createdAt": "2026-07-17T03:46:01",
      *     "updatedAt": "2026-07-17T03:47:40",
      *     "messages": [
-         *       {
-         *         "messageId": 1,
-         *         "role": "user",
-         *         "status": "completed",
-         *         "contentText": "你好",
+     *       {
+     *         "messageId": 1,
+     *         "role": "user",
+     *         "status": "completed",
+     *         "contentText": "你好",
      *         "createdAt": "2026-07-17T03:46:01"
      *       },
-         *       {
-         *         "messageId": 2,
-         *         "role": "assistant",
-         *         "status": "completed",
-         *         "contentText": "你好！我是 HelloAgent，一个简洁的 ADK Java 智能助手 🤖\n\n有什么可以帮你的吗？你可以问我问题，或者让我查询天气等。",
+     *       {
+     *         "messageId": 2,
+     *         "role": "assistant",
+     *         "status": "completed",
+     *         "contentText": "你好！我是 HelloAgent，一个简洁的 ADK Java 智能助手 🤖\n\n有什么可以帮你的吗？你可以问我问题，或者让我查询天气等。",
      *         "createdAt": "2026-07-17T03:46:35"
      *       }
      *     ]
@@ -144,9 +160,24 @@ public class ConversationController implements IConversationService {
     /**
      * 删除会话
      *
-     * <p>HTTP：DELETE /api/v1/conversations/{conversationId}
+     * <p>HTTP：DELETE /api/v1/conversations/delete</p>
      *
-     * <p>成功响应示例：
+     * <p>请求体需要同时提供 {@code agentId}、{@code sessionId} 和 {@code conversationId}；
+     * 用户身份由认证上下文确定，服务端会校验会话与会话记录的归属关系。</p>
+     *
+     * <p>curl：</p>
+     * <pre>
+     * curl -X DELETE 'http://localhost:8080/api/v1/conversations/delete' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;' \
+     *   -H 'Content-Type: application/json' \
+     *   -d '{
+     *     "agentId": "100000",
+     *     "sessionId": "eecf9e2e-6913-4898-b20b-12a8d00cf848",
+     *     "conversationId": 1
+     *   }'
+     * </pre>
+     *
+     * <p>成功响应示例：</p>
      * <pre>
      * {
      *   "code": "0000",

@@ -41,14 +41,17 @@ public class ToolConfirmationController {
     /**
      * 查询待确认工具调用。
      *
-     * <p>HTTP：GET /api/v1/tool-confirmations/{confirmationId}
+     * <p>HTTP：GET /api/v1/tool-confirmations/{confirmationId}</p>
      *
-     * <p>curl：
+     * <p>路径变量 {@code confirmationId} 为待确认单标识，用户身份从认证上下文获取。</p>
+     *
+     * <p>curl：</p>
      * <pre>
-     * curl -X GET 'http://localhost:8080/api/v1/tool-confirmations/confirmation-id?userId=100000'
+     * curl -X GET 'http://localhost:8080/api/v1/tool-confirmations/confirmation-id' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;'
      * </pre>
      *
-     * <p>成功响应示例：
+     * <p>成功响应示例：</p>
      * <pre>
      * {
      *   "code": "0000",
@@ -76,11 +79,18 @@ public class ToolConfirmationController {
     /**
      * 批准或拒绝工具调用，并以普通 HTTP 响应恢复同一 Session。
      *
-     * <p>HTTP：POST /api/v1/tool-confirmations/{confirmationId}:resolve
+     * <p>HTTP：POST /api/v1/tool-confirmations/{confirmationId}:resolve</p>
      *
-     * <p>curl：
+     * <p>请求体字段：</p>
+     * <ul>
+     *   <li>{@code agentId}：必填，确认单所属 Agent 标识。</li>
+     *   <li>{@code confirmed}：必填，{@code true} 批准工具调用，{@code false} 拒绝工具调用。</li>
+     * </ul>
+     *
+     * <p>curl：</p>
      * <pre>
      * curl -X POST 'http://localhost:8080/api/v1/tool-confirmations/confirmation-id:resolve' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;' \
      *   -H 'Content-Type: application/json' \
      *   -d '{
      *     "agentId": "100000",
@@ -90,7 +100,7 @@ public class ToolConfirmationController {
      *
      * <p>同一确认单只能从 pending 状态领取一次。confirmed 为 true 时 ADK 执行原工具调用；
      * false 时 ADK 接收拒绝结果并继续生成后续回复。恢复产生的 assistant 内容会单独归档，
-     * 不与暂停前的内容物理拼接。</p>
+     * 不与暂停前的内容物理拼接。用户身份由认证上下文确定，不接受请求体中的 userId。</p>
      */
     @PostMapping("/{confirmationId}:resolve")
     public Response<ChatResponseDTO> resolve(
@@ -105,11 +115,15 @@ public class ToolConfirmationController {
     /**
      * 批准或拒绝工具调用，并以 SSE 输出恢复后的后续内容。
      *
-     * <p>HTTP：POST /api/v1/tool-confirmations/{confirmationId}:resolve-stream
+     * <p>HTTP：POST /api/v1/tool-confirmations/{confirmationId}:resolve-stream</p>
      *
-     * <p>curl：
+     * <p>请求体字段与 {@code :resolve} 相同：{@code agentId} 和 {@code confirmed} 均为必填；
+     * 用户身份从认证上下文获取。</p>
+     *
+     * <p>curl：</p>
      * <pre>
      * curl -N -X POST 'http://localhost:8080/api/v1/tool-confirmations/confirmation-id:resolve-stream' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;' \
      *   -H 'Content-Type: application/json' \
      *   -d '{
      *     "agentId": "100000",
@@ -117,7 +131,7 @@ public class ToolConfirmationController {
      *   }'
      * </pre>
      *
-     * <p>响应说明：
+     * <p>响应说明：</p>
      * <ul>
      *   <li><b>event:message</b> - 恢复任务产生的 assistant 文本片段</li>
      *   <li><b>event:tool-confirmation</b> - 恢复过程再次暂停并需要新的人工确认</li>

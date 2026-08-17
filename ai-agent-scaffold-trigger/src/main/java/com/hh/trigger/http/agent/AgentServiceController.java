@@ -50,14 +50,17 @@ public class AgentServiceController implements IAgentService {
     /**
      * 查询智能体配置列表
      *
-     * <p>HTTP：GET /api/v1/query-agent-list
+     * <p>HTTP：GET /api/v1/query-agent-list</p>
      *
-     * <p>curl：
+     * <p>该接口返回当前已完成配置编译并发布的 Agent。用户身份从认证上下文获取。</p>
+     *
+     * <p>curl：</p>
      * <pre>
-     * curl -X GET 'https://localhost:8080/api/v1/query-agent-list'
+     * curl -X GET 'http://localhost:8080/api/v1/query-agent-list' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;'
      * </pre>
      *
-     * <p>成功响应示例：
+     * <p>成功响应示例：</p>
      * <pre>
      * {
      *   "code": "0000",
@@ -94,18 +97,26 @@ public class AgentServiceController implements IAgentService {
     /**
      * 创建会话
      *
-     * <p>HTTP：POST /api/v1/create-session
+     * <p>HTTP：POST /api/v1/create-session</p>
      *
-     * <p>curl：
+     * <p>请求体字段：</p>
+     * <ul>
+     *   <li>{@code agentId}：必填，要运行的 Agent 标识。</li>
+     * </ul>
+     *
+     * <p>用户身份从认证上下文获取，不接受请求体中的 {@code userId}。</p>
+     *
+     * <p>curl：</p>
      * <pre>
-     * curl -X POST 'https://localhost:8080/api/v1/create-session' \
+     * curl -X POST 'http://localhost:8080/api/v1/create-session' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;' \
      *   -H 'Content-Type: application/json' \
      *   -d '{
      *     "agentId": "100000"
      *   }'
      * </pre>
      *
-     * <p>成功响应示例：
+     * <p>成功响应示例：</p>
      * <pre>
      * {
      *   "code": "0000",
@@ -133,11 +144,21 @@ public class AgentServiceController implements IAgentService {
     /**
      * 同步对话
      *
-     * <p>HTTP：POST /api/v1/chat
+     * <p>HTTP：POST /api/v1/chat</p>
      *
-     * <p>curl：
+     * <p>请求体字段：</p>
+     * <ul>
+     *   <li>{@code agentId}：必填，目标 Agent 标识。</li>
+     *   <li>{@code sessionId}：必填，已有会话标识。</li>
+     *   <li>{@code message}：必填，用户文本消息。</li>
+     * </ul>
+     *
+     * <p>用户身份从认证上下文获取，不接受请求体中的 {@code userId}。</p>
+     *
+     * <p>curl：</p>
      * <pre>
-     * curl -X POST 'https://localhost:8080/api/v1/chat' \
+     * curl -X POST 'http://localhost:8080/api/v1/chat' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;' \
      *   -H 'Content-Type: application/json' \
      *   -d '{
      *     "agentId": "100000",
@@ -146,13 +167,14 @@ public class AgentServiceController implements IAgentService {
      *   }'
      * </pre>
      *
-     * <p>成功响应示例：
+     * <p>成功响应示例：</p>
      * <pre>
      * {
      *   "code": "0000",
      *   "info": "成功",
      *   "data": {
-     *     "content": "你好！很高兴见到你！😊 有什么我可以帮你的吗？比如查询天气或者其他问题？"
+     *     "content": "你好！很高兴见到你！😊 有什么我可以帮你的吗？比如查询天气或者其他问题？",
+     *     "pendingConfirmations": []
      *   }
      * }
      * </pre>
@@ -185,11 +207,21 @@ public class AgentServiceController implements IAgentService {
     /**
      * 流式对话
      *
-     * <p>HTTP：POST /api/v1/chat-stream
+     * <p>HTTP：POST /api/v1/chat-stream</p>
      *
-     * <p>curl：
+     * <p>请求体字段：</p>
+     * <ul>
+     *   <li>{@code agentId}：必填，目标 Agent 标识。</li>
+     *   <li>{@code sessionId}：必填，已有会话标识。</li>
+     *   <li>{@code message}：必填，用户文本消息。</li>
+     * </ul>
+     *
+     * <p>用户身份从认证上下文获取，不接受请求体中的 {@code userId}。</p>
+     *
+     * <p>curl：</p>
      * <pre>
-     * curl -X POST 'https://localhost:8080/api/v1/chat-stream' \
+     * curl -N -X POST 'http://localhost:8080/api/v1/chat-stream' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;' \
      *   -H 'Content-Type: application/json' \
      *   -d '{
      *     "agentId": "100000",
@@ -198,7 +230,7 @@ public class AgentServiceController implements IAgentService {
      *   }'
      * </pre>
      *
-     * <p>成功响应示例（SSE 流式输出，每个事件独立推送）：
+     * <p>成功响应示例（SSE 流式输出，每个事件独立推送）：</p>
      * <pre>
      * event:message
      * data:你好
@@ -219,7 +251,10 @@ public class AgentServiceController implements IAgentService {
      * const abortController = new AbortController();
      * const response = await fetch('/api/v1/chat-stream', {
      *   method: 'POST',
-     *   headers: {'Content-Type': 'application/json'},
+     *   headers: {
+     *     'Content-Type': 'application/json',
+     *     'Authorization': 'Bearer ' + accessToken
+     *   },
      *   body: JSON.stringify({agentId, sessionId, message}),
      *   signal: abortController.signal
      * });
@@ -268,8 +303,43 @@ public class AgentServiceController implements IAgentService {
     /**
      * 多模态同步对话
      *
-     * <p>HTTP：POST /api/v1/chat-multimodal，使用 multipart/form-data，files 可重复上传多个附件。
-     * 首版仅支持图片和 UTF-8 txt 文件；原始附件只在本次模型调用期间保留。</p>
+     * <p>HTTP：POST /api/v1/chat-multimodal</p>
+     *
+     * <p>请求类型为 {@code multipart/form-data}，字段说明：</p>
+     * <ul>
+     *   <li>{@code agentId}：必填，目标 Agent 标识。</li>
+     *   <li>{@code sessionId}：必填，已有会话标识。</li>
+     *   <li>{@code message}：可选，文本消息。</li>
+     *   <li>{@code files}：可选且可重复，上传图片或 UTF-8 编码的 {@code .txt} 文件。</li>
+     * </ul>
+     *
+     * <p>{@code message} 与 {@code files} 至少提供一项。单次最多上传 4 个附件，单个附件不超过
+     * 4 MiB，所有附件合计不超过 8 MiB；用户身份从认证上下文获取，不通过 multipart 字段传入。</p>
+     *
+     * <p>curl：</p>
+     * <pre>
+     * curl -X POST 'http://localhost:8080/api/v1/chat-multimodal' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;' \
+     *   -F 'agentId=100000' \
+     *   -F 'sessionId=eecf9e2e-6913-4898-b20b-12a8d00cf848' \
+     *   -F 'message=请分析这张图片' \
+     *   -F 'files=@cat.jpg;type=image/jpeg'
+     * </pre>
+     *
+     * <p>成功响应示例：</p>
+     * <pre>
+     * {
+     *   "code": "0000",
+     *   "info": "成功",
+     *   "data": {
+     *     "content": "图片中是一只猫。",
+     *     "pendingConfirmations": []
+     *   }
+     * }
+     * </pre>
+     *
+     * <p>原始附件只在当前模型调用生命周期内保留，不写入消息正文；若工具需要人工确认，
+     * {@code pendingConfirmations} 返回确认摘要，后续通过工具确认接口继续任务。</p>
      */
     @PostMapping(value = "/chat-multimodal", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Response<ChatResponseDTO> chatMultimodal(
@@ -292,8 +362,38 @@ public class AgentServiceController implements IAgentService {
     /**
      * 多模态流式对话
      *
-     * <p>HTTP：POST /api/v1/chat-multimodal-stream，使用 multipart/form-data；事件格式与
-     * {@code /chat-stream} 完全一致，附件只在当前模型调用生命周期内保留。</p>
+     * <p>HTTP：POST /api/v1/chat-multimodal-stream</p>
+     *
+     * <p>请求类型为 {@code multipart/form-data}，字段与 {@code /chat-multimodal} 相同：
+     * {@code agentId}、{@code sessionId} 必填，{@code message} 和可重复的 {@code files} 至少提供一项。
+     * 附件仅支持图片和 UTF-8 {@code .txt} 文件，数量及大小限制也相同。</p>
+     *
+     * <p>curl：</p>
+     * <pre>
+     * curl -N -X POST 'http://localhost:8080/api/v1/chat-multimodal-stream' \
+     *   -H 'Authorization: Bearer &lt;access-token&gt;' \
+     *   -F 'agentId=100000' \
+     *   -F 'sessionId=eecf9e2e-6913-4898-b20b-12a8d00cf848' \
+     *   -F 'message=请描述图片内容' \
+     *   -F 'files=@cat.jpg;type=image/jpeg'
+     * </pre>
+     *
+     * <p>响应为 {@code text/event-stream}，事件格式与 {@code /chat-stream} 一致：</p>
+     * <ul>
+     *   <li><b>event:message</b>：assistant 文本片段，客户端按顺序拼接。</li>
+     *   <li><b>event:tool-confirmation</b>：工具需要人工确认时返回的确认摘要。</li>
+     *   <li><b>event:error</b>：安全的 JSON 错误对象，仅包含公开的 {@code code} 和 {@code info}。</li>
+     * </ul>
+     *
+     * <p>示例：</p>
+     * <pre>
+     * event:message
+     * data:这张图片中有一只猫。
+     *
+     * </pre>
+     *
+     * <p>附件只在当前模型调用生命周期内保留。该接口是 POST，不能使用原生 GET
+     * {@code EventSource}，客户端应使用支持 multipart 的请求库读取 SSE 流，并在取消时终止请求。</p>
      */
     @PostMapping(value = "/chat-multimodal-stream", consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.TEXT_EVENT_STREAM_VALUE)
