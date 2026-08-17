@@ -55,7 +55,6 @@ public class MySqlSessionStore implements AdkSessionStore {
     private final TransactionTemplate transactionTemplate;
     private final SessionEventCompactionCleanupSettings compactionCleanupSettings;
 
-    @Autowired
     public MySqlSessionStore(
             SessionDao sessionDao,
             SessionEventDao sessionEventDao,
@@ -66,16 +65,6 @@ public class MySqlSessionStore implements AdkSessionStore {
         // RxJava 的 Callable 在订阅时才执行；事务必须在 Callable 内显式开启，不能依赖方法注解。
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.compactionCleanupSettings = compactionCleanupSettings;
-    }
-
-    /**
-     * 保留给不经过 Spring 组合根的离线测试和历史调用方；生产运行时始终注入显式配置。
-     */
-    public MySqlSessionStore(
-            SessionDao sessionDao,
-            SessionEventDao sessionEventDao,
-            PlatformTransactionManager transactionManager) {
-        this(sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
     }
 
     @Override

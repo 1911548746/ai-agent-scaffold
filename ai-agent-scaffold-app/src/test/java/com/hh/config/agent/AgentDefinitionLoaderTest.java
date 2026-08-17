@@ -2,16 +2,25 @@ package com.hh.config.agent;
 
 import com.hh.config.agent.catalog.AgentConfigurationException;
 import com.hh.config.agent.catalog.AgentDefinitionLoader;
+import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.env.MutablePropertySources;
+import org.springframework.core.io.Resource;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.mock.env.MockEnvironment;
 
+import java.io.IOException;
 import java.util.List;
+
+import static org.springframework.boot.context.properties.source.ConfigurationPropertySources.from;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,7 +50,7 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void compilesLegacyExamplesIntoEquivalentDefinitions() {
-        List<AgentDefinition> definitions = loader.load("classpath:agent/catalog/default-catalog.yml");
+        List<AgentDefinition> definitions = load("classpath:agent/catalog/default-catalog.yml");
 
         // catalog 中的顺序是对外展示和日志的稳定顺序，迁移后不能被 Map 遍历打乱。
         assertThat(definitions).extracting(AgentDefinition::getId)
@@ -125,7 +134,7 @@ class AgentDefinitionLoaderTest {
     @Test
     void rejectsDuplicateIdsWithBothConfigurationPaths() {
         // 重复 ID 必须同时指出两份资源，排查者才能直接定位冲突来源。
-        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/invalid/duplicate-agent-catalog.yml"))
+        assertThatThrownBy(() -> load("classpath:agent/catalog/invalid/duplicate-agent-catalog.yml"))
                 .isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("duplicate-agent-one.yml")
                 .hasMessageContaining("duplicate-agent-two.yml")
@@ -134,7 +143,7 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void compilesPureSlidingWindowRetentionSize() {
-        AgentDefinition definition = loader.load("classpath:agent/catalog/pure-sliding-window-catalog.yml")
+        AgentDefinition definition = load("classpath:agent/catalog/pure-sliding-window-catalog.yml")
                 .get(0);
 
         // 配置编译只传递策略参数；是否创建 ADK summarizer 由基础设施 RunnerNode 决定。
@@ -144,7 +153,7 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void discoversNestedModuleResourcesWithoutCatalogFileEntries() {
-        AgentDefinition definition = loader.load("classpath:agent/catalog/discovery/wildcard-catalog.yml")
+        AgentDefinition definition = load("classpath:agent/catalog/discovery/wildcard-catalog.yml")
                 .get(0);
 
         // application 与其他模块一样从递归目录发现，catalog 不再需要维护发布入口的内联列表。
@@ -162,7 +171,7 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void deduplicatesTheSameResourceMatchedByMultipleLocations() {
-        AgentDefinition definition = loader.load("classpath:agent/catalog/discovery/overlapping-catalog.yml")
+        AgentDefinition definition = load("classpath:agent/catalog/discovery/overlapping-catalog.yml")
                 .get(0);
 
         // 同一 Tool 同时被递归模式和精确路径命中时不能被误报为重复 ID。
@@ -172,7 +181,7 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void rejectsResourcePatternWithoutAnyMatchingFiles() {
-        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/discovery/missing-resource-catalog.yml"))
+        assertThatThrownBy(() -> load("classpath:agent/catalog/discovery/missing-resource-catalog.yml"))
                 .isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("classpath:agent-fixtures/discovery/missing-tools/**/*.yml")
                 .hasMessageContaining("does not match any files");
@@ -181,7 +190,7 @@ class AgentDefinitionLoaderTest {
     @Test
     void rejectsUnknownReferencesWithConfigurationPath() {
         // 跨文件引用错误必须在 ADK Builder 之前失败。
-        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/invalid/unknown-reference-catalog.yml"))
+        assertThatThrownBy(() -> load("classpath:agent/catalog/invalid/unknown-reference-catalog.yml"))
                 .isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("unknown-reference-agent.yml")
                 .hasMessageContaining("tool-refs")
@@ -191,7 +200,7 @@ class AgentDefinitionLoaderTest {
     @Test
     void rejectsWorkflowCyclesWithConfigurationPaths() {
         // 循环错误需要包含完整环路和所有参与资源，而不是只报告最后访问的节点。
-        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/invalid/cyclic-workflow-catalog.yml"))
+        assertThatThrownBy(() -> load("classpath:agent/catalog/invalid/cyclic-workflow-catalog.yml"))
                 .isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("cycle-a.yml")
                 .hasMessageContaining("cycle-b.yml")
@@ -200,7 +209,7 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void sortsWorkflowDependenciesBeforeTheirConsumers() {
-        List<AgentDefinition> definitions = loader.load("classpath:agent/catalog/topological-catalog.yml");
+        List<AgentDefinition> definitions = load("classpath:agent/catalog/topological-catalog.yml");
 
         // 旧策略树按列表顺序创建工作流，因此子节点必须排在父节点之前。
         assertThat(definitions).singleElement().satisfies(definition ->
@@ -212,7 +221,7 @@ class AgentDefinitionLoaderTest {
     @Test
     void rejectsCatalogEntryWithoutRootAgent() {
         // 没有 root 就无法构造 App.rootAgent，不能等到 Runner 创建时再报空指针。
-        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/invalid/missing-root-catalog.yml"))
+        assertThatThrownBy(() -> load("classpath:agent/catalog/invalid/missing-root-catalog.yml"))
                 .isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("missing-root-catalog.yml")
                 .hasMessageContaining("root");
@@ -221,7 +230,7 @@ class AgentDefinitionLoaderTest {
     @Test
     void rejectsMultipleMcpTransportsWithoutLeakingHeaders() {
         // 既验证 transport 互斥，也验证错误消息没有泄露测试 header 或模型占位符的实际解析值。
-        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/invalid/multiple-transports-catalog.yml"))
+        assertThatThrownBy(() -> load("classpath:agent/catalog/invalid/multiple-transports-catalog.yml"))
                 .isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("multiple-transports-tool.yml")
                 .hasMessageContaining("exactly one transport")
@@ -231,7 +240,7 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void rejectsLegacyLocalTransportShape() {
-        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/invalid/legacy-local-catalog.yml"))
+        assertThatThrownBy(() -> load("classpath:agent/catalog/invalid/legacy-local-catalog.yml"))
                 .isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("legacy-local-tool.yml")
                 .hasMessageContaining("no local fields");
@@ -239,10 +248,26 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void rejectsIncompleteLocalTool() {
-        assertThatThrownBy(() -> loader.load("classpath:agent/catalog/invalid/invalid-local-catalog.yml"))
+        assertThatThrownBy(() -> load("classpath:agent/catalog/invalid/invalid-local-catalog.yml"))
                 .isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("invalid-local-tool.yml")
                 .hasMessageContaining("bean-name and method-name");
+    }
+
+    /** 测试自行完成 YAML 到 catalog 属性的绑定，生产 Loader 只保留正式的属性入口。 */
+    private List<AgentDefinition> load(String catalogLocation) {
+        try {
+            Resource resource = new DefaultResourceLoader().getResource(catalogLocation);
+            MutablePropertySources sources = new MutablePropertySources();
+            new YamlPropertySourceLoader().load(catalogLocation, resource).forEach(sources::addLast);
+            AgentCatalogProperties catalog = new Binder(from(sources))
+                    .bind("ai.agent.config", Bindable.of(AgentCatalogProperties.class))
+                    .orElseThrow(() -> new IllegalStateException("missing test catalog binding"));
+            catalog.setCatalogPath(catalogLocation);
+            return loader.load(catalog);
+        } catch (IOException exception) {
+            throw new IllegalStateException("unable to load test catalog " + catalogLocation, exception);
+        }
     }
 
     /**

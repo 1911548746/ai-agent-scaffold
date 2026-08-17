@@ -6,6 +6,7 @@ import com.google.adk.events.EventActions;
 import com.google.adk.sessions.Session;
 import com.hh.infrastructure.agent.adapter.repository.ConversationArchiveRepository;
 import com.hh.infrastructure.agent.agent.session.impl.MySqlSessionStore;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
 import com.hh.infrastructure.agent.dao.ConversationDao;
 import com.hh.infrastructure.agent.dao.MessageDao;
 import com.hh.infrastructure.agent.dao.SessionDao;
@@ -84,7 +85,8 @@ class IdempotentPersistenceAdapterTest {
     void duplicateSessionCreationReadsTheDatabaseWinnerInsteadOfThrowingDuplicateKey() {
         SessionDao sessionDao = mock(SessionDao.class);
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
-        MySqlSessionStore store = new MySqlSessionStore(sessionDao, sessionEventDao, transactionManager());
+        MySqlSessionStore store = new MySqlSessionStore(
+                sessionDao, sessionEventDao, transactionManager(), new SessionEventCompactionCleanupSettings(true));
         SessionPO persisted = SessionPO.builder()
                 .id(7L)
                 .appName("app-a")
@@ -109,7 +111,8 @@ class IdempotentPersistenceAdapterTest {
         SessionDao sessionDao = mock(SessionDao.class);
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
-        MySqlSessionStore store = new MySqlSessionStore(sessionDao, sessionEventDao, transactionManager);
+        MySqlSessionStore store = new MySqlSessionStore(
+                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
         Session session = session("session-a");
         Event event = Event.builder()
                 .id("event-a")
@@ -142,7 +145,8 @@ class IdempotentPersistenceAdapterTest {
         SessionDao sessionDao = mock(SessionDao.class);
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
-        MySqlSessionStore store = new MySqlSessionStore(sessionDao, sessionEventDao, transactionManager);
+        MySqlSessionStore store = new MySqlSessionStore(
+                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
         Event partialEvent = Event.builder()
                 .id("partial-a")
                 .author("agent-a")
@@ -163,7 +167,8 @@ class IdempotentPersistenceAdapterTest {
         SessionDao sessionDao = mock(SessionDao.class);
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
-        MySqlSessionStore store = new MySqlSessionStore(sessionDao, sessionEventDao, transactionManager);
+        MySqlSessionStore store = new MySqlSessionStore(
+                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
         Session session = session("session-a");
         Event partialEvent = Event.builder()
                 .id("partial-state-a")
@@ -193,7 +198,8 @@ class IdempotentPersistenceAdapterTest {
         SessionDao sessionDao = mock(SessionDao.class);
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
-        MySqlSessionStore store = new MySqlSessionStore(sessionDao, sessionEventDao, transactionManager);
+        MySqlSessionStore store = new MySqlSessionStore(
+                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
         Session session = session("session-a");
 
         store.appendEvent(session, Event.builder()
@@ -226,7 +232,8 @@ class IdempotentPersistenceAdapterTest {
         SessionDao sessionDao = mock(SessionDao.class);
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
-        MySqlSessionStore store = new MySqlSessionStore(sessionDao, sessionEventDao, transactionManager);
+        MySqlSessionStore store = new MySqlSessionStore(
+                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
         when(sessionEventDao.upsertByEventIdentity(any(SessionEventPO.class)))
                 .thenThrow(new IllegalStateException("event write failed"));
         Event event = Event.builder()

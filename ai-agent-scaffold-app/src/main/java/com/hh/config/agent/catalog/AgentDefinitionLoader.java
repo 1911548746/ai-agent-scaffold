@@ -72,18 +72,6 @@ public class AgentDefinitionLoader {
     }
 
     /**
-     * 从 classpath/file 资源直接加载 catalog，主要供离线编译测试和非 Spring 调用方使用。
-     */
-    public List<AgentDefinition> load(String catalogLocation) {
-        AgentCatalogProperties catalog = bind(
-                catalogLocation,
-                "ai.agent.config",
-                AgentCatalogProperties.class);
-        catalog.setCatalogPath(catalogLocation);
-        return load(catalog);
-    }
-
-    /**
      * 编译已经由 Spring 绑定的 catalog。
      *
      * <p>所有模块会先完整校验，再生成定义列表；不能因为前几个资源可用就发布半成品配置。</p>
