@@ -54,15 +54,15 @@ public class JwtTokenService implements JwtTokenPort {
     }
 
     @Override
-    public String issue(UserAccount userAccount) {
-        Date issuedAt = Date.from(clock.instant());
+    public String generate(UserAccount userAccount) {
+        Date createdAt = Date.from(clock.instant());
         Date expiration = Date.from(clock.instant().plusSeconds(accessTokenTtlSeconds));
 
         return Jwts.builder()
                 .issuer(issuer)
                 .subject(userAccount.userId())
                 .claim(USERNAME_CLAIM, userAccount.username())
-                .issuedAt(issuedAt)
+                .issuedAt(createdAt)
                 .expiration(expiration)
                 .signWith(signingKey, Jwts.SIG.HS256)
                 .compact();

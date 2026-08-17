@@ -24,7 +24,7 @@ class JwtTokenServiceTest {
         JwtTokenService service = new JwtTokenService(
                 "01234567890123456789012345678901", "test-issuer", 3600, CLOCK);
 
-        String token = service.issue(USER);
+        String token = service.generate(USER);
 
         assertThat(service.parse(token).userId()).isEqualTo("user-1");
         assertThat(service.parse(token).username()).isEqualTo("alice");
@@ -34,7 +34,7 @@ class JwtTokenServiceTest {
     void rejectsTamperedAndExpiredTokens() {
         JwtTokenService service = new JwtTokenService(
                 "01234567890123456789012345678901", "test-issuer", 3600, CLOCK);
-        String token = service.issue(USER);
+        String token = service.generate(USER);
         String[] parts = token.split("\\.");
         String tampered = parts[0] + "." + parts[1] + "x." + parts[2];
 
@@ -44,7 +44,7 @@ class JwtTokenServiceTest {
                 "01234567890123456789012345678901", "test-issuer", 1,
                 Clock.fixed(NOW.plusSeconds(2), ZoneOffset.UTC));
         String expiredToken = new JwtTokenService(
-                "01234567890123456789012345678901", "test-issuer", 1, CLOCK).issue(USER);
+                "01234567890123456789012345678901", "test-issuer", 1, CLOCK).generate(USER);
         assertThatThrownBy(() -> expired.parse(expiredToken)).isInstanceOf(AuthenticationException.class);
     }
 
@@ -55,7 +55,7 @@ class JwtTokenServiceTest {
         JwtTokenService issuerB = new JwtTokenService(
                 "01234567890123456789012345678901", "issuer-b", 3600, CLOCK);
 
-        String token = issuerA.issue(USER);
+        String token = issuerA.generate(USER);
 
         assertThatThrownBy(() -> issuerB.parse(token)).isInstanceOf(AuthenticationException.class);
     }

@@ -49,7 +49,7 @@ public class AuthApplicationService implements AuthUseCase {
         if (!userAccountPort.create(userAccount)) {
             throw new AppException(ResponseCode.USERNAME_ALREADY_EXISTS);
         }
-        return issueToken(userAccount);
+        return generateToken(userAccount);
     }
 
     @Override
@@ -57,17 +57,19 @@ public class AuthApplicationService implements AuthUseCase {
         UserAccount userAccount = userAccountPort.findByUsername(normalizeUsername(username))
                 .orElseThrow(() -> new AppException(ResponseCode.INVALID_CREDENTIALS));
 
-        // 用户不存在和密码错误使用同一公开错误，防止登录接口成为用户名枚举入口。
+        // 用户不存在或密码错误
         if (!passwordHashPort.matches(password, userAccount.passwordHash())) {
             throw new AppException(ResponseCode.INVALID_CREDENTIALS);
         }
-        return issueToken(userAccount);
+        return generateToken(userAccount);
     }
 
-    private AuthenticationResult issueToken(UserAccount userAccount) {
-        return new AuthenticationResult(jwtTokenPort.issue(userAccount), accessTokenTtlSeconds);
+    // 根据用户账号信息，生成 token
+    private AuthenticationResult generateToken(UserAccount userAccount) {
+        return new AuthenticationResult(jwtTokenPort.generate(userAccount), accessTokenTtlSeconds);
     }
 
+    // 规范化用户名, 去除首尾空格
     private String normalizeUsername(String username) {
         return username == null ? "" : username.trim();
     }
