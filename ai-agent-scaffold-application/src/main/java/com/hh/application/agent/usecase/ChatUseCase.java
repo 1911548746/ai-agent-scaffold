@@ -23,6 +23,9 @@ public interface ChatUseCase {
 
     ChatStream handleMessageStream(String agentId, String userId, String sessionId, String message);
 
+    /** 处理包含文本和附件的多模态流式对话。 */
+    ChatStream handleMessageStream(ChatCommandEntity command);
+
     ChatResult handleMessage(ChatCommandEntity chatCommandEntity);
 
 }

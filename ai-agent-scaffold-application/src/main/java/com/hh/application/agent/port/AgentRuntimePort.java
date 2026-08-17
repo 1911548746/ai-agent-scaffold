@@ -29,9 +29,19 @@ public interface AgentRuntimePort {
      */
     void requireSession(String agentId, String userId, String sessionId);
 
+    /** 同步调用 */
     ChatResult run(String agentId, String userId, String sessionId, String message);
 
-    /** 使用 ADK FunctionResponse 恢复同一 Session 中被暂停的工具调用。 */
+    /** 流式调用 */
+    ChatStream runStream(String agentId, String userId, String sessionId, String message);
+
+    /** 多模态同步调用 */
+    ChatResult run(String agentId, ChatCommandEntity command);
+
+    /** 多模态流式调用 */
+    ChatStream runStream(String agentId, ChatCommandEntity command);
+
+    /** HITL 恢复 同步调用 */
     ChatResult runConfirmation(
             String agentId,
             String userId,
@@ -39,15 +49,11 @@ public interface AgentRuntimePort {
             String confirmationCallId,
             boolean confirmed);
 
-    ChatStream runStream(String agentId, String userId, String sessionId, String message);
-
+    /** HITL 恢复 流式调用 */
     ChatStream runConfirmationStream(
             String agentId,
             String userId,
             String sessionId,
             String confirmationCallId,
             boolean confirmed);
-
-    ChatResult run(String agentId, ChatCommandEntity command);
-
 }

@@ -8,6 +8,7 @@ import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.application.agent.port.MessageArchivePort;
 import com.hh.domain.agent.model.enums.MessageStatus;
+import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import org.junit.jupiter.api.Test;
@@ -86,6 +87,35 @@ class ChatApplicationServiceStreamingTest {
         assertThat(upstreamCancellations).hasValue(1);
         verify(messageArchivePort).updateAssistantMessageStatus(1L, 2L, MessageStatus.CANCELLED);
         verify(messageArchivePort, never()).completeAssistantMessage(any(), any(), any());
+    }
+
+    @Test
+    void multimodalStreamUsesCommandRuntimeAndArchivesOnlyAttachmentSummary() {
+        ChatStream stream = observer -> {
+            observer.onEvent(new ChatEvent("图片分析结果"));
+            observer.onComplete();
+            return () -> { };
+        };
+        when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
+        when(agentRuntimePort.runStream(eq("agent-a"), any(ChatCommandEntity.class))).thenReturn(stream);
+        when(conversationArchivePort.findOrCreateConversation("app-a", "user-1", "session-1"))
+                .thenReturn(1L);
+        when(messageArchivePort.createPendingAssistantMessage(1L, "app-a", "user-1", "session-1"))
+                .thenReturn(2L);
+
+        ChatCommandEntity command = ChatCommandEntity.builder()
+                .agentId("agent-a")
+                .userId("user-1")
+                .sessionId("session-1")
+                .inlineDatas(java.util.List.of(new ChatCommandEntity.Content.InlineData(
+                        new byte[]{1, 2, 3}, "image/jpeg")))
+                .build();
+
+        chatService.handleMessageStream(command).subscribe(noOpObserver());
+
+        verify(messageArchivePort).saveUserMessage(1L, "app-a", "user-1", "session-1", "用户上传了 1 个附件");
+        verify(messageArchivePort).completeAssistantMessage(1L, 2L, "图片分析结果");
+        verify(agentRuntimePort).runStream("agent-a", command);
     }
 
     @Test

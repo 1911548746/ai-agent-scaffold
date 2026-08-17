@@ -56,11 +56,6 @@ public class SessionInvocationCoordinator {
         this.executor = executor;
     }
 
-    /** 供不启动 Spring 的离线单测和历史 Adapter 构造方式使用。 */
-    public static SessionInvocationCoordinator direct() {
-        return new SessionInvocationCoordinator(Runnable::run);
-    }
-
     public InvocationLease begin(
             AdkAgentRuntime runtime,
             String userId,

@@ -54,11 +54,6 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         this.compactionCoordinator = compactionCoordinator;
     }
 
-    /** 保持既有离线测试和非 Spring 使用方的构造方式。 */
-    public AdkAgentRuntimeAdapter(AdkAgentRuntimeRegistry runtimeRegistry) {
-        this(runtimeRegistry, SessionInvocationCoordinator.direct());
-    }
-
     @Override
     public List<AgentDescriptor> listAgents() {
         return runtimeRegistry.snapshot().values().stream()
@@ -91,6 +86,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         }
     }
 
+    /** 同步调用 */
     @Override
     public ChatResult run(String agentId, String userId, String sessionId, String message) {
 
@@ -115,26 +111,26 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         }
     }
 
+    /** 流式调用 */
     @Override
-    public ChatResult runConfirmation(
-            String agentId,
-            String userId,
-            String sessionId,
-            String confirmationCallId,
-            boolean confirmed) {
-        // 恢复输入不是自然语言消息，而是 ADK 识别的确认 FunctionResponse。
+    public ChatStream runStream(String agentId, String userId, String sessionId, String message) {
+        AdkAgentRuntime runtime = requireRuntime(agentId);
+        Content content = Content.fromParts(Part.fromText(message));
+        return runStream(runtime, userId, sessionId, content);
+    }
+
+    /** 多模态同步调用 */
+    @Override
+    public ChatResult run(String agentId, ChatCommandEntity command) {
         List<String> outputs = new ArrayList<>();
         List<ToolConfirmationRequest> confirmations = new ArrayList<>();
         Set<String> emittedConfirmations = new HashSet<>();
-
         AdkAgentRuntime runtime = requireRuntime(agentId);
-        Content content = confirmationContent(confirmationCallId, confirmed);
-
+        Content content = commandContent(command);
         SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
-                runtime, userId, sessionId, content);
+                runtime, command.getUserId(), command.getSessionId(), content);
         try {
-            // 仍使用原 Session 的 InvocationLease，避免恢复与同一会话中的新对话并发写入 Event。
-            runAsync(runtime, userId, sessionId, content, runtime.runConfig())
+            runAsync(runtime, command.getUserId(), command.getSessionId(), content, runtime.runConfig())
                     .blockingForEach(event -> appendFinalResponse(
                             outputs, confirmations, emittedConfirmations, event));
             lease.success();
@@ -145,13 +141,22 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         }
     }
 
+    /** 多模态流式调用 */
     @Override
-    public ChatStream runStream(String agentId, String userId, String sessionId, String message) {
+    public ChatStream runStream(String agentId, ChatCommandEntity command) {
         AdkAgentRuntime runtime = requireRuntime(agentId);
+        return runStream(runtime, command.getUserId(), command.getSessionId(), commandContent(command));
+    }
+
+    /** 统一处理文本和多模态流，确保两种入口使用相同的租约和取消语义。 */
+    private ChatStream runStream(
+            AdkAgentRuntime runtime,
+            String userId,
+            String sessionId,
+            Content content) {
         RunConfig runConfig = runtime.runConfig().toBuilder()
                 .streamingMode(RunConfig.StreamingMode.SSE)
                 .build();
-        Content content = Content.fromParts(Part.fromText(message));
         return observer -> {
             SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
                     runtime, userId, sessionId, content);
@@ -183,6 +188,38 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         };
     }
 
+    /** HITL 恢复 同步调用 */
+    @Override
+    public ChatResult runConfirmation(
+            String agentId,
+            String userId,
+            String sessionId,
+            String confirmationCallId,
+            boolean confirmed) {
+        // 恢复输入不是自然语言消息，而是 ADK 识别的确认 FunctionResponse。
+        List<String> outputs = new ArrayList<>();
+        List<ToolConfirmationRequest> confirmations = new ArrayList<>();
+        Set<String> emittedConfirmations = new HashSet<>();
+
+        AdkAgentRuntime runtime = requireRuntime(agentId);
+        Content content = confirmationContent(confirmationCallId, confirmed);
+
+        SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
+                runtime, userId, sessionId, content);
+        try {
+            // 仍使用原 Session 的 InvocationLease，避免恢复与同一会话中的新对话并发写入 Event。
+            runAsync(runtime, userId, sessionId, content, runtime.runConfig())
+                    .blockingForEach(event -> appendFinalResponse(
+                            outputs, confirmations, emittedConfirmations, event));
+            lease.success();
+            return new ChatResult(outputs, confirmations);
+        } catch (RuntimeException | Error error) {
+            lease.fail();
+            throw error;
+        }
+    }
+
+    /** HITL 恢复 流式调用 */
     @Override
     public ChatStream runConfirmationStream(
             String agentId,
@@ -226,12 +263,10 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         };
     }
 
-    @Override
-    public ChatResult run(String agentId, ChatCommandEntity command) {
+
+    /** 将 ChatCommandEntity 转换为 Content (UserMessage) */
+    private Content commandContent(ChatCommandEntity command) {
         List<Part> parts = new ArrayList<>();
-        List<String> outputs = new ArrayList<>();
-        List<ToolConfirmationRequest> confirmations = new ArrayList<>();
-        Set<String> emittedConfirmations = new HashSet<>();
         if (command.getTexts() != null) {
             command.getTexts().forEach(text -> parts.add(Part.fromText(text.getMessage())));
         }
@@ -241,22 +276,9 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         if (command.getInlineDatas() != null) {
             command.getInlineDatas().forEach(data -> parts.add(Part.fromBytes(data.getBytes(), data.getMimeType())));
         }
-
-        AdkAgentRuntime runtime = requireRuntime(agentId);
-        Content content = Content.builder().role("user").parts(parts).build();
-        SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
-                runtime, command.getUserId(), command.getSessionId(), content);
-        try {
-            runAsync(runtime, command.getUserId(), command.getSessionId(), content, runtime.runConfig())
-                    .blockingForEach(event -> appendFinalResponse(
-                            outputs, confirmations, emittedConfirmations, event));
-            lease.success();
-            return new ChatResult(outputs, confirmations);
-        } catch (RuntimeException | Error error) {
-            lease.fail();
-            throw error;
-        }
+        return Content.builder().role("user").parts(parts).build();
     }
+
 
     /**
      * 统一建立 ADK 响应式调用，并在错误通道中完成模型异常映射。

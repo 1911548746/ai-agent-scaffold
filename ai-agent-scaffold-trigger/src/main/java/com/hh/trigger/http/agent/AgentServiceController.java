@@ -5,6 +5,7 @@ import com.hh.api.agent.dto.*;
 import com.hh.api.agent.response.Response;
 import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.model.ChatResult;
+import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.usecase.ChatUseCase;
@@ -15,6 +16,7 @@ import com.hh.trigger.http.agent.parser.ParsedAttachment;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.trigger.http.agent.support.StreamErrorResponseMapper;
 import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
+import com.hh.types.exception.AppException;
 import com.hh.types.support.SensitiveDataRedactor;
 import com.hh.types.validation.RequestPayloadLimits;
 import jakarta.validation.Valid;
@@ -28,6 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -128,7 +131,7 @@ public class AgentServiceController implements IAgentService {
     }
 
     /**
-     * 智能体对话
+     * 同步对话
      *
      * <p>HTTP：POST /api/v1/chat
      *
@@ -178,59 +181,9 @@ public class AgentServiceController implements IAgentService {
         return Response.success(chatResponseDTO);
     }
 
-    /**
-     * 多模态同步对话。
-     *
-     * <p>HTTP：POST /api/v1/chat-multimodal，使用 multipart/form-data，files 可重复上传多个附件。
-     * 首版仅支持图片和 UTF-8 txt 文件；原始附件只在本次模型调用期间保留。</p>
-     */
-    @PostMapping(value = "/chat-multimodal", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Response<ChatResponseDTO> chatMultimodal(
-            @RequestParam String agentId,
-            @RequestParam String sessionId,
-            @RequestParam(required = false) String message,
-            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
-
-        if (agentId == null || agentId.isBlank() || agentId.length() > RequestPayloadLimits.MAX_IDENTIFIER_LENGTH
-                || sessionId == null || sessionId.isBlank()
-                || sessionId.length() > RequestPayloadLimits.MAX_SESSION_ID_LENGTH
-                || message != null && message.length() > RequestPayloadLimits.MAX_TEXT_LENGTH) {
-            throw new com.hh.types.exception.AppException(com.hh.types.enums.ResponseCode.ILLEGAL_PARAMETER);
-        }
-
-        List<ParsedAttachment> parsedAttachments = multimodalAttachmentParser.parse(files);
-        if ((message == null || message.isBlank()) && parsedAttachments.isEmpty()) {
-            throw new com.hh.types.exception.AppException(
-                    com.hh.types.enums.ResponseCode.ILLEGAL_PARAMETER.getCode(), "message或files至少提供一项");
-        }
-
-        List<ChatCommandEntity.Content.Text> texts = message == null || message.isBlank()
-                ? List.of()
-                : List.of(new ChatCommandEntity.Content.Text(message));
-
-        List<ChatCommandEntity.Content.InlineData> inlineDatas = parsedAttachments.stream()
-                .map(file -> new ChatCommandEntity.Content.InlineData(file.bytes(), file.mimeType()))
-                .toList();
-
-        ChatCommandEntity command = ChatCommandEntity.builder()
-                .agentId(agentId)
-                .userId(AuthenticatedPrincipalContext.requireCurrent().userId())
-                .sessionId(sessionId)
-                .texts(texts)
-                .inlineDatas(inlineDatas)
-                .build();
-
-        ChatResult result = chatUseCase.handleMessage(command);
-
-        ChatResponseDTO chatResponseDTO = new ChatResponseDTO(
-                result.joinContents(),
-                result.pendingConfirmations().stream().map(this::toConfirmationResponse).toList());
-
-        return Response.success(chatResponseDTO);
-    }
 
     /**
-     * 智能体对话流式输出
+     * 流式对话
      *
      * <p>HTTP：POST /api/v1/chat-stream
      *
@@ -307,6 +260,94 @@ public class AgentServiceController implements IAgentService {
         log.info("智能体对话流式输出 agentId:{} userId:{} sessionId:{}",
                 requestDTO.agentId(), userId, requestDTO.sessionId());
 
+        return openStream(() -> chatUseCase.handleMessageStream(
+                requestDTO.agentId(), userId, requestDTO.sessionId(), requestDTO.message()));
+    }
+
+
+    /**
+     * 多模态同步对话
+     *
+     * <p>HTTP：POST /api/v1/chat-multimodal，使用 multipart/form-data，files 可重复上传多个附件。
+     * 首版仅支持图片和 UTF-8 txt 文件；原始附件只在本次模型调用期间保留。</p>
+     */
+    @PostMapping(value = "/chat-multimodal", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Response<ChatResponseDTO> chatMultimodal(
+            @RequestParam String agentId,
+            @RequestParam String sessionId,
+            @RequestParam(required = false) String message,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+
+        ChatCommandEntity command = buildMultimodalCommand(agentId, sessionId, message, files);
+
+        ChatResult result = chatUseCase.handleMessage(command);
+
+        ChatResponseDTO chatResponseDTO = new ChatResponseDTO(
+                result.joinContents(),
+                result.pendingConfirmations().stream().map(this::toConfirmationResponse).toList());
+
+        return Response.success(chatResponseDTO);
+    }
+
+    /**
+     * 多模态流式对话
+     *
+     * <p>HTTP：POST /api/v1/chat-multimodal-stream，使用 multipart/form-data；事件格式与
+     * {@code /chat-stream} 完全一致，附件只在当前模型调用生命周期内保留。</p>
+     */
+    @PostMapping(value = "/chat-multimodal-stream", consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter chatMultimodalStream(
+            @RequestParam String agentId,
+            @RequestParam String sessionId,
+            @RequestParam(required = false) String message,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+        ChatCommandEntity command = buildMultimodalCommand(agentId, sessionId, message, files);
+        String userId = command.getUserId();
+        log.info("智能体多模态对话流式输出 agentId:{} userId:{} sessionId:{}",
+                agentId, userId, sessionId);
+        return openStream(() -> chatUseCase.handleMessageStream(command));
+    }
+
+    /** 将 MultipartFile 请求转换为 ChatCommandEntity，并完成参数校验。 */
+    private ChatCommandEntity buildMultimodalCommand(
+            String agentId,
+            String sessionId,
+            String message,
+            List<MultipartFile> files) {
+        if (agentId == null || agentId.isBlank() || agentId.length() > RequestPayloadLimits.MAX_IDENTIFIER_LENGTH
+                || sessionId == null || sessionId.isBlank()
+                || sessionId.length() > RequestPayloadLimits.MAX_SESSION_ID_LENGTH
+                || message != null && message.length() > RequestPayloadLimits.MAX_TEXT_LENGTH) {
+            throw new AppException(com.hh.types.enums.ResponseCode.ILLEGAL_PARAMETER);
+        }
+
+        // 解析附件, 获取附件byte[]数组和文件类型
+        List<ParsedAttachment> parsedAttachments = multimodalAttachmentParser.parse(files);
+        if ((message == null || message.isBlank()) && parsedAttachments.isEmpty()) {
+            throw new AppException(
+                    com.hh.types.enums.ResponseCode.ILLEGAL_PARAMETER.getCode(), "message或files至少提供一项");
+        }
+
+        List<ChatCommandEntity.Content.Text> texts = message == null || message.isBlank()
+                ? List.of()
+                : List.of(new ChatCommandEntity.Content.Text(message));
+        List<ChatCommandEntity.Content.InlineData> inlineDatas = parsedAttachments.stream()
+                .map(file -> new ChatCommandEntity.Content.InlineData(file.bytes(), file.mimeType()))
+                .toList();
+
+        return ChatCommandEntity.builder()
+                .agentId(agentId)
+                .userId(AuthenticatedPrincipalContext.requireCurrent().userId())
+                .sessionId(sessionId)
+                .texts(texts)
+                .inlineDatas(inlineDatas)
+                .build();
+    }
+
+
+    /** 统一建立 SSE 连接并管理上游 ChatStream 的订阅、取消和安全错误响应。 */
+    private SseEmitter openStream(Supplier<ChatStream> streamSupplier) {
         SseEmitter emitter = createEmitter();
 
         AtomicReference<ChatSubscription> subscriptionReference = new AtomicReference<>();
@@ -334,12 +375,7 @@ public class AgentServiceController implements IAgentService {
 
         try {
             // trigger 只把项目 ChatEvent 编码为 SSE，不接触 ADK Event 或 RxJava Disposable。
-            ChatSubscription subscription = chatUseCase.handleMessageStream(
-                    requestDTO.agentId(),
-                    userId,
-                    requestDTO.sessionId(),
-                    requestDTO.message()
-            ).subscribe(new ChatStreamObserver() {
+            ChatSubscription subscription = streamSupplier.get().subscribe(new ChatStreamObserver() {
                 @Override
                 public void onEvent(ChatEvent event) {
                     try {

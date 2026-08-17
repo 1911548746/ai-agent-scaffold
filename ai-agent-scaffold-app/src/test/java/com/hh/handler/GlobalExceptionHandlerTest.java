@@ -98,6 +98,20 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void unsupportedModelCapabilityReturnsDedicatedBusinessCode() {
+        ModelInvocationException exception = new ModelInvocationException(
+                ModelInvocationException.FailureType.UNSUPPORTED_CAPABILITY,
+                new IllegalStateException("provider capability detail"));
+
+        ResponseEntity<Response<Void>> entity = handler.handleModelInvocationException(request(), exception);
+
+        assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        assertThat(entity.getBody()).isNotNull();
+        assertThat(entity.getBody().getCode()).isEqualTo(ResponseCode.MODEL_CAPABILITY_UNSUPPORTED.getCode());
+        assertThat(entity.getBody().getInfo()).isEqualTo(ResponseCode.MODEL_CAPABILITY_UNSUPPORTED.getInfo());
+    }
+
+    @Test
     void preflightCompactionFailureReturnsRetryableServiceUnavailableResponse() {
         ResponseEntity<Response<Void>> entity = handler.handleContextCompactionException(
                 request(), new ContextCompactionException(new IllegalStateException("provider details")));

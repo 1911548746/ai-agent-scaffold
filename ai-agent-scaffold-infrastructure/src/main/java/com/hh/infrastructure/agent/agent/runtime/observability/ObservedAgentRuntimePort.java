@@ -97,6 +97,12 @@ public class ObservedAgentRuntimePort implements AgentRuntimePort {
     }
 
     @Override
+    public ChatStream runStream(String agentId, ChatCommandEntity command) {
+        ChatStream delegateStream = delegate.runStream(agentId, command);
+        return observeStream(agentId, "multimodal-stream", delegateStream);
+    }
+
+    @Override
     public ChatStream runConfirmationStream(
             String agentId, String userId, String sessionId,
             String confirmationCallId, boolean confirmed) {
@@ -104,6 +110,24 @@ public class ObservedAgentRuntimePort implements AgentRuntimePort {
                 agentId, userId, sessionId, confirmationCallId, confirmed);
         return observer -> {
             AgentRuntimeObservability.Invocation invocation = observability.startInvocation(agentId, "confirmation-stream");
+            try {
+                var subscription = delegateStream.subscribe(observedObserver(observer, invocation));
+                return () -> invocation.inScope(() -> {
+                    if (invocation.cancel()) {
+                        subscription.cancel();
+                    }
+                });
+            } catch (RuntimeException | Error error) {
+                invocation.error(error);
+                throw error;
+            }
+        };
+    }
+
+    /** 为不同流式入口复用订阅阶段的观测和取消处理。 */
+    private ChatStream observeStream(String agentId, String operation, ChatStream delegateStream) {
+        return observer -> {
+            AgentRuntimeObservability.Invocation invocation = observability.startInvocation(agentId, operation);
             try {
                 var subscription = delegateStream.subscribe(observedObserver(observer, invocation));
                 return () -> invocation.inScope(() -> {

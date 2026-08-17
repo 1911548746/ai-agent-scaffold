@@ -20,6 +20,7 @@ import com.hh.types.validation.RequestPayloadLimits;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * 对话用例编排。
@@ -33,13 +34,6 @@ public class ChatApplicationService implements ChatUseCase {
     private final ConversationArchivePort conversationArchivePort;
     private final MessageArchivePort messageArchivePort;
     private final ToolConfirmationPort toolConfirmationPort;
-
-    public ChatApplicationService(
-            AgentRuntimePort agentRuntimePort,
-            ConversationArchivePort conversationArchivePort,
-            MessageArchivePort messageArchivePort) {
-        this(agentRuntimePort, conversationArchivePort, messageArchivePort, ToolConfirmationPort.noop());
-    }
 
     public ChatApplicationService(
             AgentRuntimePort agentRuntimePort,
@@ -98,6 +92,66 @@ public class ChatApplicationService implements ChatUseCase {
 
     @Override
     public ChatStream handleMessageStream(String agentId, String userId, String sessionId, String message) {
+        return handleMessageStream(
+                agentId,
+                userId,
+                sessionId,
+                message,
+                () -> agentRuntimePort.runStream(agentId, userId, sessionId, message));
+    }
+
+    @Override
+    public ChatResult handleMessage(ChatCommandEntity chatCommandEntity) {
+        validateInlineDataSize(chatCommandEntity);
+        validateMessageInput(chatCommandEntity);
+
+        String appName = agentRuntimePort.appName(chatCommandEntity.getAgentId());
+        String userId = chatCommandEntity.getUserId();
+        String sessionId = chatCommandEntity.getSessionId();
+
+        // 多模态入口与纯文本入口保持同一会话存在性约束。
+        agentRuntimePort.requireSession(chatCommandEntity.getAgentId(), userId, sessionId);
+
+        // 查找或创建会话记录，拿到 conversationId
+        Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
+
+        // 文本内容；附件原始字节只进入本次 Runtime 调用，不写入消息表。
+        messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, archiveText(chatCommandEntity));
+
+        ChatResult result = agentRuntimePort.run(chatCommandEntity.getAgentId(), chatCommandEntity);
+        result.pendingConfirmations().forEach(request -> toolConfirmationPort.savePending(
+                conversationId, appName, userId, sessionId, request));
+        result.contents().forEach(content -> messageArchivePort.saveAssistantMessage(
+                conversationId, appName, userId, sessionId, content));
+        return result;
+    }
+
+    @Override
+    public ChatStream handleMessageStream(ChatCommandEntity chatCommandEntity) {
+        validateInlineDataSize(chatCommandEntity);
+        validateMessageInput(chatCommandEntity);
+
+        String agentId = chatCommandEntity.getAgentId();
+        String userId = chatCommandEntity.getUserId();
+        String sessionId = chatCommandEntity.getSessionId();
+        String archiveText = archiveText(chatCommandEntity);
+
+        return handleMessageStream(
+                agentId,
+                userId,
+                sessionId,
+                archiveText,
+                () -> agentRuntimePort.runStream(agentId, chatCommandEntity));
+    }
+
+
+    /** 流式处理具体实现 */
+    private ChatStream handleMessageStream(
+            String agentId,
+            String userId,
+            String sessionId,
+            String archiveText,
+            Supplier<ChatStream> runtimeStreamSupplier) {
         String appName = agentRuntimePort.appName(agentId);
 
         // SSE 建立后只能发送 error 事件，因此必须在创建 pending 消息前完成会话校验。
@@ -106,13 +160,13 @@ public class ChatApplicationService implements ChatUseCase {
         // 查找或创建会话记录，拿到 conversationId
         Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
         // 保存用户消息
-        messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, message);
+        messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, archiveText);
 
         // 订阅前创建 pending 消息，避免取消或异常产生的片段被标记为成功回复。
         Long assistantMessageId = messageArchivePort.createPendingAssistantMessage(
                 conversationId, appName, userId, sessionId);
 
-        ChatStream runtimeStream = agentRuntimePort.runStream(agentId, userId, sessionId, message);
+        ChatStream runtimeStream = runtimeStreamSupplier.get();
 
         // 一个 pending 消息只能对应一次上游调用；重复订阅会造成重复归档或互相覆盖状态。
         AtomicBoolean subscribed = new AtomicBoolean(false);
@@ -189,45 +243,30 @@ public class ChatApplicationService implements ChatUseCase {
         };
     }
 
-    @Override
-    public ChatResult handleMessage(ChatCommandEntity chatCommandEntity) {
-        validateInlineDataSize(chatCommandEntity);
-        validateMessageInput(chatCommandEntity);
 
-        String appName = agentRuntimePort.appName(chatCommandEntity.getAgentId());
-        String userId = chatCommandEntity.getUserId();
-        String sessionId = chatCommandEntity.getSessionId();
+    /** 根据 ChatCommandEntity 生成用户输入摘要 */
+    private String archiveText(ChatCommandEntity command) {
 
-        // 多模态入口与纯文本入口保持同一会话存在性约束。
-        agentRuntimePort.requireSession(chatCommandEntity.getAgentId(), userId, sessionId);
+        List<ChatCommandEntity.Content.Text> texts = command.getTexts();
 
-        // 查找或创建会话记录，拿到 conversationId
-        Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
-
-        // 文本内容；附件原始字节只进入本次 Runtime 调用，不写入消息表。
-        List<ChatCommandEntity.Content.Text> texts = chatCommandEntity.getTexts();
         String userText = texts == null ? "" : texts.stream()
-                    .filter(text -> text != null && text.getMessage() != null)
-                    .map(ChatCommandEntity.Content.Text::getMessage)
-                    .reduce("", (left, right) -> left + right);
-        if (userText.isBlank()) {
-            int attachmentCount = (chatCommandEntity.getInlineDatas() == null
-                    ? 0 : chatCommandEntity.getInlineDatas().size())
-                    + (chatCommandEntity.getFiles() == null ? 0 : chatCommandEntity.getFiles().size());
-            userText = "用户上传了 " + attachmentCount + " 个附件";
-        }
-        messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, userText);
+                .filter(text -> text != null && text.getMessage() != null)
+                .map(ChatCommandEntity.Content.Text::getMessage)
+                .reduce("", String::concat);
 
-        ChatResult result = agentRuntimePort.run(chatCommandEntity.getAgentId(), chatCommandEntity);
-        result.pendingConfirmations().forEach(request -> toolConfirmationPort.savePending(
-                conversationId, appName, userId, sessionId, request));
-        result.contents().forEach(content -> messageArchivePort.saveAssistantMessage(
-                conversationId, appName, userId, sessionId, content));
-        return result;
+        // 如果用户输入了文本，则返回用户文本
+        if (!userText.isBlank()) {
+            return userText;
+        }
+
+        // 如果用户没有输入文本，则组装一段描述性文本作为用户输入返回
+        int attachmentCount = (command.getInlineDatas() == null ? 0 : command.getInlineDatas().size())
+                + (command.getFiles() == null ? 0 : command.getFiles().size());
+        return "用户上传了 " + attachmentCount + " 个附件";
     }
 
     /**
-     * 在构造 ADK Part 前检查内联字节总量，覆盖绕过 HTTP Bean Validation 的直接调用。
+     * 检查 InlineData 大小，覆盖绕过 HTTP Bean Validation 的直接调用。
      */
     private void validateInlineDataSize(ChatCommandEntity chatCommandEntity) {
         List<ChatCommandEntity.Content.InlineData> inlineDatas = chatCommandEntity.getInlineDatas();
@@ -251,7 +290,7 @@ public class ChatApplicationService implements ChatUseCase {
         }
     }
 
-    /** 多模态命令至少需要一段文本或一个附件，避免构造空的 ADK Content。 */
+    /** 检查 ChatCommandEntity 内容, 至少需要一段文本或一个附件，避免构造空的 ADK Content。 */
     private void validateMessageInput(ChatCommandEntity chatCommandEntity) {
         boolean hasText = chatCommandEntity.getTexts() != null
                 && chatCommandEntity.getTexts().stream()

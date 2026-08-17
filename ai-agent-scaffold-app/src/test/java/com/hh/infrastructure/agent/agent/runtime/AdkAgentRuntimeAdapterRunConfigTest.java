@@ -60,7 +60,8 @@ class AdkAgentRuntimeAdapterRunConfigTest {
         AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
         registry.publish(List.of(new AdkAgentRuntime(
                 "app-a", "agent-a", "Agent A", "test", runner, baseRunConfig)));
-        AdkAgentRuntimeAdapter adapter = new AdkAgentRuntimeAdapter(registry);
+        AdkAgentRuntimeAdapter adapter = new AdkAgentRuntimeAdapter(
+                registry, new SessionInvocationCoordinator(Runnable::run));
 
         adapter.run("agent-a", "user-a", "session-a", "hello");
         adapter.runStream("agent-a", "user-a", "session-a", "hello")
@@ -417,7 +418,8 @@ class AdkAgentRuntimeAdapterRunConfigTest {
         AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
         registry.publish(List.of(new AdkAgentRuntime(
                 "app-a", "agent-a", "Agent A", "test", runner, RunConfig.builder().build())));
-        return new AdkAgentRuntimeAdapter(registry);
+        return new AdkAgentRuntimeAdapter(
+                registry, new SessionInvocationCoordinator(Runnable::run));
     }
 
     private AdkAgentRuntimeAdapter adapterWithCleanup(Runner runner) {
@@ -434,7 +436,8 @@ class AdkAgentRuntimeAdapterRunConfigTest {
                         mock(EventCompactor.class),
                         Integer.MAX_VALUE,
                         true))));
-        return new AdkAgentRuntimeAdapter(registry, SessionInvocationCoordinator.direct());
+        return new AdkAgentRuntimeAdapter(
+                registry, new SessionInvocationCoordinator(Runnable::run));
     }
 
     private Runner runner(Session session) {

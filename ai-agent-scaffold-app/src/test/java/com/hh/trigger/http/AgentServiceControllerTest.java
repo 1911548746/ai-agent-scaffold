@@ -21,12 +21,14 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import com.hh.types.enums.ResponseCode;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -199,6 +201,29 @@ class AgentServiceControllerTest {
 
         assertThat(controller.eventName).isEqualTo("message");
         assertThat(controller.eventData).isEqualTo("回复片段");
+        assertThat(controller.emitter.completed).isTrue();
+    }
+
+    @Test
+    void multimodalStreamParsesMultipartAndUsesExistingSseEventContract() {
+        ChatUseCase chatUseCase = mock(ChatUseCase.class);
+        when(chatUseCase.handleMessageStream(any(com.hh.domain.agent.model.entity.ChatCommandEntity.class)))
+                .thenReturn(observer -> {
+                    observer.onEvent(new ChatEvent("图片回复"));
+                    observer.onComplete();
+                    return () -> { };
+                });
+        CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
+
+        controller.chatMultimodalStream(
+                "100000",
+                "session-1",
+                "请描述图片",
+                java.util.List.of(new MockMultipartFile(
+                        "files", "cat.jpg", "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF})));
+
+        assertThat(controller.eventName).isEqualTo("message");
+        assertThat(controller.eventData).isEqualTo("图片回复");
         assertThat(controller.emitter.completed).isTrue();
     }
 
