@@ -7,13 +7,14 @@ import com.hh.application.auth.service.AuthApplicationService;
 import com.hh.application.auth.usecase.AuthUseCase;
 import com.hh.infrastructure.auth.JwtTokenService;
 import com.hh.infrastructure.auth.PasswordHashService;
-import com.hh.trigger.http.auth.AuthenticationInterceptor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /** 认证模块的组合根，application 不直接依赖密码或 JWT 具体库。 */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(prefix = "ai.application", name = "mode", havingValue = "online", matchIfMissing = true)
 @EnableConfigurationProperties(AuthProperties.class)
 public class AuthConfiguration {
 
@@ -26,12 +27,6 @@ public class AuthConfiguration {
     public JwtTokenPort jwtTokenPort(AuthProperties properties) {
         return new JwtTokenService(
                 properties.jwtSecret(), properties.jwtIssuer(), properties.accessTokenTtlSeconds());
-    }
-
-    /** 认证拦截器由 MVC 配置注册，只负责 HTTP 入站 JWT 校验。 */
-    @Bean
-    public AuthenticationInterceptor authenticationInterceptor(JwtTokenPort jwtTokenPort) {
-        return new AuthenticationInterceptor(jwtTokenPort);
     }
 
     @Bean

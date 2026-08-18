@@ -8,6 +8,7 @@ import com.hh.api.auth.dto.RegisterRequestDTO;
 import com.hh.application.auth.model.AuthenticationResult;
 import com.hh.application.auth.usecase.AuthUseCase;
 import jakarta.validation.Valid;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** 用户注册和登录入口；其路径由 MVC 认证拦截器显式排除。 */
 @RestController
 @RequestMapping("/api/v1/auth")
+@ConditionalOnProperty(prefix = "ai.application", name = "mode", havingValue = "online", matchIfMissing = true)
 public class AuthController implements IAuthService {
 
     private final AuthUseCase authUseCase;
