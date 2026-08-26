@@ -1,6 +1,7 @@
 -- HITL-01：保存 ADK 确认请求，批准/拒绝状态机由后续 HITL 任务扩展。
 CREATE TABLE IF NOT EXISTS tool_confirmations (
-    confirmation_id VARCHAR(128) PRIMARY KEY,
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    confirmation_id VARCHAR(128) NOT NULL,
     conversation_id BIGINT NOT NULL,
     app_name VARCHAR(128) NOT NULL,
     user_id VARCHAR(128) NOT NULL,
@@ -12,6 +13,7 @@ CREATE TABLE IF NOT EXISTS tool_confirmations (
     status VARCHAR(32) NOT NULL DEFAULT 'pending',
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    UNIQUE KEY uk_tool_confirmations_confirmation_id (confirmation_id),
     UNIQUE KEY uk_tool_confirmations_call (app_name, user_id, session_id, invocation_id, adk_call_id),
     KEY idx_tool_confirmations_session (app_name, user_id, session_id, status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

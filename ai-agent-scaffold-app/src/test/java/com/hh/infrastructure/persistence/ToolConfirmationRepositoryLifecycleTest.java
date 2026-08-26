@@ -48,6 +48,7 @@ class ToolConfirmationRepositoryLifecycleTest {
 
     private ToolConfirmationPO confirmation(String status, long version, LocalDateTime expiresAt) {
         return ToolConfirmationPO.builder()
+                .id(11L)
                 .confirmationId("confirmation-1")
                 .conversationId(1L)
                 .appName("app-a")

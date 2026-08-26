@@ -1,5 +1,6 @@
 package com.hh.infrastructure.agent.dao.po;
 
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
@@ -16,7 +17,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class ToolConfirmationPO {
 
-    @TableId
+    @TableId(type = IdType.AUTO)
+    private Long id;
     private String confirmationId;
     private Long conversationId;
     private String appName;

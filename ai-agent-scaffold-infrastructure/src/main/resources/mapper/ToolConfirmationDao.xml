@@ -20,7 +20,7 @@
     </insert>
 
     <select id="selectByIdentity" resultType="com.hh.infrastructure.agent.dao.po.ToolConfirmationPO">
-        SELECT confirmation_id, conversation_id, app_name, user_id, session_id,
+        SELECT id, confirmation_id, conversation_id, app_name, user_id, session_id,
                invocation_id, adk_call_id, tool_name, request_message, status,
                created_at, updated_at, expires_at, version
         FROM tool_confirmations
