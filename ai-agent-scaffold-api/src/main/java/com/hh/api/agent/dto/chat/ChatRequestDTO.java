@@ -1,4 +1,4 @@
-package com.hh.api.agent.dto;
+package com.hh.api.agent.dto.chat;
 
 import com.hh.types.validation.RequestPayloadLimits;
 import jakarta.validation.constraints.NotBlank;
@@ -22,9 +22,4 @@ public record ChatRequestDTO(
     @NotBlank(message = "message不能为空")
     @Size(max = RequestPayloadLimits.MAX_TEXT_LENGTH, message = "message长度不能超过16000个字符")
     String message
-) {
-    /** 兼容旧测试与灰度客户端；userId 不再参与认证或业务处理。 */
-    public ChatRequestDTO(String agentId, String ignoredUserId, String sessionId, String message) {
-        this(agentId, sessionId, message);
-    }
-}
+) {}

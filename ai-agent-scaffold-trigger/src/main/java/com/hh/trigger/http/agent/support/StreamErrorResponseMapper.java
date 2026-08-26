@@ -1,6 +1,6 @@
 package com.hh.trigger.http.agent.support;
 
-import com.hh.api.agent.dto.StreamErrorResponseDTO;
+import com.hh.api.agent.dto.stream.StreamErrorResponseDTO;
 import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.types.enums.ResponseCode;

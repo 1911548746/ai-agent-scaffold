@@ -1,4 +1,4 @@
-package com.hh.api.agent.dto;
+package com.hh.api.agent.dto.conversation;
 
 import com.hh.types.validation.RequestPayloadLimits;
 import jakarta.validation.constraints.NotBlank;

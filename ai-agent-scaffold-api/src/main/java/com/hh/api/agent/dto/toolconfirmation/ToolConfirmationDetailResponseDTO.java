@@ -1,4 +1,4 @@
-package com.hh.api.agent.dto;
+package com.hh.api.agent.dto.toolconfirmation;
 
 /** 确认单查询结果，不暴露 ADK call id、invocation id 或原始工具参数。 */
 public record ToolConfirmationDetailResponseDTO(

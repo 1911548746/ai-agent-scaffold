@@ -1,9 +1,9 @@
 package com.hh.trigger.http.agent;
 
-import com.hh.api.agent.dto.ChatResponseDTO;
-import com.hh.api.agent.dto.ToolConfirmationDecisionRequestDTO;
-import com.hh.api.agent.dto.ToolConfirmationDetailResponseDTO;
-import com.hh.api.agent.dto.ToolConfirmationResponseDTO;
+import com.hh.api.agent.dto.chat.ChatResponseDTO;
+import com.hh.api.agent.dto.toolconfirmation.ToolConfirmationDecisionRequestDTO;
+import com.hh.api.agent.dto.toolconfirmation.ToolConfirmationDetailResponseDTO;
+import com.hh.api.agent.dto.toolconfirmation.ToolConfirmationResponseDTO;
 import com.hh.api.agent.response.Response;
 import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.model.ChatResult;

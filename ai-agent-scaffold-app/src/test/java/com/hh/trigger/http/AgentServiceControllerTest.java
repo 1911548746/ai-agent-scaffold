@@ -3,8 +3,8 @@ package com.hh.trigger.http;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.hh.api.agent.dto.ChatRequestDTO;
-import com.hh.api.agent.dto.StreamErrorResponseDTO;
+import com.hh.api.agent.dto.chat.ChatRequestDTO;
+import com.hh.api.agent.dto.stream.StreamErrorResponseDTO;
 import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.application.agent.model.ChatStream;
@@ -68,7 +68,7 @@ class AgentServiceControllerTest {
                 });
         CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
-        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+        controller.chatStream(new ChatRequestDTO("100000", "session-1", "hello"));
 
         assertThat(controller.eventName).isEqualTo("error");
         assertThat(controller.eventData).isInstanceOf(StreamErrorResponseDTO.class);
@@ -95,7 +95,7 @@ class AgentServiceControllerTest {
                 });
         CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
-        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+        controller.chatStream(new ChatRequestDTO("100000", "session-1", "hello"));
 
         assertThat(controller.eventData).isInstanceOf(StreamErrorResponseDTO.class);
         StreamErrorResponseDTO response = (StreamErrorResponseDTO) controller.eventData;
@@ -117,7 +117,7 @@ class AgentServiceControllerTest {
                 .thenThrow(new AppException(ResponseCode.AGENT_NOT_FOUND));
         CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
-        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+        controller.chatStream(new ChatRequestDTO("100000", "session-1", "hello"));
 
         assertThat(controller.eventName).isEqualTo("error");
         assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO
@@ -137,7 +137,7 @@ class AgentServiceControllerTest {
                 });
         CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
-        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+        controller.chatStream(new ChatRequestDTO("100000", "session-1", "hello"));
 
         assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO
                 .knownError(ResponseCode.AGENT_NOT_FOUND));
@@ -156,7 +156,7 @@ class AgentServiceControllerTest {
                 });
         CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
-        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+        controller.chatStream(new ChatRequestDTO("100000", "session-1", "hello"));
 
         assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO
                 .knownError(ResponseCode.MODEL_TIMEOUT));
@@ -177,7 +177,7 @@ class AgentServiceControllerTest {
                 .thenReturn(neverEndingStream(cancellations));
         CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
-        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+        controller.chatStream(new ChatRequestDTO("100000", "session-1", "hello"));
         controller.emitter.triggerTimeout();
         controller.emitter.triggerCompletion();
         controller.emitter.triggerError(new IOException("client disconnected"));
@@ -197,7 +197,7 @@ class AgentServiceControllerTest {
                 });
         CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
-        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+        controller.chatStream(new ChatRequestDTO("100000", "session-1", "hello"));
 
         assertThat(controller.eventName).isEqualTo("message");
         assertThat(controller.eventData).isEqualTo("回复片段");
@@ -237,7 +237,7 @@ class AgentServiceControllerTest {
                 .thenReturn(neverEndingStream(cancellations));
         CapturingAgentServiceController controller = new CapturingAgentServiceController(chatUseCase);
 
-        controller.chatStream(new ChatRequestDTO("100000", "user-1", "session-1", "hello"));
+        controller.chatStream(new ChatRequestDTO("100000", "session-1", "hello"));
         lifecycleEvent.accept(controller.emitter);
 
         assertThat(cancellations).hasValue(1);

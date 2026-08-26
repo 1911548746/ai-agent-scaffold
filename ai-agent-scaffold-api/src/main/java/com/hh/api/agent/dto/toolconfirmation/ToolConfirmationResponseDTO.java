@@ -1,4 +1,4 @@
-package com.hh.api.agent.dto;
+package com.hh.api.agent.dto.toolconfirmation;
 
 /**
  * SSE 向客户端公开的待确认工具信息。

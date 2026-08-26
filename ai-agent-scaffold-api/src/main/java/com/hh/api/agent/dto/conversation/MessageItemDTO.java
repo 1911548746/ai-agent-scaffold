@@ -1,4 +1,4 @@
-package com.hh.api.agent.dto;
+package com.hh.api.agent.dto.conversation;
 
 /**
  * 消息项DTO

@@ -1,7 +1,7 @@
 package com.hh.trigger.http;
 
-import com.hh.api.agent.dto.StreamErrorResponseDTO;
-import com.hh.api.agent.dto.ToolConfirmationDecisionRequestDTO;
+import com.hh.api.agent.dto.stream.StreamErrorResponseDTO;
+import com.hh.api.agent.dto.toolconfirmation.ToolConfirmationDecisionRequestDTO;
 import com.hh.application.agent.usecase.ToolConfirmationUseCase;
 import com.hh.application.auth.model.AuthenticatedPrincipal;
 import com.hh.trigger.http.agent.ToolConfirmationController;
@@ -43,7 +43,7 @@ class ToolConfirmationControllerTest {
         CapturingController controller = new CapturingController(useCase);
 
         controller.resolveStream("confirmation-1",
-                new ToolConfirmationDecisionRequestDTO("agent-a", "user-1", true));
+                new ToolConfirmationDecisionRequestDTO("agent-a", true));
 
         assertThat(controller.eventName).isEqualTo("error");
         assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO
@@ -59,7 +59,7 @@ class ToolConfirmationControllerTest {
         CapturingController controller = new CapturingController(useCase);
 
         controller.resolveStream("confirmation-1",
-                new ToolConfirmationDecisionRequestDTO("agent-a", "user-1", true));
+                new ToolConfirmationDecisionRequestDTO("agent-a", true));
 
         assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO.internalError());
     }
@@ -77,7 +77,7 @@ class ToolConfirmationControllerTest {
         CapturingController controller = new CapturingController(useCase);
 
         controller.resolveStream("confirmation-1",
-                new ToolConfirmationDecisionRequestDTO("agent-a", "user-1", true));
+                new ToolConfirmationDecisionRequestDTO("agent-a", true));
 
         assertThat(controller.eventName).isEqualTo("error");
         assertThat(controller.eventData).isEqualTo(StreamErrorResponseDTO

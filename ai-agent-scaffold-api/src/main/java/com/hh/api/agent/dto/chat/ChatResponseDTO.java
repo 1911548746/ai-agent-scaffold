@@ -1,4 +1,6 @@
-package com.hh.api.agent.dto;
+package com.hh.api.agent.dto.chat;
+
+import com.hh.api.agent.dto.toolconfirmation.ToolConfirmationResponseDTO;
 
 import java.util.List;
 
@@ -10,9 +12,4 @@ import java.util.List;
 public record ChatResponseDTO(
     String content,
     List<ToolConfirmationResponseDTO> pendingConfirmations
-) {
-
-    public ChatResponseDTO(String content) {
-        this(content, List.of());
-    }
-}
+) {}
