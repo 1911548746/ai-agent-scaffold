@@ -8,7 +8,7 @@ package com.hh.application.agent.model;
  * 三者必须同时参与校验，避免仅按主键删除时把另一条会话的运行时数据一并清除。</p>
  */
 public record ConversationDeletionCommand(
-        Long conversationId,
+        String conversationId,
         String agentId,
         String userId,
         String sessionId) {

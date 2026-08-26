@@ -14,7 +14,7 @@ import java.util.List;
  * @param messages       消息列表
  */
 public record ConversationDetailResponseDTO(
-        Long conversationId,
+        String conversationId,
         String appName,
         String sessionId,
         String title,

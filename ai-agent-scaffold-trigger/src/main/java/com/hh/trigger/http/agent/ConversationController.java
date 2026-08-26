@@ -47,7 +47,7 @@ public class ConversationController implements IConversationService {
      *   "info": "成功",
      *   "data": [
      *     {
-     *       "conversationId": 1,
+     *       "conversationId": "6f1a1d0e-0d7d-4e8f-95b8-2f5c1e6b0e42",
      *       "appName": "HelloAgent",
      *       "sessionId": "00d99331-9e79-4ecd-80dc-807411087987",
      *       "title": "conversation 00d99331-9e79-4ecd-80dc-807411087987",
@@ -68,7 +68,7 @@ public class ConversationController implements IConversationService {
 
         List<ConversationListResponseDTO> dtoList = conversations.stream()
                 .map(c -> new ConversationListResponseDTO(
-                        c.getId(),
+                        c.getConversationId(),
                         c.getAppName(),
                         c.getSessionId(),
                         c.getTitle(),
@@ -89,7 +89,7 @@ public class ConversationController implements IConversationService {
      *
      * <p>curl：</p>
      * <pre>
-     * curl -X GET 'http://localhost:8080/api/v1/conversations/detail/1' \
+     * curl -X GET 'http://localhost:8080/api/v1/conversations/detail/6f1a1d0e-0d7d-4e8f-95b8-2f5c1e6b0e42' \
      *   -H 'Authorization: Bearer &lt;access-token&gt;'
      * </pre>
      *
@@ -99,7 +99,7 @@ public class ConversationController implements IConversationService {
      *   "code": "0000",
      *   "info": "成功",
      *   "data": {
-     *     "conversationId": 1,
+     *     "conversationId": "6f1a1d0e-0d7d-4e8f-95b8-2f5c1e6b0e42",
      *     "appName": "HelloAgent",
      *     "sessionId": "00d99331-9e79-4ecd-80dc-807411087987",
      *     "title": "conversation 00d99331-9e79-4ecd-80dc-807411087987",
@@ -107,14 +107,12 @@ public class ConversationController implements IConversationService {
      *     "updatedAt": "2026-07-17T03:47:40",
      *     "messages": [
      *       {
-     *         "messageId": 1,
      *         "role": "user",
      *         "status": "completed",
      *         "contentText": "你好",
      *         "createdAt": "2026-07-17T03:46:01"
      *       },
      *       {
-     *         "messageId": 2,
      *         "role": "assistant",
      *         "status": "completed",
      *         "contentText": "你好！我是 HelloAgent，一个简洁的 ADK Java 智能助手 🤖\n\n有什么可以帮你的吗？你可以问我问题，或者让我查询天气等。",
@@ -127,7 +125,7 @@ public class ConversationController implements IConversationService {
      */
     @GetMapping("/detail/{conversationId}")
     @Override
-    public Response<ConversationDetailResponseDTO> getConversationDetail(@PathVariable Long conversationId) {
+    public Response<ConversationDetailResponseDTO> getConversationDetail(@PathVariable String conversationId) {
         String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
         log.info("查询会话详情 conversationId:{}", conversationId);
 
@@ -136,7 +134,6 @@ public class ConversationController implements IConversationService {
 
         List<MessageItemDTO> messageDTOs = messages.stream()
                 .map(m -> new MessageItemDTO(
-                        m.getId(),
                         m.getRole(),
                         m.getStatus(),
                         m.getContentText(),
@@ -145,7 +142,7 @@ public class ConversationController implements IConversationService {
                 .toList();
 
         ConversationDetailResponseDTO detail = new ConversationDetailResponseDTO(
-                conversation.getId(),
+                conversation.getConversationId(),
                 conversation.getAppName(),
                 conversation.getSessionId(),
                 conversation.getTitle(),
@@ -173,7 +170,7 @@ public class ConversationController implements IConversationService {
      *   -d '{
      *     "agentId": "100000",
      *     "sessionId": "eecf9e2e-6913-4898-b20b-12a8d00cf848",
-     *     "conversationId": 1
+     *     "conversationId": "6f1a1d0e-0d7d-4e8f-95b8-2f5c1e6b0e42"
      *   }'
      * </pre>
      *

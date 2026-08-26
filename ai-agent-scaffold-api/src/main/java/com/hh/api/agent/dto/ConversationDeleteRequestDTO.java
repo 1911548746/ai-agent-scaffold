@@ -3,7 +3,6 @@ package com.hh.api.agent.dto;
 import com.hh.types.validation.RequestPayloadLimits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -22,7 +21,7 @@ public record ConversationDeleteRequestDTO(
         String sessionId,
 
         @NotNull(message = "conversationId不能为空")
-        @Positive(message = "conversationId必须为正数")
-        Long conversationId
+        @Size(max = 36, message = "conversationId长度不能超过36个字符")
+        String conversationId
 ) {
 }

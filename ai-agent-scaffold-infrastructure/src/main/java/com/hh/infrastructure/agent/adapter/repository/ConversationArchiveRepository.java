@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,6 +43,7 @@ public class ConversationArchiveRepository implements ConversationArchivePort {
     public Long findOrCreateConversation(String appName, String userId, String sessionId) {
         LocalDateTime now = LocalDateTime.now();
         ConversationPO conversation = ConversationPO.builder()
+                .conversationId(UUID.randomUUID().toString())
                 .appName(appName)
                 .userId(userId)
                 .sessionId(sessionId)
@@ -72,8 +74,12 @@ public class ConversationArchiveRepository implements ConversationArchivePort {
     }
 
     @Override
-    public ConversationVO getConversation(Long conversationId) {
-        ConversationPO po = conversationMapper.selectById(conversationId);
+    public ConversationVO getConversationByBusinessId(String conversationId) {
+        if (conversationId == null || conversationId.isBlank()) {
+            return null;
+        }
+        ConversationPO po = conversationMapper.selectOne(new LambdaQueryWrapper<ConversationPO>()
+                .eq(ConversationPO::getConversationId, conversationId));
         return po == null ? null : toConversationVO(po);
     }
 
@@ -95,16 +101,23 @@ public class ConversationArchiveRepository implements ConversationArchivePort {
     @Transactional(rollbackFor = Exception.class)
     public void deleteConversationSession(Long conversationId, String appName, String userId, String sessionId) {
         // 消息先于 Conversation 删除；即使历史库没有外键，也为后续补充外键保留正确顺序。
-        messageMapper.delete(new LambdaQueryWrapper<MessagePO>()
-                .eq(MessagePO::getConversationId, conversationId)
+        LambdaQueryWrapper<MessagePO> messageQuery = new LambdaQueryWrapper<MessagePO>()
                 .eq(MessagePO::getAppName, appName)
                 .eq(MessagePO::getUserId, userId)
-                .eq(MessagePO::getSessionId, sessionId));
-        conversationMapper.delete(new LambdaQueryWrapper<ConversationPO>()
-                .eq(ConversationPO::getId, conversationId)
+                .eq(MessagePO::getSessionId, sessionId);
+        if (conversationId != null) {
+            messageQuery.eq(MessagePO::getConversationId, conversationId);
+        }
+        messageMapper.delete(messageQuery);
+
+        LambdaQueryWrapper<ConversationPO> conversationQuery = new LambdaQueryWrapper<ConversationPO>()
                 .eq(ConversationPO::getAppName, appName)
                 .eq(ConversationPO::getUserId, userId)
-                .eq(ConversationPO::getSessionId, sessionId));
+                .eq(ConversationPO::getSessionId, sessionId);
+        if (conversationId != null) {
+            conversationQuery.eq(ConversationPO::getId, conversationId);
+        }
+        conversationMapper.delete(conversationQuery);
 
         // SessionEvent 必须先删除，避免未来补充外键后删除 Session 时产生约束失败。
         sessionEventDao.delete(new LambdaQueryWrapper<SessionEventPO>()
@@ -120,6 +133,7 @@ public class ConversationArchiveRepository implements ConversationArchivePort {
     private ConversationVO toConversationVO(ConversationPO po) {
         return ConversationVO.builder()
                 .id(po.getId())
+                .conversationId(po.getConversationId())
                 .appName(po.getAppName())
                 .userId(po.getUserId())
                 .sessionId(po.getSessionId())

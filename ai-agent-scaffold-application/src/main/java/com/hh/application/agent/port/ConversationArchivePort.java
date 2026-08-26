@@ -17,7 +17,7 @@ public interface ConversationArchivePort {
 
     List<ConversationVO> listConversations(String userId);
 
-    ConversationVO getConversation(Long conversationId);
+    ConversationVO getConversationByBusinessId(String conversationId);
 
     List<MessageVO> listMessages(Long conversationId);
 

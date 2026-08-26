@@ -11,7 +11,7 @@ public interface IConversationService {
 
     Response<List<ConversationListResponseDTO>> listConversations();
 
-    Response<ConversationDetailResponseDTO> getConversationDetail(Long conversationId);
+    Response<ConversationDetailResponseDTO> getConversationDetail(String conversationId);
 
     Response<Void> deleteConversation(ConversationDeleteRequestDTO requestDTO);
 

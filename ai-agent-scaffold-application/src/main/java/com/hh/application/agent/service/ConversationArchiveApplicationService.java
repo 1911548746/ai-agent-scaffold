@@ -32,24 +32,32 @@ public class ConversationArchiveApplicationService implements ConversationArchiv
     }
 
     @Override
-    public ConversationVO getConversation(Long conversationId) {
-        ConversationVO conversation = conversationArchivePort.getConversation(conversationId);
+    public ConversationVO getConversation(String conversationId, String userId) {
+        return requireOwnedConversation(conversationId, userId);
+    }
+
+    @Override
+    public List<MessageVO> listMessages(String conversationId, String userId) {
+        ConversationVO conversation = requireOwnedConversation(conversationId, userId);
+        return conversationArchivePort.listMessages(conversation.getId());
+    }
+
+    /** 统一完成 UUID 查询和用户归属校验，避免不同用例入口产生越权分支。 */
+    private ConversationVO requireOwnedConversation(String conversationId, String userId) {
+        ConversationVO conversation = conversationArchivePort.getConversationByBusinessId(conversationId);
         if (conversation == null) {
-            // 保持旧客户端对不存在归档的稳定错误码；真实归属失败仍由接口层返回 ACCESS_DENIED。
             throw new AppException(ResponseCode.AGENT_NOT_FOUND);
+        }
+        if (userId == null || !userId.equals(conversation.getUserId())) {
+            throw new AppException(ResponseCode.ACCESS_DENIED);
         }
         return conversation;
     }
 
     @Override
-    public List<MessageVO> listMessages(Long conversationId) {
-        return conversationArchivePort.listMessages(conversationId);
-    }
-
-    @Override
     public void deleteConversation(ConversationDeletionCommand command) {
         String appName = agentRuntimePort.appName(command.agentId());
-        ConversationVO conversation = conversationArchivePort.getConversation(command.conversationId());
+        ConversationVO conversation = conversationArchivePort.getConversationByBusinessId(command.conversationId());
 
         if (conversation != null && (!appName.equals(conversation.getAppName())
                 || !command.userId().equals(conversation.getUserId())
@@ -58,8 +66,9 @@ public class ConversationArchiveApplicationService implements ConversationArchiv
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
         }
 
-        // 记录不存在时仍执行一次按身份删除：重复请求返回成功，并可顺便清理历史遗留的孤儿数据。
+        // 记录不存在时仍按完整 Session 身份执行清理，重复请求保持幂等。
+        Long physicalConversationId = conversation == null ? null : conversation.getId();
         conversationArchivePort.deleteConversationSession(
-                command.conversationId(), appName, command.userId(), command.sessionId());
+                physicalConversationId, appName, command.userId(), command.sessionId());
     }
 }

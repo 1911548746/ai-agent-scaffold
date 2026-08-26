@@ -13,22 +13,11 @@ public interface ConversationArchiveUseCase {
 
     List<ConversationVO> listConversations(String userId);
 
-    ConversationVO getConversation(Long conversationId);
+    /** 按对外 UUID 查询当前用户所属会话。 */
+    ConversationVO getConversation(String conversationId, String userId);
 
-    default ConversationVO getConversation(Long conversationId, String userId) {
-        ConversationVO conversation = getConversation(conversationId);
-        if (conversation == null || userId == null || !userId.equals(conversation.getUserId())) {
-            throw new com.hh.types.exception.AppException(com.hh.types.enums.ResponseCode.ACCESS_DENIED);
-        }
-        return conversation;
-    }
-
-    List<MessageVO> listMessages(Long conversationId);
-
-    default List<MessageVO> listMessages(Long conversationId, String userId) {
-        getConversation(conversationId, userId);
-        return listMessages(conversationId);
-    }
+    /** 按对外 UUID 查询当前用户所属会话的消息。 */
+    List<MessageVO> listMessages(String conversationId, String userId);
 
     /**
      * 删除归档 Conversation 与同一身份下的 ADK Session/Event。

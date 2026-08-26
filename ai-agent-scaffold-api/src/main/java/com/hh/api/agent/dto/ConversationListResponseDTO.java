@@ -11,7 +11,7 @@ package com.hh.api.agent.dto;
  * @param updatedAt      更新时间
  */
 public record ConversationListResponseDTO(
-        Long conversationId,
+        String conversationId,
         String appName,
         String sessionId,
         String title,

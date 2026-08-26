@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,10 +35,12 @@ class ConversationArchiveApplicationServiceTest {
         assertThat(useCase.listConversations("user-1"))
                 .extracting(ConversationVO::getId)
                 .containsExactly(conversationId);
-        assertThat(useCase.getConversation(conversationId).getSessionId()).isEqualTo("session-1");
+        String publicConversationId = repository.conversationIdFor(conversationId);
+        assertThat(useCase.getConversation(publicConversationId, "user-1").getSessionId())
+                .isEqualTo("session-1");
 
         useCase.deleteConversation(new ConversationDeletionCommand(
-                conversationId, "agent-a", "user-1", "session-1"));
+                publicConversationId, "agent-a", "user-1", "session-1"));
 
         assertThat(repository.deletionRequests)
                 .containsExactly(new DeletionRequest(conversationId, "app-a", "user-1", "session-1"));
@@ -48,7 +51,8 @@ class ConversationArchiveApplicationServiceTest {
         ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(
                 new InMemoryConversationArchiveRepository(), mock(AgentRuntimePort.class));
 
-        assertThatThrownBy(() -> useCase.getConversation(404L))
+        assertThatThrownBy(() -> useCase.getConversation(
+                "6f1a1d0e-0d7d-4e8f-95b8-2f5c1e6b0e42", "user-1"))
                 .isInstanceOfSatisfying(AppException.class,
                         error -> assertThat(error.getCode()).isEqualTo(ResponseCode.AGENT_NOT_FOUND.getCode()));
     }
@@ -61,7 +65,7 @@ class ConversationArchiveApplicationServiceTest {
         ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(
                 repository, agentRuntimePort);
         ConversationDeletionCommand command = new ConversationDeletionCommand(
-                404L, "agent-a", "user-1", "session-1");
+                "6f1a1d0e-0d7d-4e8f-95b8-2f5c1e6b0e42", "agent-a", "user-1", "session-1");
 
         useCase.deleteConversation(command);
         useCase.deleteConversation(command);
@@ -69,8 +73,8 @@ class ConversationArchiveApplicationServiceTest {
         // 归档已不存在时仍按完整 Session 身份清理，客户端重试不会因为“零行删除”失败。
         assertThat(repository.deletionRequests)
                 .containsExactly(
-                        new DeletionRequest(404L, "app-a", "user-1", "session-1"),
-                        new DeletionRequest(404L, "app-a", "user-1", "session-1"));
+                        new DeletionRequest(null, "app-a", "user-1", "session-1"),
+                        new DeletionRequest(null, "app-a", "user-1", "session-1"));
     }
 
     @Test
@@ -80,9 +84,10 @@ class ConversationArchiveApplicationServiceTest {
         AgentRuntimePort agentRuntimePort = mock(AgentRuntimePort.class);
         when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
         ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(repository, agentRuntimePort);
+        String publicConversationId = repository.conversationIdFor(conversationId);
 
         assertThatThrownBy(() -> useCase.deleteConversation(new ConversationDeletionCommand(
-                conversationId, "agent-a", "user-1", "another-session")))
+                publicConversationId, "agent-a", "user-1", "another-session")))
                 .isInstanceOfSatisfying(AppException.class,
                         error -> assertThat(error.getCode()).isEqualTo(ResponseCode.ILLEGAL_PARAMETER.getCode()));
 
@@ -110,6 +115,7 @@ class ConversationArchiveApplicationServiceTest {
                         long id = sequence.incrementAndGet();
                         conversations.add(ConversationVO.builder()
                                 .id(id)
+                                .conversationId(UUID.nameUUIDFromBytes((appName + userId + sessionId).getBytes()).toString())
                                 .appName(appName)
                                 .userId(userId)
                                 .sessionId(sessionId)
@@ -126,9 +132,9 @@ class ConversationArchiveApplicationServiceTest {
         }
 
         @Override
-        public ConversationVO getConversation(Long conversationId) {
+        public ConversationVO getConversationByBusinessId(String conversationId) {
             return conversations.stream()
-                    .filter(conversation -> conversation.getId().equals(conversationId))
+                    .filter(conversation -> conversation.getConversationId().equals(conversationId))
                     .findFirst()
                     .orElse(null);
         }
@@ -136,6 +142,14 @@ class ConversationArchiveApplicationServiceTest {
         @Override
         public List<MessageVO> listMessages(Long conversationId) {
             return List.of();
+        }
+
+        private String conversationIdFor(Long physicalId) {
+            return conversations.stream()
+                    .filter(conversation -> conversation.getId().equals(physicalId))
+                    .map(ConversationVO::getConversationId)
+                    .findFirst()
+                    .orElseThrow();
         }
 
         @Override

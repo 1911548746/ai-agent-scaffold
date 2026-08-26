@@ -150,12 +150,12 @@ class ApiValidationTest {
         mvc.perform(delete("/api/v1/conversations/delete")
                         .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"agentId\":\"hello\",\"userId\":\"user-1\","
-                                + "\"sessionId\":\"session-1\",\"conversationId\":10}"))
+                                + "\"sessionId\":\"session-1\",\"conversationId\":\"6f1a1d0e-0d7d-4e8f-95b8-2f5c1e6b0e42\"}"))
                 // Response<Void> 在 standalone MockMvc 下沿用历史空响应表现；这里仅固定删除编排入口。
                 .andExpect(status().isOk());
 
         verify(archiveUseCase).deleteConversation(new com.hh.application.agent.model.ConversationDeletionCommand(
-                10L, "hello", "user-1", "session-1"));
+                "6f1a1d0e-0d7d-4e8f-95b8-2f5c1e6b0e42", "hello", "user-1", "session-1"));
     }
 
     @Test
