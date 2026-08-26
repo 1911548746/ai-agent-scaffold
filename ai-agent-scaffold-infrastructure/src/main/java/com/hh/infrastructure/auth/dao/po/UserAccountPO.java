@@ -1,5 +1,6 @@
 package com.hh.infrastructure.auth.dao.po;
 
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
@@ -17,7 +18,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class UserAccountPO {
 
-    @TableId
+    @TableId(type = IdType.AUTO)
+    private Long id;
     private String userId;
     private String username;
     private String passwordHash;
