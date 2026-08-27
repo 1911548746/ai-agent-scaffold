@@ -1,12 +1,9 @@
 package com.hh.infrastructure.agent.agent.compiler;
 
-import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
-import com.hh.infrastructure.agent.agent.compiler.assembly.context.DynamicContext;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.application.agent.port.AgentRuntimeCompiler;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.infrastructure.agent.agent.compiler.assembly.command.AgentAssemblyCommand;
 import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblyPipeline;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -34,14 +31,8 @@ public class AdkAgentRuntimeCompiler implements AgentRuntimeCompiler {
         List<AdkAgentRuntime> runtimes = new ArrayList<>();
 
         for (AgentDefinition definition : definitions) {
-            StrategyHandler<AgentAssemblyCommand, DynamicContext, AdkAgentRuntime> strategyHandler = assemblyPipeline.strategyHandler();
             // 每个 Agent 使用独立上下文构建；返回值由 AgentCompiler 统一原子发布。
-            AdkAgentRuntime runtime = strategyHandler.apply(
-                    AgentAssemblyCommand.builder()
-                            .agentDefinition(definition)
-                            .build(),
-                    new DynamicContext()
-            );
+            AdkAgentRuntime runtime = assemblyPipeline.compile(definition);
             runtimes.add(runtime);
         }
 

@@ -1,6 +1,6 @@
 package com.hh.infrastructure.agent.agent.compiler.assembly.pipeline;
 
-import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
+import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.infrastructure.agent.agent.compiler.assembly.context.DynamicContext;
 import com.hh.infrastructure.agent.agent.compiler.assembly.node.RootNode;
 import com.hh.infrastructure.agent.agent.compiler.assembly.command.AgentAssemblyCommand;
@@ -17,8 +17,11 @@ public class AgentAssemblyPipeline {
     @Resource
     private RootNode rootNode;
 
-    public StrategyHandler<AgentAssemblyCommand, DynamicContext, AdkAgentRuntime> strategyHandler() {
-        return rootNode;
+    public AdkAgentRuntime compile(AgentDefinition agentDefinition) throws Exception {
+        return rootNode.apply(
+                new AgentAssemblyCommand(agentDefinition),
+                new DynamicContext()
+        );
     }
 
 }
