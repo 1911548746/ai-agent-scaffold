@@ -3,7 +3,7 @@ ai:
     application:
       id: ssh-agent
       app-name: SshAgent
-      agent-id: "100003"
+      agent-id: 100003
       agent-name: ssh运维智能体
       agent-desc: 一个ssh运维智能体
       agent-ref: ssh-agent

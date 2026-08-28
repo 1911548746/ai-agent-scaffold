@@ -4,7 +4,7 @@ ai:
       id: chrome-devtools-agent
       enabled: false
       app-name: ChromeDevtoolsAgent
-      agent-id: "100004"
+      agent-id: 100004
       agent-name: Chrome-devtools-Agent
       agent-desc: 一个用于测试 MCP Chrome DevTools 的智能体
       agent-ref: chrome-devtools-agent

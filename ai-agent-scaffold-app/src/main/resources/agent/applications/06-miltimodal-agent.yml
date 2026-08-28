@@ -3,7 +3,7 @@ ai:
     application:
       id: multimodal-agent
       app-name: MultimodalAgent
-      agent-id: "100006"
+      agent-id: 100006
       agent-name: MultimodalAgent
       agent-desc: 一个多模态智能体
       agent-ref: multimodal-agent

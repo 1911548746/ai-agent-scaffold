@@ -3,7 +3,7 @@ ai:
     application:
       id: order-agent
       app-name: OrderAgent
-      agent-id: "100002"
+      agent-id: 100002
       agent-name: 退款智能体
       agent-desc: 一个退款智能体
       agent-ref: order-agent

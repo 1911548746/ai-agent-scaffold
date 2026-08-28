@@ -3,7 +3,7 @@ ai:
     application:
       id: hello-agent
       app-name: HelloAgent
-      agent-id: "100000"
+      agent-id: 100000
       agent-name: HelloAgent
       agent-desc: 一个测试的智能体
       agent-ref: hello-agent
