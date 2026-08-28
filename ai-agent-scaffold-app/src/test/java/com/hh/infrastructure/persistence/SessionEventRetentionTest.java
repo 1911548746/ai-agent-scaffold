@@ -16,11 +16,11 @@ import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingL
 import com.hh.infrastructure.agent.agent.session.impl.MySqlSessionStore;
 import com.hh.infrastructure.agent.dao.SessionDao;
 import com.hh.infrastructure.agent.dao.SessionEventDao;
-import com.hh.infrastructure.agent.dao.po.SessionEventCompactionCleanup;
-import com.hh.infrastructure.agent.dao.po.SessionEventIdCleanup;
+import com.hh.infrastructure.agent.dao.param.SessionEventCompactionCleanup;
+import com.hh.infrastructure.agent.dao.param.SessionEventIdCleanup;
 import com.hh.infrastructure.agent.dao.po.SessionEventPO;
-import com.hh.infrastructure.agent.dao.po.SessionEventQuery;
-import com.hh.infrastructure.agent.dao.po.SessionInvocationEventCleanup;
+import com.hh.infrastructure.agent.dao.param.SessionEventQuery;
+import com.hh.infrastructure.agent.dao.param.SessionInvocationEventCleanup;
 import com.hh.infrastructure.agent.dao.po.SessionPO;
 import io.reactivex.rxjava3.core.Maybe;
 import org.junit.jupiter.api.Test;

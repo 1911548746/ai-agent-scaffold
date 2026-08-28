@@ -1,11 +1,11 @@
 package com.hh.infrastructure.agent.dao;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.hh.infrastructure.agent.dao.po.SessionEventCompactionCleanup;
-import com.hh.infrastructure.agent.dao.po.SessionEventIdCleanup;
+import com.hh.infrastructure.agent.dao.param.SessionEventCompactionCleanup;
+import com.hh.infrastructure.agent.dao.param.SessionEventIdCleanup;
 import com.hh.infrastructure.agent.dao.po.SessionEventPO;
-import com.hh.infrastructure.agent.dao.po.SessionEventQuery;
-import com.hh.infrastructure.agent.dao.po.SessionInvocationEventCleanup;
+import com.hh.infrastructure.agent.dao.param.SessionEventQuery;
+import com.hh.infrastructure.agent.dao.param.SessionInvocationEventCleanup;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;

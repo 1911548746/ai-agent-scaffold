@@ -19,7 +19,7 @@
       必须读取当前仍存在的全部 Event。摘要之前可能保留 sliding-window overlap 原始 Event，不能按
       compaction 行 ID 截断；数据规模由摘要后的精确删除策略控制。
     -->
-    <select id="selectSessionEvents" parameterType="com.hh.infrastructure.agent.dao.po.SessionEventQuery"
+    <select id="selectSessionEvents" parameterType="com.hh.infrastructure.agent.dao.param.SessionEventQuery"
             resultType="com.hh.infrastructure.agent.dao.po.SessionEventPO">
         SELECT e.*
         FROM session_events e
@@ -30,7 +30,7 @@
     </select>
 
     <!-- LIMIT 必须在内层按倒序执行，外层恢复为 ADK 期望的时间正序。 -->
-    <select id="selectRecentEvents" parameterType="com.hh.infrastructure.agent.dao.po.SessionEventQuery"
+    <select id="selectRecentEvents" parameterType="com.hh.infrastructure.agent.dao.param.SessionEventQuery"
             resultType="com.hh.infrastructure.agent.dao.po.SessionEventPO">
         SELECT recent.*
         FROM (
@@ -45,7 +45,7 @@
         ORDER BY recent.id ASC
     </select>
 
-    <select id="selectEventsAfterTimestamp" parameterType="com.hh.infrastructure.agent.dao.po.SessionEventQuery"
+    <select id="selectEventsAfterTimestamp" parameterType="com.hh.infrastructure.agent.dao.param.SessionEventQuery"
             resultType="com.hh.infrastructure.agent.dao.po.SessionEventPO">
         SELECT e.*
         FROM session_events e
@@ -60,7 +60,7 @@
       Event ID 由本轮 summarizer 输入精确给出。避免按 compaction 时间范围或行 ID 删除，防止误删
       sliding-window overlap Event；summary_event_id 作为第二道保护，绝不删除刚写入的新摘要。
     -->
-    <delete id="deleteCompactedEvents" parameterType="com.hh.infrastructure.agent.dao.po.SessionEventCompactionCleanup">
+    <delete id="deleteCompactedEvents" parameterType="com.hh.infrastructure.agent.dao.param.SessionEventCompactionCleanup">
         DELETE FROM session_events
         WHERE app_name = #{appName}
           AND user_id = #{userId}
@@ -73,7 +73,7 @@
     </delete>
 
     <!-- 调用失败后的短事务补偿，只按完整 Session 身份和本轮 invocationId 删除。 -->
-    <delete id="deleteInvocationEvents" parameterType="com.hh.infrastructure.agent.dao.po.SessionInvocationEventCleanup">
+    <delete id="deleteInvocationEvents" parameterType="com.hh.infrastructure.agent.dao.param.SessionInvocationEventCleanup">
         DELETE FROM session_events
         WHERE app_name = #{appName}
           AND user_id = #{userId}
@@ -85,7 +85,7 @@
     </delete>
 
     <!-- 有工具进度的中断调用只删除明确列出的不完整 Event，不按时间范围推断。 -->
-    <delete id="deleteEventsByIds" parameterType="com.hh.infrastructure.agent.dao.po.SessionEventIdCleanup">
+    <delete id="deleteEventsByIds" parameterType="com.hh.infrastructure.agent.dao.param.SessionEventIdCleanup">
         DELETE FROM session_events
         WHERE app_name = #{appName}
           AND user_id = #{userId}

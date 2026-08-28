@@ -1,4 +1,4 @@
-package com.hh.infrastructure.agent.dao.po;
+package com.hh.infrastructure.agent.dao.param;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
