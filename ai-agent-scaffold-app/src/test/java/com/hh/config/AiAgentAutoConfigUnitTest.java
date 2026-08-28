@@ -1,6 +1,6 @@
 package com.hh.config;
 
-import com.hh.config.agent.catalog.AgentDefinitionLoader;
+import com.hh.config.agent.catalog.loader.AgentDefinitionLoader;
 import com.hh.config.agent.bootstrap.AiAgentAutoConfig;
 import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
 import com.hh.application.agent.port.AgentRuntimeCompiler;

@@ -1,7 +1,7 @@
 package com.hh.config.agent.bootstrap;
 
 import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
-import com.hh.config.agent.catalog.AgentDefinitionLoader;
+import com.hh.config.agent.catalog.loader.AgentDefinitionLoader;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.application.agent.port.AgentRuntimeCompiler;
 import lombok.extern.slf4j.Slf4j;

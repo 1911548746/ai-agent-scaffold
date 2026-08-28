@@ -1,7 +1,11 @@
 package com.hh.config.agent;
 
 import com.hh.config.agent.catalog.AgentConfigurationException;
-import com.hh.config.agent.catalog.AgentDefinitionLoader;
+import com.hh.config.agent.catalog.loader.AgentDefinitionLoader;
+import com.hh.config.agent.catalog.loader.support.AgentDefinitionConfigSupport;
+import com.hh.config.agent.catalog.loader.pipeline.AgentDefinitionLoadPipeline;
+import com.hh.config.agent.catalog.loader.resource.CatalogResourceBinder;
+import com.hh.config.agent.catalog.loader.node.*;
 import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import jakarta.validation.Validation;
@@ -42,10 +46,19 @@ class AgentDefinitionLoaderTest {
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("MODEL_API_KEY", OFFLINE_MODEL_VALUE);
-        loader = new AgentDefinitionLoader(
-                new PathMatchingResourcePatternResolver(new DefaultResourceLoader()),
-                validator,
-                environment);
+
+        AgentDefinitionConfigSupport support = new AgentDefinitionConfigSupport(validator, environment);
+        CatalogResourceBinder resourceBinder = new CatalogResourceBinder(new PathMatchingResourcePatternResolver(new DefaultResourceLoader()), support);
+        EndNode end = new EndNode();
+        ApplicationCompileNode application = new ApplicationCompileNode(support, end);
+        ApplicationBindingNode applicationBinding = new ApplicationBindingNode(resourceBinder, support, application);
+        WorkflowGraphNode workflow = new WorkflowGraphNode(support, applicationBinding);
+        ModuleValidationNode validation = new ModuleValidationNode(support, workflow);
+        ModuleBindingNode binding = new ModuleBindingNode(resourceBinder, support, validation);
+        CatalogValidationNode catalogValidation = new CatalogValidationNode(support, binding);
+
+        loader = new AgentDefinitionLoader(new AgentDefinitionLoadPipeline(new RootNode(catalogValidation)));
+
     }
 
     @Test
