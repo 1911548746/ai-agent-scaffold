@@ -9,9 +9,9 @@ import com.hh.infrastructure.agent.agent.compiler.assembly.command.AgentAssembly
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.LlmAgentDefinition;
 import com.hh.domain.agent.model.definition.McpToolDefinition;
-import com.hh.infrastructure.agent.agent.compiler.assembly.context.DynamicContext;
+import com.hh.infrastructure.agent.agent.compiler.assembly.context.AgentAssemblyPipelineContext;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
-import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblySupport;
+import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblyNode;
 import com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.client.McpToolCreateService;
 import com.hh.infrastructure.agent.agent.compiler.assembly.matter.mcp.client.factory.DefaultMcpClientFactory;
 import com.hh.infrastructure.agent.agent.compiler.assembly.matter.tool.LocalToolCreateService;
@@ -25,7 +25,7 @@ import java.util.List;
 
 @Slf4j
 @Component
-public class LlmAgentNode extends AgentAssemblySupport {
+public class LlmAgentNode extends AgentAssemblyNode {
 
     @Resource
     private AgentWorkflowNode agentWorkflowNode;
@@ -40,10 +40,10 @@ public class LlmAgentNode extends AgentAssemblySupport {
     private SkillSourceFactory skillSourceFactory;
 
     @Override
-    protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, DynamicContext dynamicContext) throws Exception {
+    protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, AgentAssemblyPipelineContext context) throws Exception {
         log.info("Ai Agent 装配操作 - LlmAgentNode");
 
-        BaseLlm llmModel = dynamicContext.getLlmModel();
+        BaseLlm llmModel = context.getLlmModel();
 
         AgentDefinition definition = requestParameter.getAgentDefinition();
         List<LlmAgentDefinition> agentDefinitionList = definition.getAgents();
@@ -85,14 +85,14 @@ public class LlmAgentNode extends AgentAssemblySupport {
                     .tools(toolsets)
                     .build();
 
-            dynamicContext.getAgentGroup().put(agentDefinition.getName(), llmAgent);
+            context.getAgentGroup().put(agentDefinition.getName(), llmAgent);
         }
 
-        return router(requestParameter, dynamicContext);
+        return router(requestParameter, context);
     }
 
     @Override
-    public StrategyHandler<AgentAssemblyCommand, DynamicContext, AdkAgentRuntime> get(AgentAssemblyCommand command, DynamicContext dynamicContext) throws Exception {
+    public StrategyHandler<AgentAssemblyCommand, AgentAssemblyPipelineContext, AdkAgentRuntime> get(AgentAssemblyCommand command, AgentAssemblyPipelineContext context) throws Exception {
         return agentWorkflowNode;
     }
 

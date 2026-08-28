@@ -3,7 +3,7 @@ package com.hh.infrastructure.agent.agent.compiler.assembly.pipeline;
 
 import cn.bugstack.wrench.design.framework.tree.AbstractMultiThreadStrategyRouter;
 import com.hh.infrastructure.agent.agent.compiler.assembly.command.AgentAssemblyCommand;
-import com.hh.infrastructure.agent.agent.compiler.assembly.context.DynamicContext;
+import com.hh.infrastructure.agent.agent.compiler.assembly.context.AgentAssemblyPipelineContext;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +16,7 @@ import java.util.concurrent.TimeoutException;
  * 装配策略节点的公共父类，统一约束节点只能操作本次编译的临时上下文。
  */
 @Slf4j
-public abstract class AgentAssemblySupport extends AbstractMultiThreadStrategyRouter<AgentAssemblyCommand, DynamicContext, AdkAgentRuntime> {
+public abstract class AgentAssemblyNode extends AbstractMultiThreadStrategyRouter<AgentAssemblyCommand, AgentAssemblyPipelineContext, AdkAgentRuntime> {
 
     @Resource
     protected ApplicationContext applicationContext;
@@ -29,7 +29,7 @@ public abstract class AgentAssemblySupport extends AbstractMultiThreadStrategyRo
     }
 
     @Override
-    protected void multiThread(AgentAssemblyCommand requestParameter, DynamicContext dynamicContext) throws ExecutionException, InterruptedException, TimeoutException {
+    protected void multiThread(AgentAssemblyCommand requestParameter, AgentAssemblyPipelineContext context) throws ExecutionException, InterruptedException, TimeoutException {
 
     }
 

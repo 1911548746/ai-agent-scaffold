@@ -7,7 +7,7 @@ import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
 import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
-import com.hh.infrastructure.agent.agent.compiler.assembly.context.DynamicContext;
+import com.hh.infrastructure.agent.agent.compiler.assembly.context.AgentAssemblyPipelineContext;
 import com.hh.infrastructure.agent.agent.compiler.assembly.node.RunnerNode;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
@@ -77,17 +77,17 @@ class RunnerNodePureSlidingWindowTest {
                 .agentDescriptor(agentDescriptor())
                 .runner(runner)
                 .build();
-        DynamicContext context = new DynamicContext();
+        AgentAssemblyPipelineContext context = new AgentAssemblyPipelineContext();
         context.getAgentGroup().put("root-agent", mock(BaseAgent.class));
 
         Method createApp = RunnerNode.class.getDeclaredMethod(
-                "createApp", AgentDefinition.class, DynamicContext.class);
+                "createApp", AgentDefinition.class, AgentAssemblyPipelineContext.class);
         createApp.setAccessible(true);
         App app = (App) createApp.invoke(node, definition, context);
 
         assertThat(app.eventsCompactionConfig()).isNull();
         Method createPlan = RunnerNode.class.getDeclaredMethod(
-                "createCompactionPlan", DynamicContext.class, ContextCompressionDefinition.class);
+                "createCompactionPlan", AgentAssemblyPipelineContext.class, ContextCompressionDefinition.class);
         createPlan.setAccessible(true);
         RuntimeCompactionPlan plan = (RuntimeCompactionPlan) createPlan.invoke(node, context, compression);
 

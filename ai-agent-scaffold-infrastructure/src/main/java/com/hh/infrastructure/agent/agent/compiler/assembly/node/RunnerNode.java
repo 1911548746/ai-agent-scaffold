@@ -18,7 +18,7 @@ import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCl
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
-import com.hh.infrastructure.agent.agent.compiler.assembly.context.DynamicContext;
+import com.hh.infrastructure.agent.agent.compiler.assembly.context.AgentAssemblyPipelineContext;
 import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
 import com.hh.infrastructure.agent.agent.compiler.assembly.command.AgentAssemblyCommand;
 import com.hh.domain.agent.model.definition.AgentDefinition;
@@ -27,10 +27,11 @@ import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
-import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblySupport;
+import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblyNode;
 import com.hh.types.enums.ContextCompressTypeEnum;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -41,7 +42,10 @@ import java.util.Set;
 
 @Slf4j
 @Component
-public class RunnerNode extends AgentAssemblySupport {
+public class RunnerNode extends AgentAssemblyNode {
+
+    @Resource
+    private EndNode endNode;
 
     @Resource
     private AdkSessionStore sessionStore;
@@ -53,7 +57,7 @@ public class RunnerNode extends AgentAssemblySupport {
     private AgentObservabilityPluginFactory agentObservabilityPluginFactory;
 
     @Override
-    protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, DynamicContext dynamicContext) throws Exception {
+    protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, AgentAssemblyPipelineContext context) throws Exception {
         log.info("Ai Agent 装配操作 - RunnerNode");
 
         AgentDefinition agentDefinition = requestParameter.getAgentDefinition();
@@ -65,7 +69,7 @@ public class RunnerNode extends AgentAssemblySupport {
         String agentDesc = agentDefinition.getAgentDescriptor().getAgentDesc();
 
         // App 不再注册自动压缩。压缩由 Runtime 协调器显式执行，避免后置摘要失败反向终止主回复。
-        App app = createApp(agentDefinition, dynamicContext);
+        App app = createApp(agentDefinition, context);
 
         // 创建Runner
         Runner runner = createRunner(agentDefinition, app);
@@ -73,30 +77,29 @@ public class RunnerNode extends AgentAssemblySupport {
         // 策略树到此才产生完整运行时；在 AgentCompiler 发布前它仍是私有候选对象。
         RunConfig runConfig = createRunConfig(agentDefinition.getRunner());
         RuntimeCompactionPlan compactionPlan = createCompactionPlan(
-                dynamicContext, agentDefinition.getRunner().getContextCompress());
+                context, agentDefinition.getRunner().getContextCompress());
         AdkAgentRuntime runtime = new AdkAgentRuntime(
                 appName, agentId, agentName, agentDesc, runner, runConfig, compactionPlan);
 
-        log.info("Ai Agent 装配完成 - {} - {}", agentName, agentDesc);
+        context.setAgentRuntime(runtime);
 
-        // 返回临时构建结果；AgentCompiler 在所有 Agent 成功后统一发布 Registry 快照。
-        return runtime;
+        return router(requestParameter, context);
     }
 
     @Override
-    public StrategyHandler<AgentAssemblyCommand, DynamicContext, AdkAgentRuntime> get(AgentAssemblyCommand command, DynamicContext dynamicContext) throws Exception {
-        return defaultStrategyHandler;
+    public StrategyHandler<AgentAssemblyCommand, AgentAssemblyPipelineContext, AdkAgentRuntime> get(AgentAssemblyCommand command, AgentAssemblyPipelineContext context) throws Exception {
+        return endNode;
     }
 
     // 创建App
-    private App createApp(AgentDefinition definition, DynamicContext dynamicContext) {
+    private App createApp(AgentDefinition definition, AgentAssemblyPipelineContext context) {
 
         String appName = definition.getAppName();
         RunnerDefinition runnerConfig = definition.getRunner();
 
         // runnerAgentName 运行时用的智能体名称
         String runnerAgentName = runnerConfig.getAgentName();
-        BaseAgent baseAgent = dynamicContext.getAgentGroup().get(runnerAgentName);
+        BaseAgent baseAgent = context.getAgentGroup().get(runnerAgentName);
 
         // 配置插件列表
         List<String> pluginNameList = runnerConfig.getPluginNameList();
@@ -137,7 +140,6 @@ public class RunnerNode extends AgentAssemblySupport {
         BaseSessionService sessionService = new InMemorySessionService();
         // 配置event持久化
         if (runnerConfig != null && runnerConfig.getPersistence()) {
-            // Runner 只依赖会话存储能力，不能感知底层是否为 MySQL。
             sessionService = sessionStore;
         }
         // 会话运行节点
@@ -178,7 +180,7 @@ public class RunnerNode extends AgentAssemblySupport {
      * <p>只有显式 slidingWindow 才构建滑动窗口；其余值在 {@link #createApp} 中均会构建 fixedSize，
      * 因此此处也必须使用 fixedSize 作为默认值，避免 ADK 压缩方式与 Event 清理语义不一致。</p>
      */
-    private TrackingLlmEventSummarizer createTrackingSummarizer(DynamicContext dynamicContext, ContextCompressionDefinition contextCompressConfig) {
+    private TrackingLlmEventSummarizer createTrackingSummarizer(AgentAssemblyPipelineContext context, ContextCompressionDefinition contextCompressConfig) {
 
         String type = contextCompressConfig == null ? ContextCompressTypeEnum.FIXED_SIZE.getType()
                 : contextCompressConfig.getType();
@@ -188,7 +190,7 @@ public class RunnerNode extends AgentAssemblySupport {
                 contextCompressConfig == null ? null : contextCompressConfig.getEventRetentionSize());
 
         return new TrackingLlmEventSummarizer(
-                new LlmEventSummarizer(dynamicContext.getLlmModel()),
+                new LlmEventSummarizer(context.getLlmModel()),
                 compactionCleanupPolicyRegistry.resolve(type),
                 cleanupContext);
     }
@@ -197,7 +199,7 @@ public class RunnerNode extends AgentAssemblySupport {
      * 将 YAML 压缩配置编译为 Runtime 维护计划，而不是交给 ADK 自动串入主调用 Flowable。
      */
     private RuntimeCompactionPlan createCompactionPlan(
-            DynamicContext dynamicContext,
+            AgentAssemblyPipelineContext context,
             ContextCompressionDefinition configured) {
 
         ContextCompressionDefinition config = configured == null ? new ContextCompressionDefinition() : configured;
@@ -207,7 +209,7 @@ public class RunnerNode extends AgentAssemblySupport {
             EventsCompactionConfig adkConfig = EventsCompactionConfig.builder()
                     .compactionInterval(config.getCompactionInterval())
                     .overlapSize(config.getOverlapSize())
-                    .summarizer(createTrackingSummarizer(dynamicContext, config))
+                    .summarizer(createTrackingSummarizer(context, config))
                     .build();
             return new RuntimeCompactionPlan(type, new SlidingWindowEventCompactor(adkConfig), 0, true);
         }
@@ -225,7 +227,7 @@ public class RunnerNode extends AgentAssemblySupport {
         return new RuntimeCompactionPlan(
                 ContextCompressTypeEnum.FIXED_SIZE,
                 new TailRetentionEventCompactor(
-                        createTrackingSummarizer(dynamicContext, config),
+                        createTrackingSummarizer(context, config),
                         config.getEventRetentionSize(),
                         0),
                 config.getTokenThreshold(),

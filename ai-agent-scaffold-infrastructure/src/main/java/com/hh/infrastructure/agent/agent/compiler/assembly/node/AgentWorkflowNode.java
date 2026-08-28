@@ -4,10 +4,10 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.hh.infrastructure.agent.agent.compiler.assembly.command.AgentAssemblyCommand;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.AgentWorkflowDefinition;
-import com.hh.infrastructure.agent.agent.compiler.assembly.context.DynamicContext;
+import com.hh.infrastructure.agent.agent.compiler.assembly.context.AgentAssemblyPipelineContext;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.domain.agent.model.enums.AgentWorkflowTypeEnum;
-import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblySupport;
+import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblyNode;
 import com.hh.infrastructure.agent.agent.compiler.assembly.node.workflow.BaseLlmAgentNode;
 import com.hh.infrastructure.agent.agent.compiler.assembly.node.workflow.LoopAgentNode;
 import com.hh.infrastructure.agent.agent.compiler.assembly.node.workflow.ParallelAgentNode;
@@ -20,7 +20,7 @@ import java.util.List;
 
 @Slf4j
 @Component
-public class AgentWorkflowNode extends AgentAssemblySupport {
+public class AgentWorkflowNode extends AgentAssemblyNode {
 
     @Resource
     private LoopAgentNode loopAgentNode;
@@ -36,30 +36,30 @@ public class AgentWorkflowNode extends AgentAssemblySupport {
 
 
     @Override
-    protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, DynamicContext dynamicContext) throws Exception {
+    protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, AgentAssemblyPipelineContext context) throws Exception {
         log.info("Ai Agent 装配操作 - AgentWorkflowNode");
 
         AgentDefinition definition = requestParameter.getAgentDefinition();
         List<AgentWorkflowDefinition> agentWorkflowDefinitionList = definition.getAgentWorkflows();
 
         // 如果未配置 agentWorkflows, 或者当前步骤索引超出 agentWorkflows 的 size , 则直接结束, 流转到 RunnerNode
-        if (null == agentWorkflowDefinitionList || agentWorkflowDefinitionList.isEmpty() || dynamicContext.getCurrentStepIndex().get() >= agentWorkflowDefinitionList.size()) {
-            dynamicContext.setCurrentAgentWorkflow(null);
-            return router(requestParameter, dynamicContext);
+        if (null == agentWorkflowDefinitionList || agentWorkflowDefinitionList.isEmpty() || context.getCurrentStepIndex().get() >= agentWorkflowDefinitionList.size()) {
+            context.setCurrentAgentWorkflow(null);
+            return router(requestParameter, context);
         }
 
         // 设置当前步骤的 agentWorkflow
-        dynamicContext.setCurrentAgentWorkflow(agentWorkflowDefinitionList.get(dynamicContext.getCurrentStepIndex().get()));
+        context.setCurrentAgentWorkflow(agentWorkflowDefinitionList.get(context.getCurrentStepIndex().get()));
         // 增加当前步骤索引
-        dynamicContext.getCurrentStepIndex().incrementAndGet();
+        context.getCurrentStepIndex().incrementAndGet();
 
-        return router(requestParameter, dynamicContext);
+        return router(requestParameter, context);
     }
 
     @Override
-    public StrategyHandler<AgentAssemblyCommand, DynamicContext, AdkAgentRuntime> get(AgentAssemblyCommand command, DynamicContext dynamicContext) throws Exception {
+    public StrategyHandler<AgentAssemblyCommand, AgentAssemblyPipelineContext, AdkAgentRuntime> get(AgentAssemblyCommand command, AgentAssemblyPipelineContext context) throws Exception {
 
-        AgentWorkflowDefinition currentAgentWorkflow = dynamicContext.getCurrentAgentWorkflow();
+        AgentWorkflowDefinition currentAgentWorkflow = context.getCurrentAgentWorkflow();
 
         if (null == currentAgentWorkflow) {
             // 如果未配置 agentWorkflows 则直接流转到 RunnerNode

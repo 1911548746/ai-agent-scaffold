@@ -3,6 +3,7 @@ package com.hh.infrastructure.agent.agent.compiler.assembly.context;
 import com.google.adk.agents.BaseAgent;
 import com.google.adk.models.BaseLlm;
 import com.hh.domain.agent.model.definition.AgentWorkflowDefinition;
+import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import lombok.Data;
@@ -14,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 装配临时上下文
  */
 @Data
-public class DynamicContext {
+public class AgentAssemblyPipelineContext {
 
     private OpenAiChatModel chatModel;
     private OpenAiStreamingChatModel streamingChatModel;
@@ -26,6 +27,8 @@ public class DynamicContext {
     private AtomicInteger currentStepIndex = new AtomicInteger(0);
     // 当前步骤工作流
     private AgentWorkflowDefinition currentAgentWorkflow;
+
+    private AdkAgentRuntime agentRuntime;
 
 
     public List<BaseAgent> queryAgentList(List<String> agentNames) {
