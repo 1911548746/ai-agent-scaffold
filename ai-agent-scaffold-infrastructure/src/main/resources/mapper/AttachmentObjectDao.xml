@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hh.infrastructure.agent.dao.AttachmentObjectDao">
+
+    <!-- 过期附件不向调用方暴露其存在性，也不会再被模型加载。 -->
+    <!-- artifactName 是 ADK ToolContext 使用的逻辑名称；查询始终绑定完整会话身份。 -->
+    <select id="selectActiveByArtifactName" resultType="com.hh.infrastructure.agent.dao.po.AttachmentObjectPO">
+        SELECT id, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
+               file_name, mime_type, size_bytes, created_at, expires_at
+        FROM attachment_objects
+        WHERE artifact_name = #{artifactName}
+          AND app_name = #{appName}
+          AND user_id = #{userId}
+          AND session_id = #{sessionId}
+          AND expires_at &gt; CURRENT_TIMESTAMP
+        <if test="artifactVersion != null">
+          AND artifact_version = #{artifactVersion}
+        </if>
+        ORDER BY artifact_version DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectActiveArtifactNames" resultType="java.lang.String">
+        SELECT DISTINCT artifact_name
+        FROM attachment_objects
+        WHERE app_name = #{appName}
+          AND user_id = #{userId}
+          AND session_id = #{sessionId}
+          AND artifact_name IS NOT NULL
+          AND expires_at &gt; CURRENT_TIMESTAMP
+        ORDER BY artifact_name ASC
+    </select>
+
+    <!-- 删除需覆盖过期版本，不能只依赖 active 查询，否则会遗留对象和元数据。 -->
+    <select id="selectByArtifactName" resultType="com.hh.infrastructure.agent.dao.po.AttachmentObjectPO">
+        SELECT id, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
+               file_name, mime_type, size_bytes, created_at, expires_at
+        FROM attachment_objects
+        WHERE artifact_name = #{artifactName}
+          AND app_name = #{appName}
+          AND user_id = #{userId}
+          AND session_id = #{sessionId}
+        ORDER BY artifact_version ASC
+    </select>
+
+    <!-- 保存同名 Artifact 时需要查看包括已过期记录在内的完整版本序列，避免违反唯一索引。 -->
+    <select id="selectArtifactVersions" resultType="java.lang.Integer">
+        SELECT artifact_version
+        FROM attachment_objects
+        WHERE artifact_name = #{artifactName}
+          AND app_name = #{appName}
+          AND user_id = #{userId}
+          AND session_id = #{sessionId}
+        ORDER BY artifact_version ASC
+    </select>
+
+    <delete id="deleteByArtifactName">
+        DELETE FROM attachment_objects
+        WHERE artifact_name = #{artifactName}
+          AND app_name = #{appName}
+          AND user_id = #{userId}
+          AND session_id = #{sessionId}
+    </delete>
+</mapper>

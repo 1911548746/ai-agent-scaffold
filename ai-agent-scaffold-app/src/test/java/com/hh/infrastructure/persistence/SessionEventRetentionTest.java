@@ -7,6 +7,8 @@ import com.google.adk.events.EventCompaction;
 import com.google.adk.sessions.GetSessionConfig;
 import com.google.adk.sessions.Session;
 import com.google.genai.types.CustomMetadata;
+import com.google.genai.types.Content;
+import com.google.genai.types.Part;
 import com.google.genai.types.StringList;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
@@ -333,6 +335,44 @@ class SessionEventRetentionTest {
     }
 
     @Test
+    void inlineBinaryIsReplacedBeforePersistenceButPreservedForCurrentSessionMemory() {
+        SessionDao sessionDao = mock(SessionDao.class);
+        SessionEventDao eventDao = mock(SessionEventDao.class);
+        MySqlSessionStore store = store(sessionDao, eventDao, true);
+        Session session = session("session-a");
+        Event attachmentEvent = attachmentEvent("attachment-event-a");
+
+        store.appendEvent(session, attachmentEvent).blockingGet();
+
+        ArgumentCaptor<SessionEventPO> eventCaptor = ArgumentCaptor.forClass(SessionEventPO.class);
+        verify(eventDao).upsertByEventIdentity(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getEventJson())
+                .contains("[附件内容已外置保存]")
+                .doesNotContain("AQID");
+        assertThat(session.events().get(0).content().orElseThrow().parts().orElseThrow().get(0)
+                .inlineData().orElseThrow().data().orElseThrow()).containsExactly(1, 2, 3);
+    }
+
+    @Test
+    void interruptedRecoverySanitizesPersistenceButPreservesCurrentMemory() {
+        SessionDao sessionDao = mock(SessionDao.class);
+        SessionEventDao eventDao = mock(SessionEventDao.class);
+        MySqlSessionStore store = store(sessionDao, eventDao, true);
+        Session session = session("session-a");
+
+        store.preserveInterruptedInvocation(session, List.of(), List.of(attachmentEvent("recovery-event-a")))
+                .blockingAwait();
+
+        ArgumentCaptor<SessionEventPO> eventCaptor = ArgumentCaptor.forClass(SessionEventPO.class);
+        verify(eventDao).upsertByEventIdentity(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getEventJson())
+                .contains("[附件内容已外置保存]")
+                .doesNotContain("AQID");
+        assertThat(session.events().get(0).content().orElseThrow().parts().orElseThrow().get(0)
+                .inlineData().orElseThrow().data().orElseThrow()).containsExactly(1, 2, 3);
+    }
+
+    @Test
     void interruptedInvocationRecoveryRollbackKeepsOriginalMemoryView() {
         SessionDao sessionDao = mock(SessionDao.class);
         SessionEventDao eventDao = mock(SessionEventDao.class);
@@ -406,6 +446,18 @@ class SessionEventRetentionTest {
                 .build());
         marker.setCustomMetadata(metadata);
         return marker;
+    }
+
+    /** 构造固定字节，断言 JSON 中不会再出现其 Base64 表示。 */
+    private Event attachmentEvent(String eventId) {
+        return Event.builder()
+                .id(eventId)
+                .author("user-a")
+                .content(Content.builder()
+                        .role("user")
+                        .parts(List.of(Part.fromBytes(new byte[]{1, 2, 3}, "image/png")))
+                        .build())
+                .build();
     }
 
     private SessionEventPO eventRow(String eventId) {

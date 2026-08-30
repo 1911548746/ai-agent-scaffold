@@ -4,7 +4,7 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.BaseAgent;
 import com.google.adk.agents.RunConfig;
 import com.google.adk.apps.App;
-import com.google.adk.artifacts.InMemoryArtifactService;
+import com.google.adk.artifacts.BaseArtifactService;
 import com.google.adk.memory.InMemoryMemoryService;
 import com.google.adk.plugins.Plugin;
 import com.google.adk.runner.Runner;
@@ -31,7 +31,6 @@ import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssembl
 import com.hh.types.enums.ContextCompressTypeEnum;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -55,6 +54,9 @@ public class RunnerNode extends AgentAssemblyNode {
 
     @Resource
     private AgentObservabilityPluginFactory agentObservabilityPluginFactory;
+
+    @Resource
+    private BaseArtifactService artifactService;
 
     @Override
     protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, AgentAssemblyPipelineContext context) throws Exception {
@@ -142,10 +144,11 @@ public class RunnerNode extends AgentAssemblyNode {
         if (runnerConfig != null && runnerConfig.getPersistence()) {
             sessionService = sessionStore;
         }
-        // 会话运行节点
+        // ArtifactService 由 app 层按部署环境装配；所有 Runner 必须共享它，才能让
+        // LoadArtifactsTool 在模型请求阶段找到 HTTP 上传的受控 Artifact。
         return Runner.builder()
                 .app(app)
-                .artifactService(new InMemoryArtifactService())
+                .artifactService(artifactService)
                 .sessionService(sessionService)
                 .memoryService(new InMemoryMemoryService())
                 .build();

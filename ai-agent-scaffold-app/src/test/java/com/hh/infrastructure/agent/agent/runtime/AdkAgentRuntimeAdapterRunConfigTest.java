@@ -17,6 +17,7 @@ import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
+import com.hh.domain.agent.model.valobj.AttachmentReference;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.runtime.invocation.SessionInvocationCoordinator;
 import com.hh.types.enums.ContextCompressTypeEnum;
@@ -85,6 +86,33 @@ class AdkAgentRuntimeAdapterRunConfigTest {
                         RunConfig.StreamingMode.NONE,
                         RunConfig.StreamingMode.SSE,
                         RunConfig.StreamingMode.NONE);
+    }
+
+    @Test
+    void sendsArtifactNameWithoutLoadingInlineDataIntoUserEvent() {
+        Runner runner = runner(session());
+        when(runner.runAsync(eq("user-a"), eq("session-a"), any(Content.class), any(RunConfig.class)))
+                .thenReturn(Flowable.empty());
+        AttachmentReference reference = new AttachmentReference(
+                "attachment-9f2a1742-0c98-4c18-a558-3ee79dfb77ad",
+                "image.png",
+                "image/png",
+                3);
+
+        AdkAgentRuntimeAdapter adapter = adapter(runner);
+        adapter.run("agent-a", ChatCommandEntity.builder()
+                .userId("user-a")
+                .sessionId("session-a")
+                .attachments(List.of(reference))
+                .build());
+
+        ArgumentCaptor<Content> contentCaptor = ArgumentCaptor.forClass(Content.class);
+        verify(runner).runAsync(eq("user-a"), eq("session-a"), contentCaptor.capture(), any(RunConfig.class));
+        List<Part> parts = contentCaptor.getValue().parts().orElseThrow();
+        assertThat(parts).allMatch(part -> part.inlineData().isEmpty());
+        assertThat(parts.get(0).text().orElseThrow()).contains(reference.artifactName());
+        assertThat(parts.get(0).text().orElseThrow()).contains("load_artifacts");
+        assertThat(contentCaptor.getValue().toJson()).doesNotContain("attachments/").doesNotContain("http://");
     }
 
     @Test

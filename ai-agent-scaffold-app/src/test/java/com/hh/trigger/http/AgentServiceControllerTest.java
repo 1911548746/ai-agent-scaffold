@@ -9,6 +9,7 @@ import com.hh.application.agent.model.ChatEvent;
 import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.usecase.ChatUseCase;
+import com.hh.application.agent.usecase.AttachmentUseCase;
 import com.hh.application.auth.model.AuthenticatedPrincipal;
 import com.hh.trigger.http.agent.AgentServiceController;
 import com.hh.trigger.http.agent.parser.MultimodalAttachmentParser;
@@ -257,7 +258,7 @@ class AgentServiceControllerTest {
         private Object eventData;
 
         private CapturingAgentServiceController(ChatUseCase chatUseCase) {
-            super(chatUseCase, new MultimodalAttachmentParser());
+            super(chatUseCase, mock(AttachmentUseCase.class), new MultimodalAttachmentParser());
         }
 
         @Override

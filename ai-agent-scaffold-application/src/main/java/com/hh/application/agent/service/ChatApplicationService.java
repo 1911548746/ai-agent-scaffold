@@ -102,7 +102,7 @@ public class ChatApplicationService implements ChatUseCase {
 
     @Override
     public ChatResult handleMessage(ChatCommandEntity chatCommandEntity) {
-        validateInlineDataSize(chatCommandEntity);
+        validateAttachments(chatCommandEntity);
         validateMessageInput(chatCommandEntity);
 
         String appName = agentRuntimePort.appName(chatCommandEntity.getAgentId());
@@ -115,7 +115,7 @@ public class ChatApplicationService implements ChatUseCase {
         // 查找或创建会话记录，拿到 conversationId
         Long conversationId = conversationArchivePort.findOrCreateConversation(appName, userId, sessionId);
 
-        // 文本内容；附件原始字节只进入本次 Runtime 调用，不写入消息表。
+        // 消息归档只保存描述性文本；附件由受控引用关联，原始字节不进入消息表或命令对象。
         messageArchivePort.saveUserMessage(conversationId, appName, userId, sessionId, archiveText(chatCommandEntity));
 
         ChatResult result = agentRuntimePort.run(chatCommandEntity.getAgentId(), chatCommandEntity);
@@ -128,7 +128,7 @@ public class ChatApplicationService implements ChatUseCase {
 
     @Override
     public ChatStream handleMessageStream(ChatCommandEntity chatCommandEntity) {
-        validateInlineDataSize(chatCommandEntity);
+        validateAttachments(chatCommandEntity);
         validateMessageInput(chatCommandEntity);
 
         String agentId = chatCommandEntity.getAgentId();
@@ -260,30 +260,33 @@ public class ChatApplicationService implements ChatUseCase {
         }
 
         // 如果用户没有输入文本，则组装一段描述性文本作为用户输入返回
-        int attachmentCount = (command.getInlineDatas() == null ? 0 : command.getInlineDatas().size())
+        int attachmentCount = (command.getAttachments() == null ? 0 : command.getAttachments().size())
                 + (command.getFiles() == null ? 0 : command.getFiles().size());
         return "用户上传了 " + attachmentCount + " 个附件";
     }
 
     /**
-     * 检查 InlineData 大小，覆盖绕过 HTTP Bean Validation 的直接调用。
+     * 检查附件引用的结构，防止绕过 HTTP 入口的调用传入异常集合。
+     *
+     * <p>附件真实归属和过期状态由 infrastructure 的 ADK ArtifactService 在模型请求阶段再次校验。</p>
      */
-    private void validateInlineDataSize(ChatCommandEntity chatCommandEntity) {
-        List<ChatCommandEntity.Content.InlineData> inlineDatas = chatCommandEntity.getInlineDatas();
-        if (inlineDatas == null) {
+    private void validateAttachments(ChatCommandEntity chatCommandEntity) {
+        List<com.hh.domain.agent.model.valobj.AttachmentReference> attachments = chatCommandEntity.getAttachments();
+        if (attachments == null) {
             return;
         }
-        if (inlineDatas.size() > RequestPayloadLimits.MAX_INLINE_DATA_COUNT) {
+        if (attachments.size() > RequestPayloadLimits.MAX_INLINE_DATA_COUNT) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
         }
 
         long totalBytes = 0;
-        for (ChatCommandEntity.Content.InlineData inlineData : inlineDatas) {
-            if (inlineData == null || inlineData.getBytes() == null
-                    || inlineData.getBytes().length > RequestPayloadLimits.MAX_INLINE_DATA_BYTES) {
+        for (com.hh.domain.agent.model.valobj.AttachmentReference attachment : attachments) {
+            if (attachment == null || attachment.artifactName() == null || attachment.artifactName().isBlank()
+                    || attachment.mimeType() == null || attachment.mimeType().isBlank()
+                    || attachment.size() <= 0 || attachment.size() > RequestPayloadLimits.MAX_INLINE_DATA_BYTES) {
                 throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
             }
-            totalBytes += inlineData.getBytes().length;
+            totalBytes += attachment.size();
             if (totalBytes > RequestPayloadLimits.MAX_INLINE_DATA_TOTAL_BYTES) {
                 throw new AppException(ResponseCode.ILLEGAL_PARAMETER);
             }
@@ -295,12 +298,13 @@ public class ChatApplicationService implements ChatUseCase {
         boolean hasText = chatCommandEntity.getTexts() != null
                 && chatCommandEntity.getTexts().stream()
                 .anyMatch(text -> text != null && text.getMessage() != null && !text.getMessage().isBlank());
-        boolean hasInlineData = chatCommandEntity.getInlineDatas() != null
-                && chatCommandEntity.getInlineDatas().stream()
-                .anyMatch(data -> data != null && data.getBytes() != null && data.getBytes().length > 0);
+        boolean hasAttachment = chatCommandEntity.getAttachments() != null
+                && chatCommandEntity.getAttachments().stream()
+                .anyMatch(attachment -> attachment != null && attachment.artifactName() != null
+                        && !attachment.artifactName().isBlank());
         boolean hasFileReference = chatCommandEntity.getFiles() != null
                 && !chatCommandEntity.getFiles().isEmpty();
-        if (!hasText && !hasInlineData && !hasFileReference) {
+        if (!hasText && !hasAttachment && !hasFileReference) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "message或files至少提供一项");
         }
     }

@@ -4,6 +4,7 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.LlmAgent;
 import com.google.adk.models.BaseLlm;
 import com.google.adk.skills.SkillSource;
+import com.google.adk.tools.LoadArtifactsTool;
 import com.google.adk.tools.skills.SkillToolset;
 import com.hh.infrastructure.agent.agent.compiler.assembly.command.AgentAssemblyCommand;
 import com.hh.domain.agent.model.definition.AgentDefinition;
@@ -51,6 +52,14 @@ public class LlmAgentNode extends AgentAssemblyNode {
         for (LlmAgentDefinition agentDefinition : agentDefinitionList) {
 
             List<Object> toolsets = new ArrayList<>();
+
+            // 内置工具
+            /**
+             * LoadArtifactsTool
+             * <p>该工具只在 LLM 请求构造阶段临时加载当前 Session 的 Artifact，不会把原始字节写回 Event</p>
+             * <p>无可用 Artifact 时它只返回空列表</p>
+             */
+            toolsets.add(LoadArtifactsTool.INSTANCE);
 
             // 判断是否配置了mcp工具列表
             if (agentDefinition.getMcpToolList() != null && !agentDefinition.getMcpToolList().isEmpty()) {

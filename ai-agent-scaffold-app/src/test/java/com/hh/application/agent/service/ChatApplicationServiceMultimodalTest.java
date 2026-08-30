@@ -7,6 +7,7 @@ import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.application.agent.port.MessageArchivePort;
 import com.hh.application.agent.port.ToolConfirmationPort;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
+import com.hh.domain.agent.model.valobj.AttachmentReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -41,8 +42,8 @@ class ChatApplicationServiceMultimodalTest {
                 .userId("user-1")
                 .sessionId("session-1")
                 .texts(List.of())
-                .inlineDatas(List.of(new ChatCommandEntity.Content.InlineData(
-                        new byte[]{1, 2, 3}, "image/png")))
+                .attachments(List.of(new AttachmentReference(
+                        "artifact-1", "image.png", "image/png", 3)))
                 .build();
         when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
         when(conversationArchivePort.findOrCreateConversation("app-a", "user-1", "session-1"))

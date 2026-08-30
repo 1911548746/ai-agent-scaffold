@@ -15,8 +15,11 @@ import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.model.ChatSubscription;
 import com.hh.application.agent.usecase.ChatUseCase;
+import com.hh.application.agent.usecase.AttachmentUseCase;
+import com.hh.application.agent.model.AttachmentUpload;
 import com.hh.application.agent.model.ToolConfirmationRequest;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
+import com.hh.domain.agent.model.valobj.AttachmentReference;
 import com.hh.trigger.http.agent.parser.MultimodalAttachmentParser;
 import com.hh.trigger.http.agent.parser.ParsedAttachment;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
@@ -46,10 +49,15 @@ public class AgentServiceController implements IAgentService {
     private static final long STREAM_TIMEOUT_MILLIS = 5 * 60 * 1000L;
 
     private final ChatUseCase chatUseCase;
+    private final AttachmentUseCase attachmentUseCase;
     private final MultimodalAttachmentParser multimodalAttachmentParser;
 
-    public AgentServiceController(ChatUseCase chatUseCase, MultimodalAttachmentParser multimodalAttachmentParser) {
+    public AgentServiceController(
+            ChatUseCase chatUseCase,
+            AttachmentUseCase attachmentUseCase,
+            MultimodalAttachmentParser multimodalAttachmentParser) {
         this.chatUseCase = chatUseCase;
+        this.attachmentUseCase = attachmentUseCase;
         this.multimodalAttachmentParser = multimodalAttachmentParser;
     }
 
@@ -344,7 +352,8 @@ public class AgentServiceController implements IAgentService {
      * }
      * </pre>
      *
-     * <p>原始附件只在当前模型调用生命周期内保留，不写入消息正文；若工具需要人工确认，
+     * <p>原始附件会写入受控 ADK Artifact 存储并默认保留 24 小时。模型仅在调用内置
+     * {@code load_artifacts} 工具时按需临时读取，消息正文和 Session Event 不保存原始二进制；若工具需要人工确认，
      * {@code pendingConfirmations} 返回确认摘要，后续通过工具确认接口继续任务。</p>
      */
     @PostMapping(value = "/chat-multimodal", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -398,8 +407,9 @@ public class AgentServiceController implements IAgentService {
      *
      * </pre>
      *
-     * <p>附件只在当前模型调用生命周期内保留。该接口是 POST，不能使用原生 GET
-     * {@code EventSource}，客户端应使用支持 multipart 的请求库读取 SSE 流，并在取消时终止请求。</p>
+     * <p>附件会写入受控 ADK Artifact 存储并默认保留 24 小时，模型按需加载后不会把原始二进制写回
+     * Session Event。该接口是 POST，不能使用原生 GET {@code EventSource}，客户端应使用支持 multipart 的请求库
+     * 读取 SSE 流，并在取消时终止请求。</p>
      */
     @PostMapping(value = "/chat-multimodal-stream", consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -438,16 +448,21 @@ public class AgentServiceController implements IAgentService {
         List<ChatCommandEntity.Content.Text> texts = message == null || message.isBlank()
                 ? List.of()
                 : List.of(new ChatCommandEntity.Content.Text(message));
-        List<ChatCommandEntity.Content.InlineData> inlineDatas = parsedAttachments.stream()
-                .map(file -> new ChatCommandEntity.Content.InlineData(file.bytes(), file.mimeType()))
-                .toList();
+        String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
+        List<AttachmentReference> attachments = attachmentUseCase.storeForSession(
+                agentId,
+                userId,
+                sessionId,
+                parsedAttachments.stream()
+                        .map(file -> new AttachmentUpload(file.fileName(), file.mimeType(), file.bytes()))
+                        .toList());
 
         return ChatCommandEntity.builder()
                 .agentId(agentId)
-                .userId(AuthenticatedPrincipalContext.requireCurrent().userId())
+                .userId(userId)
                 .sessionId(sessionId)
                 .texts(texts)
-                .inlineDatas(inlineDatas)
+                .attachments(attachments)
                 .build();
     }
 

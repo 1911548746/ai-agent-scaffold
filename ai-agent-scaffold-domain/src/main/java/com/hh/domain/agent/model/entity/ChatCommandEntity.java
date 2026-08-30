@@ -1,6 +1,7 @@
 package com.hh.domain.agent.model.entity;
 
 import com.hh.types.validation.RequestPayloadLimits;
+import com.hh.domain.agent.model.valobj.AttachmentReference;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
@@ -37,24 +38,16 @@ public class ChatCommandEntity {
     private List<Content.File> files;
 
     @Valid
-    @Size(max = RequestPayloadLimits.MAX_INLINE_DATA_COUNT, message = "inlineDatas数量不能超过4个")
-    private List<Content.InlineData> inlineDatas;
+    @Size(max = RequestPayloadLimits.MAX_INLINE_DATA_COUNT, message = "attachments数量不能超过4个")
+    private List<AttachmentReference> attachments;
 
-    /**
-     * 单个文件受字段约束限制还不够；多个合法小文件叠加后同样可能耗尽请求内存，
-     * 因此额外限制本次命令的内联数据总量。
-     */
-    @AssertTrue(message = "inlineData总大小不能超过8MiB")
-    public boolean isInlineDataTotalSizeValid() {
-        if (inlineDatas == null) {
-            return true;
-        }
-
-        long totalBytes = inlineDatas.stream()
-                .filter(inlineData -> inlineData != null && inlineData.getBytes() != null)
-                .mapToLong(inlineData -> inlineData.getBytes().length)
-                .sum();
-        return totalBytes <= RequestPayloadLimits.MAX_INLINE_DATA_TOTAL_BYTES;
+    /** 附件已经外置，但聚合大小限制仍需在绕过 HTTP 的直接调用处保留。 */
+    @AssertTrue(message = "attachment总大小不能超过8MiB")
+    public boolean isAttachmentTotalSizeValid() {
+        return attachments == null || attachments.stream()
+                .filter(attachment -> attachment != null)
+                .mapToLong(AttachmentReference::size)
+                .sum() <= RequestPayloadLimits.MAX_INLINE_DATA_TOTAL_BYTES;
     }
 
     @Data
@@ -77,18 +70,6 @@ public class ChatCommandEntity {
             private String mimeType;
         }
 
-        @Data
-        @AllArgsConstructor
-        @NoArgsConstructor
-        public static class InlineData {
-            @NotNull(message = "inlineData字节不能为空")
-            @Size(max = RequestPayloadLimits.MAX_INLINE_DATA_BYTES, message = "inlineData不能超过4MiB")
-            private byte[] bytes;
-
-            @NotBlank(message = "inlineData mimeType不能为空")
-            @Size(max = RequestPayloadLimits.MAX_IDENTIFIER_LENGTH, message = "inlineData mimeType长度不能超过128个字符")
-            private String mimeType;
-        }
     }
 
     public ChatCommandEntity buildSessionCommand(String agentId, String userId) {

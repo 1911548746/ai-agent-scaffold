@@ -1,6 +1,7 @@
 package com.hh.trigger.http;
 
 import com.hh.application.agent.usecase.ChatUseCase;
+import com.hh.application.agent.usecase.AttachmentUseCase;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import com.hh.application.auth.model.AuthenticatedPrincipal;
 import com.hh.trigger.http.agent.AgentServiceController;
@@ -8,6 +9,7 @@ import com.hh.trigger.http.agent.parser.MultimodalAttachmentParser;
 import com.hh.trigger.http.agent.ConversationController;
 import com.hh.trigger.http.auth.AuthenticatedPrincipalContext;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
+import com.hh.domain.agent.model.valobj.AttachmentReference;
 import com.hh.handler.GlobalExceptionHandler;
 import com.hh.types.validation.RequestPayloadLimits;
 import jakarta.validation.Validation;
@@ -159,36 +161,39 @@ class ApiValidationTest {
     }
 
     @Test
-    void inlineDataHasPerItemAndAggregateSizeLimits() {
-        ChatCommandEntity.Content.InlineData tooLarge = new ChatCommandEntity.Content.InlineData(
-                new byte[RequestPayloadLimits.MAX_INLINE_DATA_BYTES + 1], "application/octet-stream");
+    void attachmentReferenceHasPerItemAndAggregateSizeLimits() {
+        AttachmentReference tooLarge = new AttachmentReference(
+                "artifact-1", "file.bin", "application/octet-stream",
+                RequestPayloadLimits.MAX_INLINE_DATA_BYTES + 1L);
         ChatCommandEntity perItemLimitExceeded = ChatCommandEntity.builder()
                 .agentId("hello")
                 .userId("user-1")
                 .sessionId("session-1")
-                .inlineDatas(List.of(tooLarge))
+                .attachments(List.of(tooLarge))
                 .build();
 
         assertThat(validator.validate(perItemLimitExceeded))
-                .anyMatch(violation -> violation.getPropertyPath().toString().equals("inlineDatas[0].bytes"));
+                .anyMatch(violation -> violation.getPropertyPath().toString().equals("attachments[0].size"));
 
         // 每项均小于 4MiB，但三项之和超过 8MiB，必须被聚合约束拒绝。
-        ChatCommandEntity.Content.InlineData validSingleButLargeTotal = new ChatCommandEntity.Content.InlineData(
-                new byte[RequestPayloadLimits.MAX_INLINE_DATA_TOTAL_BYTES / 3 + 1], "application/octet-stream");
+        AttachmentReference validSingleButLargeTotal = new AttachmentReference(
+                "artifact-2", "file.bin", "application/octet-stream",
+                RequestPayloadLimits.MAX_INLINE_DATA_TOTAL_BYTES / 3L + 1L);
         ChatCommandEntity aggregateLimitExceeded = ChatCommandEntity.builder()
                 .agentId("hello")
                 .userId("user-1")
                 .sessionId("session-1")
-                .inlineDatas(List.of(validSingleButLargeTotal, validSingleButLargeTotal, validSingleButLargeTotal))
+                .attachments(List.of(validSingleButLargeTotal, validSingleButLargeTotal, validSingleButLargeTotal))
                 .build();
 
         assertThat(validator.validate(aggregateLimitExceeded))
-                .anyMatch(violation -> violation.getPropertyPath().toString().equals("inlineDataTotalSizeValid"));
+                .anyMatch(violation -> violation.getPropertyPath().toString().equals("attachmentTotalSizeValid"));
     }
 
     private MockMvc agentMvc(ChatUseCase chatUseCase) {
+        AttachmentUseCase attachmentUseCase = mock(AttachmentUseCase.class);
         return MockMvcBuilders.standaloneSetup(
-                        new AgentServiceController(chatUseCase, new MultimodalAttachmentParser()))
+                        new AgentServiceController(chatUseCase, attachmentUseCase, new MultimodalAttachmentParser()))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

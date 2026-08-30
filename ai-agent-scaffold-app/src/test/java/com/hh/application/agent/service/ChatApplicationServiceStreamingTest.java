@@ -9,6 +9,7 @@ import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.application.agent.port.MessageArchivePort;
 import com.hh.domain.agent.model.enums.MessageStatus;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
+import com.hh.domain.agent.model.valobj.AttachmentReference;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import org.junit.jupiter.api.Test;
@@ -107,8 +108,8 @@ class ChatApplicationServiceStreamingTest {
                 .agentId("agent-a")
                 .userId("user-1")
                 .sessionId("session-1")
-                .inlineDatas(java.util.List.of(new ChatCommandEntity.Content.InlineData(
-                        new byte[]{1, 2, 3}, "image/jpeg")))
+                .attachments(java.util.List.of(new AttachmentReference(
+                        "artifact-1", "image.jpg", "image/jpeg", 3)))
                 .build();
 
         chatService.handleMessageStream(command).subscribe(noOpObserver());

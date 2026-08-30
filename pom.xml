@@ -44,6 +44,7 @@
         <mybatis-plus.version>3.5.17</mybatis-plus.version>
         <guava.version>32.1.3-jre</guava.version>
         <archunit.version>1.4.2</archunit.version>
+        <minio.version>8.5.17</minio.version>
     </properties>
 
 
@@ -125,6 +126,23 @@
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
                 <version>${guava.version}</version>
+            </dependency>
+            <!-- S3 兼容对象存储客户端仅由 infrastructure 的附件适配器使用。 -->
+            <dependency>
+                <groupId>io.minio</groupId>
+                <artifactId>minio</artifactId>
+                <version>${minio.version}</version>
+            </dependency>
+            <!-- 与 ADK 的 docker-java 依赖对齐，避免 MinIO 的旧传递版本破坏收敛检查。 -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>1.82</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>1.28.0</version>
             </dependency>
 
             <!-- 工程模块 -->

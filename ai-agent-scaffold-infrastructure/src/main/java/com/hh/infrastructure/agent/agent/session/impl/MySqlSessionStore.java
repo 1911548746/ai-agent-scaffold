@@ -24,6 +24,8 @@ import com.google.adk.sessions.ListEventsResponse;
 import com.google.adk.sessions.ListSessionsResponse;
 import com.google.adk.sessions.Session;
 import com.google.adk.sessions.State;
+import com.google.genai.types.Content;
+import com.google.genai.types.Part;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Maybe;
 import io.reactivex.rxjava3.core.Single;
@@ -201,7 +203,8 @@ public class MySqlSessionStore implements AdkSessionStore {
                     // 源 Event 已被同一事务物理删除；当前 Session 也必须同步移除，才能不依赖空 marker 截断上下文。
                     session.events().removeIf(sessionEvent -> deletableEventIds.contains(sessionEvent.id()));
                 } else if (!partialEvent) {
-                    // 与 ADK BaseSessionService 保持一致，partial Event 不能污染下一轮模型上下文。
+                    // 持久化投影会剥离 inlineData，但当前 invocation 的内存 Event 必须保持原样，
+                    // 否则 Runner 在构造本轮后续 LLM 请求时会错误地看见脱敏占位文本。
                     session.events().add(event);
                 }
             } catch (UnsupportedOperationException ignored) {
@@ -246,8 +249,9 @@ public class MySqlSessionStore implements AdkSessionStore {
                     .filter(eventId -> eventId != null && !eventId.isBlank())
                     .distinct()
                     .toList();
-            List<Event> resolvedRecoveryEvents = recoveryEvents == null ? List.of() : List.copyOf(recoveryEvents);
-            resolvedRecoveryEvents.forEach(this::ensureEventIdentity);
+            List<Event> resolvedRecoveryEvents = recoveryEvents == null ? List.of() : recoveryEvents.stream()
+                    .peek(this::ensureEventIdentity)
+                    .toList();
 
             // 恢复 Event 与旧 Event 清理必须共同提交，避免只留下半套可恢复轨迹。
             transactionTemplate.executeWithoutResult(status -> {
@@ -267,7 +271,7 @@ public class MySqlSessionStore implements AdkSessionStore {
                 }
             });
 
-            // 数据库提交后再生成相同的内存视图，供同一进程的下一轮调用直接使用。
+            // 数据库提交后保留运行时原始 Event；数据库副本已在 persistEvent 内完成脱敏。
             session.events().removeIf(event -> resolvedEventIds.contains(event.id()));
             session.events().addAll(resolvedRecoveryEvents);
         });
@@ -322,23 +326,50 @@ public class MySqlSessionStore implements AdkSessionStore {
 
     private void persistEvent(String appName, String userId, String sessionId, Event event) {
         // 该方法在事务内调用，先写 Event，再写 Session 快照，任一步骤失败都会共同回滚。
+        Event persistentEvent = eventForPersistence(event);
         SessionEventPO row = SessionEventPO.builder()
                 .appName(appName)
                 .userId(userId)
                 .sessionId(sessionId)
-                .eventId(event.id())
-                .invocationId(event.invocationId())
-                .author(event.author())
-                .finalResponse(event.finalResponse())
-                .partial(event.partial().orElse(null))
-                .compactionEvent(event.actions() != null && event.actions().compaction().isPresent())
-                .eventTs(event.timestamp())
-                .contentText(eventContentText(event))
-                .eventJson(event.toJson())
+                .eventId(persistentEvent.id())
+                .invocationId(persistentEvent.invocationId())
+                .author(persistentEvent.author())
+                .finalResponse(persistentEvent.finalResponse())
+                .partial(persistentEvent.partial().orElse(null))
+                .compactionEvent(persistentEvent.actions() != null && persistentEvent.actions().compaction().isPresent())
+                .eventTs(persistentEvent.timestamp())
+                .contentText(eventContentText(persistentEvent))
+                .eventJson(persistentEvent.toJson())
                 .createdAt(LocalDateTime.now())
                 .build();
         // ADK 可能因重试或回调竞争重复投递同一 eventId；保留第一条不可变快照即可。
         sessionEventDao.upsertByEventIdentity(row);
+    }
+
+    /**
+     * Event 的 inlineData 仅供当前 Runner 调用使用，绝不能直接进入 MySQL JSON。
+     *
+     * <p>这里把意外出现的二进制 Part 替换为固定文本。因此进程重启后的会话恢复不会重新把历史附件
+     * 塞入下一轮模型上下文；正常的 Artifact 流程本身不会将二进制写入 Event。</p>
+     */
+    private Event eventForPersistence(Event event) {
+        if (event.content().isEmpty() || event.content().orElseThrow().parts().isEmpty()) {
+            return event;
+        }
+        Content content = event.content().orElseThrow();
+        List<Part> originalParts = content.parts().orElseThrow();
+        boolean containsInlineData = originalParts.stream().anyMatch(part -> part.inlineData().isPresent());
+        if (!containsInlineData) {
+            return event;
+        }
+        List<Part> persistentParts = originalParts.stream()
+                .map(part -> part.inlineData().isPresent()
+                        ? Part.fromText("[附件内容已外置保存]")
+                        : part)
+                .toList();
+        return event.toBuilder()
+                .content(content.toBuilder().parts(persistentParts).build())
+                .build();
     }
 
     /**

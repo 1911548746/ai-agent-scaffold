@@ -14,6 +14,7 @@ import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.model.ToolConfirmationRequest;
 import com.hh.application.agent.port.AgentRuntimePort;
+import com.hh.domain.agent.model.valobj.AttachmentReference;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.infrastructure.agent.agent.runtime.invocation.ModelInvocationFailureMapper;
@@ -21,7 +22,6 @@ import com.hh.infrastructure.agent.agent.runtime.invocation.SessionInvocationCoo
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import io.reactivex.rxjava3.core.Flowable;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -45,8 +45,6 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
 
     private final AdkAgentRuntimeRegistry runtimeRegistry;
     private final SessionInvocationCoordinator compactionCoordinator;
-
-    @Autowired
     public AdkAgentRuntimeAdapter(
             AdkAgentRuntimeRegistry runtimeRegistry,
             SessionInvocationCoordinator compactionCoordinator) {
@@ -264,7 +262,12 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
     }
 
 
-    /** 将 ChatCommandEntity 转换为 Content (UserMessage) */
+    /**
+     * 将受控 Artifact 名称写入当前轮模型输入。
+     *
+     * <p>这里不能读取对象存储并构造 inlineData。模型随后调用 {@code LoadArtifactsTool} 时，ADK 才会
+     * 以当前 ToolContext 的完整 Session 身份临时加载二进制；该内容不会写入 Session Event。</p>
+     */
     private Content commandContent(ChatCommandEntity command) {
         List<Part> parts = new ArrayList<>();
         if (command.getTexts() != null) {
@@ -273,8 +276,14 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         if (command.getFiles() != null) {
             command.getFiles().forEach(file -> parts.add(Part.fromUri(file.getFileUri(), file.getMimeType())));
         }
-        if (command.getInlineDatas() != null) {
-            command.getInlineDatas().forEach(data -> parts.add(Part.fromBytes(data.getBytes(), data.getMimeType())));
+        if (command.getAttachments() != null && !command.getAttachments().isEmpty()) {
+            String artifactNames = command.getAttachments().stream()
+                    .map(AttachmentReference::artifactName)
+                    .filter(name -> name != null && !name.isBlank())
+                    .collect(java.util.stream.Collectors.joining(", "));
+            // 该文本可以安全持久化，仅提示模型按需调用内置工具，绝不包含 object key、URL 或原始内容。
+            parts.add(Part.fromText("本次上传的附件已保存为 Artifact；需要读取内容时请调用 load_artifacts："
+                    + artifactNames));
         }
         return Content.builder().role("user").parts(parts).build();
     }
