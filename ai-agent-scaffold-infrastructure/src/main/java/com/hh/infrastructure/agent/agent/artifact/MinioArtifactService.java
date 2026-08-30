@@ -130,7 +130,7 @@ public class MinioArtifactService implements BaseArtifactService, AttachmentStor
                 .build());
     }
 
-    /** 删除指定 Artifact 的所有版本；生命周期自动清理属于后续 DATA-08。 */
+    /** 删除指定 Artifact 的所有版本；过期对象由定时清理和 MinIO Lifecycle 共同兜底。 */
     @Override
     public Completable deleteArtifact(String appName, String userId, String sessionId, String filename) {
         return Completable.fromAction(() -> deleteArtifactVersions(appName, userId, sessionId, filename));
@@ -152,6 +152,34 @@ public class MinioArtifactService implements BaseArtifactService, AttachmentStor
         for (AttachmentReference reference : references) {
             deleteArtifactVersions(appName, userId, sessionId, reference.artifactName());
         }
+    }
+
+    /**
+     * 删除 Session 下的全部附件。
+     *
+     * <p>先删除对象，再删除元数据；若任意对象删除失败，剩余元数据会交给后续清理任务重试，
+     * 从而避免在对象仍然存在时丢失唯一的物理定位信息。</p>
+     */
+    @Override
+    public void deleteSession(String appName, String userId, String sessionId) {
+        List<AttachmentObjectPO> objects = attachmentObjectDao.selectBySession(appName, userId, sessionId);
+        for (AttachmentObjectPO object : objects) {
+            removeObject(object.getObjectKey());
+            attachmentObjectDao.deleteById(object.getId());
+        }
+    }
+
+    /** 清理已过期附件；返回本轮成功删除的元数据数量。 */
+    public int cleanupExpired(int batchSize) {
+        List<AttachmentObjectPO> objects = attachmentObjectDao.selectExpired(LocalDateTime.now(), batchSize);
+        int deleted = 0;
+        for (AttachmentObjectPO object : objects) {
+            removeObject(object.getObjectKey());
+            if (attachmentObjectDao.deleteById(object.getId()) == 1) {
+                deleted++;
+            }
+        }
+        return deleted;
     }
 
     private int saveArtifactInternal(

@@ -14,6 +14,8 @@ import com.hh.application.agent.model.ChatStream;
 import com.hh.application.agent.model.ChatStreamObserver;
 import com.hh.application.agent.model.ToolConfirmationRequest;
 import com.hh.application.agent.port.AgentRuntimePort;
+import com.hh.application.agent.port.SessionLease;
+import com.hh.application.agent.port.SessionOperationLockPort;
 import com.hh.domain.agent.model.valobj.AttachmentReference;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
@@ -41,7 +43,7 @@ import java.util.UUID;
  * {@link AgentRuntimePort} 编排消息归档和状态，不再持有 SDK Runner。</p>
  */
 @Service
-public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
+public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperationLockPort {
 
     private final AdkAgentRuntimeRegistry runtimeRegistry;
     private final SessionInvocationCoordinator compactionCoordinator;
@@ -82,6 +84,12 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort {
         if (session == null) {
             throw new AppException(ResponseCode.SESSION_NOT_FOUND);
         }
+    }
+
+    @Override
+    public SessionLease acquire(String agentId, String userId, String sessionId) {
+        AdkAgentRuntime runtime = requireRuntime(agentId);
+        return compactionCoordinator.acquireSessionOperationLease(runtime, userId, sessionId);
     }
 
     /** 同步调用 */

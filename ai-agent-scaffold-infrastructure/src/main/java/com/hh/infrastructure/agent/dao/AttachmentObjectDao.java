@@ -5,6 +5,7 @@ import com.hh.infrastructure.agent.dao.po.AttachmentObjectPO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -39,4 +40,13 @@ public interface AttachmentObjectDao extends BaseMapper<AttachmentObjectPO> {
             @Param("appName") String appName,
             @Param("userId") String userId,
             @Param("sessionId") String sessionId);
+
+    List<AttachmentObjectPO> selectBySession(
+            @Param("appName") String appName,
+            @Param("userId") String userId,
+            @Param("sessionId") String sessionId);
+
+    List<AttachmentObjectPO> selectExpired(
+            @Param("now") LocalDateTime now,
+            @Param("limit") int limit);
 }

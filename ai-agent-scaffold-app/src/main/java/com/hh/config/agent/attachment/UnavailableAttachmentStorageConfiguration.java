@@ -36,6 +36,11 @@ public class UnavailableAttachmentStorageConfiguration {
                     String appName, String userId, String sessionId, List<AttachmentReference> references) {
                 throw new AppException(ResponseCode.UN_ERROR);
             }
+
+            @Override
+            public void deleteSession(String appName, String userId, String sessionId) {
+                // 未启用附件存储时，删除普通文本 Session 必须保持幂等。
+            }
         };
     }
 

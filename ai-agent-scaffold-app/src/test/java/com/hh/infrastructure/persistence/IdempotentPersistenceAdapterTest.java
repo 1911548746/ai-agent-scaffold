@@ -1,6 +1,7 @@
 package com.hh.infrastructure.persistence;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.hh.application.agent.port.AttachmentStoragePort;
 import com.google.adk.events.Event;
 import com.google.adk.events.EventActions;
 import com.google.adk.sessions.Session;
@@ -86,7 +87,8 @@ class IdempotentPersistenceAdapterTest {
         SessionDao sessionDao = mock(SessionDao.class);
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, sessionEventDao, transactionManager(), new SessionEventCompactionCleanupSettings(true));
+                sessionDao, sessionEventDao, transactionManager(), new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
         SessionPO persisted = SessionPO.builder()
                 .id(7L)
                 .appName("app-a")
@@ -112,7 +114,8 @@ class IdempotentPersistenceAdapterTest {
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
         Session session = session("session-a");
         Event event = Event.builder()
                 .id("event-a")
@@ -146,7 +149,8 @@ class IdempotentPersistenceAdapterTest {
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
         Event partialEvent = Event.builder()
                 .id("partial-a")
                 .author("agent-a")
@@ -168,7 +172,8 @@ class IdempotentPersistenceAdapterTest {
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
         Session session = session("session-a");
         Event partialEvent = Event.builder()
                 .id("partial-state-a")
@@ -199,7 +204,8 @@ class IdempotentPersistenceAdapterTest {
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
         Session session = session("session-a");
 
         store.appendEvent(session, Event.builder()
@@ -233,7 +239,8 @@ class IdempotentPersistenceAdapterTest {
         SessionEventDao sessionEventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, sessionEventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
         when(sessionEventDao.upsertByEventIdentity(any(SessionEventPO.class)))
                 .thenThrow(new IllegalStateException("event write failed"));
         Event event = Event.builder()

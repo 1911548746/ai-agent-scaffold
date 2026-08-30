@@ -11,6 +11,7 @@ import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
+import com.hh.application.agent.port.SessionLease;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
 import com.hh.types.support.SensitiveDataRedactor;
@@ -84,6 +85,15 @@ public class SessionInvocationCoordinator {
             permit.release();
             throw error;
         }
+    }
+
+    /** 获取与 invocation 共用的 Session 独占租约，供删除等跨资源操作使用。 */
+    public SessionLease acquireSessionOperationLease(
+            AdkAgentRuntime runtime, String userId, String sessionId) {
+        SessionKey key = new SessionKey(runtime.appName(), userId, sessionId);
+        Semaphore permit = permits.computeIfAbsent(key, ignored -> new Semaphore(1));
+        permit.acquireUninterruptibly();
+        return permit::release;
     }
 
     private Session loadSession(AdkAgentRuntime runtime, String userId, String sessionId) {

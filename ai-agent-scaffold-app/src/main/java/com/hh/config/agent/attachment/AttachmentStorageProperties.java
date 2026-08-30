@@ -26,4 +26,6 @@ public class AttachmentStorageProperties {
     private String secretKey;
     @NotNull
     private Duration ttl = Duration.ofHours(24);
+    @NotNull
+    private Duration cleanupInterval = Duration.ofHours(1);
 }

@@ -2,8 +2,11 @@ package com.hh.application.agent.service;
 
 import com.hh.application.agent.model.ConversationDeletionCommand;
 import com.hh.application.agent.port.AgentRuntimePort;
+import com.hh.application.agent.port.AttachmentStoragePort;
 import com.hh.application.agent.usecase.ConversationArchiveUseCase;
 import com.hh.application.agent.port.ConversationArchivePort;
+import com.hh.application.agent.port.SessionLease;
+import com.hh.application.agent.port.SessionOperationLockPort;
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
 import com.hh.types.enums.ResponseCode;
@@ -18,12 +21,18 @@ public class ConversationArchiveApplicationService implements ConversationArchiv
 
     private final ConversationArchivePort conversationArchivePort;
     private final AgentRuntimePort agentRuntimePort;
+    private final AttachmentStoragePort attachmentStoragePort;
+    private final SessionOperationLockPort sessionOperationLockPort;
 
     public ConversationArchiveApplicationService(
             ConversationArchivePort conversationArchivePort,
-            AgentRuntimePort agentRuntimePort) {
+            AgentRuntimePort agentRuntimePort,
+            AttachmentStoragePort attachmentStoragePort,
+            SessionOperationLockPort sessionOperationLockPort) {
         this.conversationArchivePort = conversationArchivePort;
         this.agentRuntimePort = agentRuntimePort;
+        this.attachmentStoragePort = attachmentStoragePort;
+        this.sessionOperationLockPort = sessionOperationLockPort;
     }
 
     @Override
@@ -68,7 +77,15 @@ public class ConversationArchiveApplicationService implements ConversationArchiv
 
         // 记录不存在时仍按完整 Session 身份执行清理，重复请求保持幂等。
         Long physicalConversationId = conversation == null ? null : conversation.getId();
-        conversationArchivePort.deleteConversationSession(
-                physicalConversationId, appName, command.userId(), command.sessionId());
+        SessionLease lease = sessionOperationLockPort.acquire(
+                command.agentId(), command.userId(), command.sessionId());
+        try {
+            conversationArchivePort.deleteConversationSession(
+                    physicalConversationId, appName, command.userId(), command.sessionId());
+            // 归档事务提交后再清理外部对象；失败时保留附件元数据，由清理任务继续重试。
+            attachmentStoragePort.deleteSession(appName, command.userId(), command.sessionId());
+        } finally {
+            lease.release();
+        }
     }
 }

@@ -8,6 +8,7 @@ import com.hh.application.agent.port.AgentRuntimePort;
 import com.hh.application.agent.port.AttachmentStoragePort;
 import com.hh.application.agent.port.ConversationArchivePort;
 import com.hh.application.agent.port.MessageArchivePort;
+import com.hh.application.agent.port.SessionOperationLockPort;
 import com.hh.application.agent.port.ToolConfirmationPort;
 import com.hh.application.agent.usecase.ChatUseCase;
 import com.hh.application.agent.usecase.AttachmentUseCase;
@@ -45,8 +46,11 @@ public class ApplicationUseCaseConfiguration {
     @Bean
     public ConversationArchiveUseCase conversationArchiveUseCase(
             ConversationArchivePort conversationArchivePort,
-            AgentRuntimePort agentRuntimePort) {
-        return new ConversationArchiveApplicationService(conversationArchivePort, agentRuntimePort);
+            AgentRuntimePort agentRuntimePort,
+            AttachmentStoragePort attachmentStoragePort,
+            SessionOperationLockPort sessionOperationLockPort) {
+        return new ConversationArchiveApplicationService(
+                conversationArchivePort, agentRuntimePort, attachmentStoragePort, sessionOperationLockPort);
     }
 
     @Bean

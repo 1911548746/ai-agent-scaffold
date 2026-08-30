@@ -63,4 +63,25 @@
           AND user_id = #{userId}
           AND session_id = #{sessionId}
     </delete>
+
+    <!-- Session 删除和过期清理都必须覆盖全部版本，不能只查询当前有效版本。 -->
+    <select id="selectBySession" resultType="com.hh.infrastructure.agent.dao.po.AttachmentObjectPO">
+        SELECT id, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
+               file_name, mime_type, size_bytes, created_at, expires_at
+        FROM attachment_objects
+        WHERE app_name = #{appName}
+          AND user_id = #{userId}
+          AND session_id = #{sessionId}
+        ORDER BY id ASC
+    </select>
+
+    <!-- 稳定按过期时间和主键排序，批量清理不会反复扫描同一批记录。 -->
+    <select id="selectExpired" resultType="com.hh.infrastructure.agent.dao.po.AttachmentObjectPO">
+        SELECT id, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
+               file_name, mime_type, size_bytes, created_at, expires_at
+        FROM attachment_objects
+        WHERE expires_at &lt;= #{now}
+        ORDER BY expires_at ASC, id ASC
+        LIMIT #{limit}
+    </select>
 </mapper>

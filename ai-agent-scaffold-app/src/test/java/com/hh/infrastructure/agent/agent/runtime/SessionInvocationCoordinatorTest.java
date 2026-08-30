@@ -13,6 +13,7 @@ import com.google.genai.types.FunctionResponse;
 import com.google.genai.types.GenerateContentResponseUsageMetadata;
 import com.google.genai.types.Part;
 import com.hh.application.agent.exception.ContextCompactionException;
+import com.hh.application.agent.port.SessionLease;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.runtime.invocation.SessionInvocationCoordinator;
 import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
@@ -27,6 +28,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -267,6 +273,36 @@ class SessionInvocationCoordinatorTest {
         assertThatCode(lease::fail).doesNotThrowAnyException();
         assertThat(session.events()).extracting(Event::id).containsExactly("history-a", "user-a");
         verify(sessionStore, times(1)).discardInvocationEvents(session, List.of("invocation-failed"));
+    }
+
+    @Test
+    void sessionLeaseSerializesOperationsAndReleasesPermit() throws Exception {
+        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        AdkAgentRuntime runtime = runtime(fixedSizePlan(Integer.MAX_VALUE), session());
+        SessionLease firstLease = coordinator.acquireSessionOperationLease(runtime, "user-a", "session-a");
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<SessionLease> waitingLease = executor.submit(
+                () -> coordinator.acquireSessionOperationLease(runtime, "user-a", "session-a"));
+        boolean firstReleased = false;
+        SessionLease secondLease = null;
+
+        try {
+            // 相同 Session 的第二个操作必须等待第一个租约释放，避免与 invocation 或删除并发修改状态。
+            assertThatThrownBy(() -> waitingLease.get(100, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            firstLease.release();
+            firstReleased = true;
+            secondLease = waitingLease.get(1, TimeUnit.SECONDS);
+        } finally {
+            if (secondLease != null) {
+                secondLease.release();
+            }
+            if (!firstReleased) {
+                firstLease.release();
+            }
+            executor.shutdownNow();
+        }
     }
 
     private AdkAgentRuntime runtime(RuntimeCompactionPlan plan, Session session) {

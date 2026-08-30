@@ -17,4 +17,7 @@ public interface AttachmentStoragePort {
             String appName, String userId, String sessionId, List<AttachmentUpload> uploads);
 
     void delete(String appName, String userId, String sessionId, List<AttachmentReference> references);
+
+    /** 删除指定 Session 下的全部附件；实现必须保证重复调用安全。 */
+    void deleteSession(String appName, String userId, String sessionId);
 }

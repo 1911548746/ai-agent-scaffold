@@ -81,6 +81,7 @@ ai:
       access-key: ${MINIO_ACCESS_KEY:}
       secret-key: ${MINIO_SECRET_KEY:}
       ttl: ${MINIO_ATTACHMENT_TTL:24h}
+      cleanup-interval: ${MINIO_ATTACHMENT_CLEANUP_INTERVAL:1h}
     session:
       compaction:
         delete-compacted-events: true

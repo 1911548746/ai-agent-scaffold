@@ -2,7 +2,9 @@ package com.hh.application.agent.service;
 
 import com.hh.application.agent.model.ConversationDeletionCommand;
 import com.hh.application.agent.port.AgentRuntimePort;
+import com.hh.application.agent.port.AttachmentStoragePort;
 import com.hh.application.agent.port.ConversationArchivePort;
+import com.hh.application.agent.port.SessionOperationLockPort;
 import com.hh.domain.agent.model.valobj.ConversationVO;
 import com.hh.domain.agent.model.valobj.MessageVO;
 import com.hh.types.enums.ResponseCode;
@@ -17,6 +19,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -29,8 +32,12 @@ class ConversationArchiveApplicationServiceTest {
         InMemoryConversationArchiveRepository repository = new InMemoryConversationArchiveRepository();
         Long conversationId = repository.findOrCreateConversation("app-a", "user-1", "session-1");
         AgentRuntimePort agentRuntimePort = mock(AgentRuntimePort.class);
+        SessionOperationLockPort lockPort = mock(SessionOperationLockPort.class);
         when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
-        ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(repository, agentRuntimePort);
+        when(lockPort.acquire("agent-a", "user-1", "session-1"))
+                .thenReturn(() -> { });
+        ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(
+                repository, agentRuntimePort, mock(AttachmentStoragePort.class), lockPort);
 
         assertThat(useCase.listConversations("user-1"))
                 .extracting(ConversationVO::getId)
@@ -47,9 +54,32 @@ class ConversationArchiveApplicationServiceTest {
     }
 
     @Test
+    void deleteConversationCleansSessionAttachmentsAfterArchiveDeletion() {
+        InMemoryConversationArchiveRepository repository = new InMemoryConversationArchiveRepository();
+        Long conversationId = repository.findOrCreateConversation("app-a", "user-1", "session-1");
+        AgentRuntimePort agentRuntimePort = mock(AgentRuntimePort.class);
+        AttachmentStoragePort attachmentStoragePort = mock(AttachmentStoragePort.class);
+        SessionOperationLockPort lockPort = mock(SessionOperationLockPort.class);
+        when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
+        when(lockPort.acquire("agent-a", "user-1", "session-1"))
+                .thenReturn(() -> { });
+        ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(
+                repository, agentRuntimePort, attachmentStoragePort, lockPort);
+        String publicConversationId = repository.conversationIdFor(conversationId);
+
+        useCase.deleteConversation(new ConversationDeletionCommand(
+                publicConversationId, "agent-a", "user-1", "session-1"));
+
+        verify(attachmentStoragePort).deleteSession("app-a", "user-1", "session-1");
+    }
+
+    @Test
     void missingConversationKeepsExistingStableErrorCode() {
         ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(
-                new InMemoryConversationArchiveRepository(), mock(AgentRuntimePort.class));
+                new InMemoryConversationArchiveRepository(),
+                mock(AgentRuntimePort.class),
+                mock(AttachmentStoragePort.class),
+                mock(SessionOperationLockPort.class));
 
         assertThatThrownBy(() -> useCase.getConversation(
                 "6f1a1d0e-0d7d-4e8f-95b8-2f5c1e6b0e42", "user-1"))
@@ -60,10 +90,13 @@ class ConversationArchiveApplicationServiceTest {
     @Test
     void deleteConversation_repeatedMissingArchiveStillDelegatesForIdempotentCleanup() {
         AgentRuntimePort agentRuntimePort = mock(AgentRuntimePort.class);
+        SessionOperationLockPort lockPort = mock(SessionOperationLockPort.class);
         when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
+        when(lockPort.acquire("agent-a", "user-1", "session-1"))
+                .thenReturn(() -> { });
         InMemoryConversationArchiveRepository repository = new InMemoryConversationArchiveRepository();
         ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(
-                repository, agentRuntimePort);
+                repository, agentRuntimePort, mock(AttachmentStoragePort.class), lockPort);
         ConversationDeletionCommand command = new ConversationDeletionCommand(
                 "6f1a1d0e-0d7d-4e8f-95b8-2f5c1e6b0e42", "agent-a", "user-1", "session-1");
 
@@ -83,7 +116,11 @@ class ConversationArchiveApplicationServiceTest {
         Long conversationId = repository.findOrCreateConversation("app-a", "user-1", "session-1");
         AgentRuntimePort agentRuntimePort = mock(AgentRuntimePort.class);
         when(agentRuntimePort.appName("agent-a")).thenReturn("app-a");
-        ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(repository, agentRuntimePort);
+        ConversationArchiveApplicationService useCase = new ConversationArchiveApplicationService(
+                repository,
+                agentRuntimePort,
+                mock(AttachmentStoragePort.class),
+                mock(SessionOperationLockPort.class));
         String publicConversationId = repository.conversationIdFor(conversationId);
 
         assertThatThrownBy(() -> useCase.deleteConversation(new ConversationDeletionCommand(

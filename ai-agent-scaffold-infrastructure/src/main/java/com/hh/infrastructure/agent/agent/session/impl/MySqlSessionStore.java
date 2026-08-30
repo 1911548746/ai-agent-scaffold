@@ -5,6 +5,7 @@ import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
+import com.hh.application.agent.port.AttachmentStoragePort;
 import com.hh.infrastructure.agent.dao.SessionDao;
 import com.hh.infrastructure.agent.dao.SessionEventDao;
 import com.hh.infrastructure.agent.support.ADKJsonParseSupport;
@@ -55,17 +56,20 @@ public class MySqlSessionStore implements AdkSessionStore {
     private final SessionEventDao sessionEventDao;
     private final TransactionTemplate transactionTemplate;
     private final SessionEventCompactionCleanupSettings compactionCleanupSettings;
+    private final AttachmentStoragePort attachmentStoragePort;
 
     public MySqlSessionStore(
             SessionDao sessionDao,
             SessionEventDao sessionEventDao,
             PlatformTransactionManager transactionManager,
-            SessionEventCompactionCleanupSettings compactionCleanupSettings) {
+            SessionEventCompactionCleanupSettings compactionCleanupSettings,
+            AttachmentStoragePort attachmentStoragePort) {
         this.sessionDao = sessionDao;
         this.sessionEventDao = sessionEventDao;
         // RxJava 的 Callable 在订阅时才执行；事务必须在 Callable 内显式开启，不能依赖方法注解。
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.compactionCleanupSettings = compactionCleanupSettings;
+        this.attachmentStoragePort = attachmentStoragePort;
     }
 
     @Override
@@ -140,14 +144,18 @@ public class MySqlSessionStore implements AdkSessionStore {
     @Override
     public Completable deleteSession(String appName, String userId, String sessionId) {
         return Completable.fromAction(() -> {
-            sessionDao.delete(new LambdaQueryWrapper<SessionPO>()
-                    .eq(SessionPO::getAppName, appName)
-                    .eq(SessionPO::getUserId, userId)
-                    .eq(SessionPO::getSessionId, sessionId));
-            sessionEventDao.delete(new LambdaQueryWrapper<SessionEventPO>()
-                    .eq(SessionEventPO::getAppName, appName)
-                    .eq(SessionEventPO::getUserId, userId)
-                    .eq(SessionEventPO::getSessionId, sessionId));
+            // 先提交数据库删除，再处理 MinIO；外部对象失败时，附件元数据仍可重试清理。
+            transactionTemplate.executeWithoutResult(status -> {
+                sessionEventDao.delete(new LambdaQueryWrapper<SessionEventPO>()
+                        .eq(SessionEventPO::getAppName, appName)
+                        .eq(SessionEventPO::getUserId, userId)
+                        .eq(SessionEventPO::getSessionId, sessionId));
+                sessionDao.delete(new LambdaQueryWrapper<SessionPO>()
+                        .eq(SessionPO::getAppName, appName)
+                        .eq(SessionPO::getUserId, userId)
+                        .eq(SessionPO::getSessionId, sessionId));
+            });
+            attachmentStoragePort.deleteSession(appName, userId, sessionId);
         });
     }
 

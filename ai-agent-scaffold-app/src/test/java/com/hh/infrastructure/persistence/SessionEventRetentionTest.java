@@ -9,6 +9,7 @@ import com.google.adk.sessions.Session;
 import com.google.genai.types.CustomMetadata;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
+import com.hh.application.agent.port.AttachmentStoragePort;
 import com.google.genai.types.StringList;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
@@ -130,7 +131,8 @@ class SessionEventRetentionTest {
         SessionEventDao eventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
 
         store.appendEvent(session("session-a"), compactionEvent("summary-a", "source-a", "source-b")).blockingGet();
 
@@ -220,7 +222,8 @@ class SessionEventRetentionTest {
         when(eventDao.deleteCompactedEvents(any(SessionEventCompactionCleanup.class)))
                 .thenThrow(new IllegalStateException("compaction cleanup failed"));
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
 
         assertThatThrownBy(() -> store.appendEvent(
                 session("session-a"), compactionEvent("summary-a", "source-a")).blockingGet())
@@ -237,7 +240,8 @@ class SessionEventRetentionTest {
         SessionEventDao eventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
         Session session = session("session-a");
         session.events().addAll(List.of(
                 Event.builder().id("history-a").invocationId("invocation-history").build(),
@@ -273,7 +277,8 @@ class SessionEventRetentionTest {
         when(eventDao.deleteInvocationEvents(any(SessionInvocationEventCleanup.class)))
                 .thenThrow(new IllegalStateException("invocation cleanup failed"));
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
         Session session = session("session-a");
         session.events().add(Event.builder().id("user-a").invocationId("invocation-failed").build());
 
@@ -292,7 +297,8 @@ class SessionEventRetentionTest {
         SessionEventDao eventDao = mock(SessionEventDao.class);
         PlatformTransactionManager transactionManager = transactionManager();
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
         Session session = session("session-a");
         session.events().addAll(List.of(
                 Event.builder().id("user-a").invocationId("invocation-a").build(),
@@ -380,7 +386,8 @@ class SessionEventRetentionTest {
         when(eventDao.deleteEventsByIds(any(SessionEventIdCleanup.class)))
                 .thenThrow(new IllegalStateException("interrupted recovery failed"));
         MySqlSessionStore store = new MySqlSessionStore(
-                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true));
+                sessionDao, eventDao, transactionManager, new SessionEventCompactionCleanupSettings(true),
+                mock(AttachmentStoragePort.class));
         Session session = session("session-a");
         session.events().add(Event.builder().id("partial-a").invocationId("invocation-a").build());
         Event marker = Event.builder().id("marker-a").invocationId("invocation-a").interrupted(true).build();
@@ -399,7 +406,8 @@ class SessionEventRetentionTest {
                 sessionDao,
                 eventDao,
                 transactionManager(),
-                new SessionEventCompactionCleanupSettings(deleteCompactedEvents));
+                new SessionEventCompactionCleanupSettings(deleteCompactedEvents),
+                mock(AttachmentStoragePort.class));
     }
 
     private PlatformTransactionManager transactionManager() {
