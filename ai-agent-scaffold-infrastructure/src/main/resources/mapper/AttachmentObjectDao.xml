@@ -7,14 +7,15 @@
     <!-- 过期附件不向调用方暴露其存在性，也不会再被模型加载。 -->
     <!-- artifactName 是 ADK ToolContext 使用的逻辑名称；查询始终绑定完整会话身份。 -->
     <select id="selectActiveByArtifactName" resultType="com.hh.infrastructure.agent.dao.po.AttachmentObjectPO">
-        SELECT id, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
+        SELECT id, storage_type, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
                file_name, mime_type, size_bytes, created_at, expires_at
         FROM attachment_objects
-        WHERE artifact_name = #{artifactName}
+        WHERE storage_type = #{storageType}
+          AND artifact_name = #{artifactName}
           AND app_name = #{appName}
           AND user_id = #{userId}
           AND session_id = #{sessionId}
-          AND expires_at &gt; CURRENT_TIMESTAMP
+          AND (expires_at IS NULL OR expires_at &gt; CURRENT_TIMESTAMP)
         <if test="artifactVersion != null">
           AND artifact_version = #{artifactVersion}
         </if>
@@ -25,20 +26,22 @@
     <select id="selectActiveArtifactNames" resultType="java.lang.String">
         SELECT DISTINCT artifact_name
         FROM attachment_objects
-        WHERE app_name = #{appName}
+        WHERE storage_type = #{storageType}
+          AND app_name = #{appName}
           AND user_id = #{userId}
           AND session_id = #{sessionId}
           AND artifact_name IS NOT NULL
-          AND expires_at &gt; CURRENT_TIMESTAMP
+          AND (expires_at IS NULL OR expires_at &gt; CURRENT_TIMESTAMP)
         ORDER BY artifact_name ASC
     </select>
 
     <!-- 删除需覆盖过期版本，不能只依赖 active 查询，否则会遗留对象和元数据。 -->
     <select id="selectByArtifactName" resultType="com.hh.infrastructure.agent.dao.po.AttachmentObjectPO">
-        SELECT id, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
+        SELECT id, storage_type, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
                file_name, mime_type, size_bytes, created_at, expires_at
         FROM attachment_objects
-        WHERE artifact_name = #{artifactName}
+        WHERE storage_type = #{storageType}
+          AND artifact_name = #{artifactName}
           AND app_name = #{appName}
           AND user_id = #{userId}
           AND session_id = #{sessionId}
@@ -49,7 +52,8 @@
     <select id="selectArtifactVersions" resultType="java.lang.Integer">
         SELECT artifact_version
         FROM attachment_objects
-        WHERE artifact_name = #{artifactName}
+        WHERE storage_type = #{storageType}
+          AND artifact_name = #{artifactName}
           AND app_name = #{appName}
           AND user_id = #{userId}
           AND session_id = #{sessionId}
@@ -58,7 +62,8 @@
 
     <delete id="deleteByArtifactName">
         DELETE FROM attachment_objects
-        WHERE artifact_name = #{artifactName}
+        WHERE storage_type = #{storageType}
+          AND artifact_name = #{artifactName}
           AND app_name = #{appName}
           AND user_id = #{userId}
           AND session_id = #{sessionId}
@@ -66,10 +71,11 @@
 
     <!-- Session 删除和过期清理都必须覆盖全部版本，不能只查询当前有效版本。 -->
     <select id="selectBySession" resultType="com.hh.infrastructure.agent.dao.po.AttachmentObjectPO">
-        SELECT id, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
+        SELECT id, storage_type, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
                file_name, mime_type, size_bytes, created_at, expires_at
         FROM attachment_objects
-        WHERE app_name = #{appName}
+        WHERE storage_type = #{storageType}
+          AND app_name = #{appName}
           AND user_id = #{userId}
           AND session_id = #{sessionId}
         ORDER BY id ASC
@@ -77,10 +83,13 @@
 
     <!-- 稳定按过期时间和主键排序，批量清理不会反复扫描同一批记录。 -->
     <select id="selectExpired" resultType="com.hh.infrastructure.agent.dao.po.AttachmentObjectPO">
-        SELECT id, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
+        SELECT id, storage_type, artifact_name, artifact_version, app_name, user_id, session_id, object_key,
                file_name, mime_type, size_bytes, created_at, expires_at
         FROM attachment_objects
-        WHERE expires_at &lt;= #{now}
+        WHERE storage_type = #{storageType}
+          AND app_name = #{appName}
+          AND expires_at IS NOT NULL
+          AND expires_at &lt;= #{now}
         ORDER BY expires_at ASC, id ASC
         LIMIT #{limit}
     </select>

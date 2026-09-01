@@ -19,6 +19,7 @@ public class RunnerDefinition {
      * 它只影响模型历史组织，不改变工具执行顺序。</p>
      */
     private Boolean groupFunctionResponsesInHistory = false;
+    private ArtifactStorageDefinition artifactStorage = new ArtifactStorageDefinition();
     private ContextCompressionDefinition contextCompress;
     private List<String> pluginNameList;
 }

@@ -12,6 +12,8 @@ import com.hh.config.agent.catalog.loader.context.AgentDefinitionLoadContext;
 import com.hh.config.agent.catalog.loader.context.AgentDefinitionLoadPipelineContext;
 import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
 import com.hh.domain.agent.model.definition.AgentDefinition;
+import com.hh.domain.agent.model.definition.ArtifactStorageDefinition;
+import com.hh.domain.agent.model.enums.ArtifactStorageType;
 import com.hh.domain.agent.model.definition.AgentWorkflowDefinition;
 import com.hh.domain.agent.model.definition.ChatModelDefinition;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
@@ -291,6 +293,13 @@ public class ApplicationCompileNode extends AgentDefinitionLoadNode {
         result.setAgentName(rootName);
         result.setPersistence(source.isPersistence());
         result.setGroupFunctionResponsesInHistory(source.isGroupFunctionResponsesInHistory());
+        AgentCatalogProperties.ArtifactStorageDefinition configuredStorage = source.getArtifactStorage();
+        ArtifactStorageDefinition artifactStorage = new ArtifactStorageDefinition();
+        artifactStorage.setType(ArtifactStorageType.valueOf(
+                configuredStorage.getType().trim().toUpperCase(java.util.Locale.ROOT)));
+        artifactStorage.setTtl(configuredStorage.getTtl());
+        artifactStorage.setLifecycleEnabled(configuredStorage.isLifecycleEnabled());
+        result.setArtifactStorage(artifactStorage);
         result.setPluginNameList(new ArrayList<>(source.getPluginNameList()));
         // 单独复制上下文压缩配置，避免领域层共享 Spring 绑定的可变嵌套对象。
         AgentCatalogProperties.ContextCompressDefinition compression = source.getContextCompress();

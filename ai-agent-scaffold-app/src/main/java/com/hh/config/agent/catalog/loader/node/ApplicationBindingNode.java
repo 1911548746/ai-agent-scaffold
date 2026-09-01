@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Application 入口绑定节点。
@@ -27,6 +29,8 @@ import java.util.Map;
  */
 @Component
 public class ApplicationBindingNode extends AgentDefinitionLoadNode {
+
+    private static final Pattern SAFE_APP_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,127}");
 
     private final CatalogResourceBinder resourceBinder;
     private final AgentDefinitionConfigSupport support;
@@ -63,23 +67,61 @@ public class ApplicationBindingNode extends AgentDefinitionLoadNode {
             applications.add(new AgentDefinitionLoadContext.LocatedApplication(application, resource.sourcePath()));
         }
 
-        // 所有来源合并后统一检查 ID，避免同一 application 被重复发布。
-        validateApplicationIds(applications);
+        // 所有来源合并后统一检查发布身份和存储策略，确保 Runtime 创建前配置已完全合法。
+        validateApplications(applications);
         pipelineContext.getLoadContext().setApplications(List.copyOf(applications));
 
         // Application 已规范化并索引完成，下一步开始按入口编译可达 Definition。
         return router(command, pipelineContext);
     }
 
-    private void validateApplicationIds(List<AgentDefinitionLoadContext.LocatedApplication> applications) {
-        // 保存 ID 首次出现的位置，重复项可以一次性给出两个配置来源。
-        Map<String, String> paths = new LinkedHashMap<>();
+    private void validateApplications(List<AgentDefinitionLoadContext.LocatedApplication> applications) {
+        // 分别保存配置 ID 和 ADK appName 的首次位置，错误可以同时指出两个来源。
+        Map<String, String> idPaths = new LinkedHashMap<>();
+        Map<String, String> appNamePaths = new LinkedHashMap<>();
         for (AgentDefinitionLoadContext.LocatedApplication application : applications) {
-            String previous = paths.putIfAbsent(application.definition().getId(), application.sourcePath());
+            AgentCatalogProperties.ApplicationDefinition definition = application.definition();
+            String previous = idPaths.putIfAbsent(definition.getId(), application.sourcePath());
             if (previous != null) {
                 throw support.error(application.sourcePath() + ", " + previous,
-                        "duplicate application id '" + application.definition().getId() + "'");
+                        "duplicate application id '" + definition.getId() + "'");
             }
+
+            String appName = definition.getAppName();
+            if (!SAFE_APP_NAME.matcher(appName).matches()) {
+                throw support.error(application.sourcePath() + ".app-name",
+                        "app-name must be a safe path segment of at most 128 characters");
+            }
+            previous = appNamePaths.putIfAbsent(appName, application.sourcePath());
+            if (previous != null) {
+                throw support.error(application.sourcePath() + ", " + previous,
+                        "duplicate app-name '" + appName + "'");
+            }
+
+            validateArtifactStorage(definition.getRunner().getArtifactStorage(), application.sourcePath());
+        }
+    }
+
+    private void validateArtifactStorage(
+            AgentCatalogProperties.ArtifactStorageDefinition storage,
+            String applicationPath) {
+        String path = applicationPath + ".runner.artifact-storage";
+        String type = storage.getType().trim().toLowerCase(java.util.Locale.ROOT);
+        if (!Set.of("memory", "minio", "local").contains(type)) {
+            throw support.error(path + ".type", "unknown artifact storage type '" + storage.getType() + "'");
+        }
+        if (storage.getTtl() != null && (storage.getTtl().isZero() || storage.getTtl().isNegative())) {
+            throw support.error(path + ".ttl", "artifact storage ttl must be positive");
+        }
+        if (!"minio".equals(type) && storage.getTtl() != null) {
+            throw support.error(path + ".ttl", "ttl is only supported by minio artifact storage");
+        }
+        if (!"minio".equals(type) && storage.isLifecycleEnabled()) {
+            throw support.error(path + ".lifecycle-enabled",
+                    "lifecycle-enabled is only supported by minio artifact storage");
+        }
+        if (storage.isLifecycleEnabled() && storage.getTtl() == null) {
+            throw support.error(path + ".lifecycle-enabled", "lifecycle-enabled requires a minio ttl");
         }
     }
 

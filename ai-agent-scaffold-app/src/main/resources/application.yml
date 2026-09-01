@@ -73,15 +73,17 @@ ai:
     jwt-issuer: ${JWT_ISSUER:ai-agent-scaffold}
     access-token-ttl-seconds: ${JWT_EXPIRATION_SECONDS:72000}
   agent:
-    attachment:
-      # 端点、访问密钥和密钥只由部署环境注入；不要在仓库配置中填写真实值。
-      enabled: ${MINIO_ATTACHMENT_ENABLED:false}
-      endpoint: ${MINIO_ENDPOINT:}
-      bucket: ${MINIO_ATTACHMENT_BUCKET:agent-attachments}
-      access-key: ${MINIO_ACCESS_KEY:}
-      secret-key: ${MINIO_SECRET_KEY:}
-      ttl: ${MINIO_ATTACHMENT_TTL:24h}
-      cleanup-interval: ${MINIO_ATTACHMENT_CLEANUP_INTERVAL:1h}
+    artifact-storage:
+      minio:
+        # 只有 Application 选择 minio 时才校验参数、创建客户端并访问 Bucket。
+        endpoint: ${MINIO_ENDPOINT:}
+        bucket: ${MINIO_ATTACHMENT_BUCKET:agent-attachments}
+        access-key: ${MINIO_ACCESS_KEY:}
+        secret-key: ${MINIO_SECRET_KEY:}
+        cleanup-interval: ${MINIO_ATTACHMENT_CLEANUP_INTERVAL:1h}
+      local:
+        root-directory: ${LOCAL_ARTIFACT_ROOT:./data/artifacts}
     session:
       compaction:
+        # 是否删除被压缩后的原始 Event，默认删除。
         delete-compacted-events: true

@@ -19,13 +19,14 @@ import java.util.concurrent.atomic.AtomicReference;
 @Component
 public class AdkAgentRuntimeRegistry {
 
-    private final AtomicReference<Map<String, AdkAgentRuntime>> snapshot = new AtomicReference<>(Map.of());
+    private final AtomicReference<RuntimeSnapshot> snapshot = new AtomicReference<>(RuntimeSnapshot.empty());
 
     /**
      * 发布一批完整运行时。重复 ID 在替换前失败，因此不会破坏当前已发布快照。
      */
     public void publish(Collection<AdkAgentRuntime> runtimes) {
         Map<String, AdkAgentRuntime> candidate = new LinkedHashMap<>();
+        Map<String, AdkAgentRuntime> candidateByAppName = new LinkedHashMap<>();
         for (AdkAgentRuntime runtime : runtimes) {
             AdkAgentRuntime nonNullRuntime = Objects.requireNonNull(runtime, "runtime must not be null");
             if (nonNullRuntime.agentId().isBlank()) {
@@ -34,22 +35,46 @@ public class AdkAgentRuntimeRegistry {
             if (candidate.putIfAbsent(nonNullRuntime.agentId(), nonNullRuntime) != null) {
                 throw new IllegalArgumentException("duplicate agentId: " + nonNullRuntime.agentId());
             }
+            if (nonNullRuntime.appName().isBlank()) {
+                throw new IllegalArgumentException("appName must not be blank");
+            }
+            if (candidateByAppName.putIfAbsent(nonNullRuntime.appName(), nonNullRuntime) != null) {
+                throw new IllegalArgumentException("duplicate appName: " + nonNullRuntime.appName());
+            }
         }
-        // 复制后再包装为只读 LinkedHashMap，既阻断外部修改，又保持 catalog 的展示顺序。
-        snapshot.set(Collections.unmodifiableMap(new LinkedHashMap<>(candidate)));
+        // 两个索引作为一个对象原子替换，读取方不会观察到 agentId/appName 跨版本混用。
+        snapshot.set(new RuntimeSnapshot(immutable(candidate), immutable(candidateByAppName)));
     }
 
     /**
      * 请求处理只通过该方法查找运行时，禁止退回 ApplicationContext 的动态 Bean 查询。
      */
     public Optional<AdkAgentRuntime> find(String agentId) {
-        return Optional.ofNullable(snapshot.get().get(agentId));
+        return Optional.ofNullable(snapshot.get().byAgentId().get(agentId));
+    }
+
+    /** 附件路由按 ADK appName 找到与 Runner 绑定的服务实例。 */
+    public Optional<AdkAgentRuntime> findByAppName(String appName) {
+        return Optional.ofNullable(snapshot.get().byAppName().get(appName));
     }
 
     /**
      * 返回当前不可变快照，用于健康检查和只读 Agent 列表查询。
      */
     public Map<String, AdkAgentRuntime> snapshot() {
-        return snapshot.get();
+        return snapshot.get().byAgentId();
+    }
+
+    private Map<String, AdkAgentRuntime> immutable(Map<String, AdkAgentRuntime> runtimes) {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(runtimes));
+    }
+
+    private record RuntimeSnapshot(
+            Map<String, AdkAgentRuntime> byAgentId,
+            Map<String, AdkAgentRuntime> byAppName) {
+
+        private static RuntimeSnapshot empty() {
+            return new RuntimeSnapshot(Map.of(), Map.of());
+        }
     }
 }

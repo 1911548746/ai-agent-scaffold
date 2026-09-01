@@ -449,6 +449,8 @@ public class AgentServiceController implements IAgentService {
                 ? List.of()
                 : List.of(new ChatCommandEntity.Content.Text(message));
         String userId = AuthenticatedPrincipalContext.requireCurrent().userId();
+
+        // 存储附件并获取附件引用
         List<AttachmentReference> attachments = attachmentUseCase.storeForSession(
                 agentId,
                 userId,

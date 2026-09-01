@@ -12,6 +12,7 @@ import java.util.List;
 public interface AttachmentObjectDao extends BaseMapper<AttachmentObjectPO> {
 
     AttachmentObjectPO selectActiveByArtifactName(
+            @Param("storageType") String storageType,
             @Param("artifactName") String artifactName,
             @Param("appName") String appName,
             @Param("userId") String userId,
@@ -19,34 +20,41 @@ public interface AttachmentObjectDao extends BaseMapper<AttachmentObjectPO> {
             @Param("artifactVersion") Integer artifactVersion);
 
     List<String> selectActiveArtifactNames(
+            @Param("storageType") String storageType,
             @Param("appName") String appName,
             @Param("userId") String userId,
             @Param("sessionId") String sessionId);
 
     List<AttachmentObjectPO> selectByArtifactName(
+            @Param("storageType") String storageType,
             @Param("artifactName") String artifactName,
             @Param("appName") String appName,
             @Param("userId") String userId,
             @Param("sessionId") String sessionId);
 
     List<Integer> selectArtifactVersions(
+            @Param("storageType") String storageType,
             @Param("artifactName") String artifactName,
             @Param("appName") String appName,
             @Param("userId") String userId,
             @Param("sessionId") String sessionId);
 
     int deleteByArtifactName(
+            @Param("storageType") String storageType,
             @Param("artifactName") String artifactName,
             @Param("appName") String appName,
             @Param("userId") String userId,
             @Param("sessionId") String sessionId);
 
     List<AttachmentObjectPO> selectBySession(
+            @Param("storageType") String storageType,
             @Param("appName") String appName,
             @Param("userId") String userId,
             @Param("sessionId") String sessionId);
 
     List<AttachmentObjectPO> selectExpired(
+            @Param("storageType") String storageType,
+            @Param("appName") String appName,
             @Param("now") LocalDateTime now,
             @Param("limit") int limit);
 }

@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.ArrayList;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -112,9 +113,21 @@ public class AgentCatalogProperties {
         private boolean groupFunctionResponsesInHistory = false;
         @Valid
         @NotNull
+        private ArtifactStorageDefinition artifactStorage = new ArtifactStorageDefinition();
+        @Valid
+        @NotNull
         private ContextCompressDefinition contextCompress = new ContextCompressDefinition();
         @NotNull
         private List<@NotBlank String> pluginNameList = new ArrayList<>();
+    }
+
+    /** 单个 Application 的 Artifact 存储策略；部署连接参数不进入 catalog。 */
+    @Data
+    public static class ArtifactStorageDefinition {
+        @NotBlank
+        private String type = "local";
+        private Duration ttl;
+        private boolean lifecycleEnabled = false;
     }
 
     /**

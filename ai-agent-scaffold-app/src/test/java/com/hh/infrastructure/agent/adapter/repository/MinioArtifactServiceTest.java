@@ -2,8 +2,8 @@ package com.hh.infrastructure.agent.adapter.repository;
 
 import com.hh.application.agent.model.AttachmentUpload;
 import com.hh.domain.agent.model.valobj.AttachmentReference;
-import com.hh.infrastructure.agent.agent.artifact.MinioArtifactService;
-import com.hh.infrastructure.agent.agent.artifact.MinioAttachmentStorageSettings;
+import com.hh.infrastructure.agent.agent.artifact.store.minio.MinioArtifactService;
+import com.hh.infrastructure.agent.agent.artifact.store.minio.MinioArtifactStorageSettings;
 import com.hh.infrastructure.agent.dao.AttachmentObjectDao;
 import com.hh.infrastructure.agent.dao.po.AttachmentObjectPO;
 import io.minio.MinioClient;
@@ -16,6 +16,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
@@ -52,14 +53,32 @@ class MinioArtifactServiceTest {
                         AttachmentObjectPO::getArtifactVersion,
                         AttachmentObjectPO::getFileName)
                 .containsExactly("app-a", "user-a", "session-a", reference.artifactName(), 0, "diagram.png");
-        assertThat(metadata.getValue().getObjectKey()).startsWith("artifacts/");
+        assertThat(metadata.getValue().getStorageType()).isEqualTo("minio");
+        assertThat(metadata.getValue().getObjectKey()).startsWith("artifacts/app-a/");
         verify(minioClient).putObject(any());
+    }
+
+    @Test
+    void storesWithoutExpiryWhenApplicationDoesNotConfigureTtl() throws Exception {
+        MinioClient minioClient = mock(MinioClient.class);
+        AttachmentObjectDao attachmentObjectDao = mock(AttachmentObjectDao.class);
+        when(attachmentObjectDao.insert(any(AttachmentObjectPO.class))).thenReturn(1);
+        MinioArtifactService service = service(minioClient, attachmentObjectDao, null);
+
+        service.store("app-a", "user-a", "session-a", List.of(
+                new AttachmentUpload("diagram.png", "image/png", new byte[]{1})));
+
+        ArgumentCaptor<AttachmentObjectPO> metadata = ArgumentCaptor.forClass(AttachmentObjectPO.class);
+        verify(attachmentObjectDao).insert(metadata.capture());
+        assertThat(metadata.getValue().getExpiresAt()).isNull();
+        assertThat(service.cleanupExpired(100)).isZero();
+        verify(attachmentObjectDao, never()).selectExpired(any(), any(), any(), anyInt());
     }
 
     @Test
     void listsOnlyArtifactNamesVisibleToTheCurrentSession() {
         AttachmentObjectDao attachmentObjectDao = mock(AttachmentObjectDao.class);
-        when(attachmentObjectDao.selectActiveArtifactNames("app-a", "user-a", "session-a"))
+        when(attachmentObjectDao.selectActiveArtifactNames("minio", "app-a", "user-a", "session-a"))
                 .thenReturn(List.of("attachment-a", "attachment-b"));
         MinioArtifactService service = service(mock(MinioClient.class), attachmentObjectDao);
 
@@ -68,14 +87,14 @@ class MinioArtifactServiceTest {
                 .filenames();
 
         assertThat(artifactNames).containsExactly("attachment-a", "attachment-b");
-        verify(attachmentObjectDao).selectActiveArtifactNames("app-a", "user-a", "session-a");
+        verify(attachmentObjectDao).selectActiveArtifactNames("minio", "app-a", "user-a", "session-a");
     }
 
     @Test
     void treatsMissingOrExpiredArtifactAsNotLoadable() {
         AttachmentObjectDao attachmentObjectDao = mock(AttachmentObjectDao.class);
         when(attachmentObjectDao.selectActiveByArtifactName(
-                eq("attachment-a"), eq("app-a"), eq("user-a"), eq("session-a"), isNull()))
+                eq("minio"), eq("attachment-a"), eq("app-a"), eq("user-a"), eq("session-a"), isNull()))
                 .thenReturn(null);
         MinioArtifactService service = service(mock(MinioClient.class), attachmentObjectDao);
 
@@ -93,7 +112,8 @@ class MinioArtifactServiceTest {
                 .id(11L)
                 .objectKey("artifacts/object-a")
                 .build();
-        when(attachmentObjectDao.selectExpired(any(), eq(100))).thenReturn(List.of(object));
+        when(attachmentObjectDao.selectExpired(eq("minio"), eq("app-a"), any(), eq(100)))
+                .thenReturn(List.of(object));
         when(attachmentObjectDao.deleteById(11L)).thenReturn(1);
         MinioArtifactService service = service(minioClient, attachmentObjectDao);
 
@@ -112,7 +132,8 @@ class MinioArtifactServiceTest {
                 .id(12L)
                 .objectKey("artifacts/object-b")
                 .build();
-        when(attachmentObjectDao.selectExpired(any(), eq(100))).thenReturn(List.of(object));
+        when(attachmentObjectDao.selectExpired(eq("minio"), eq("app-a"), any(), eq(100)))
+                .thenReturn(List.of(object));
         doThrow(new IllegalStateException("storage unavailable"))
                 .when(minioClient).removeObject(any());
         MinioArtifactService service = service(minioClient, attachmentObjectDao);
@@ -128,23 +149,28 @@ class MinioArtifactServiceTest {
         AttachmentObjectDao attachmentObjectDao = mock(AttachmentObjectDao.class);
         AttachmentObjectPO first = AttachmentObjectPO.builder().id(21L).objectKey("artifacts/a").build();
         AttachmentObjectPO second = AttachmentObjectPO.builder().id(22L).objectKey("artifacts/b").build();
-        when(attachmentObjectDao.selectBySession("app-a", "user-a", "session-a"))
+        when(attachmentObjectDao.selectBySession("minio", "app-a", "user-a", "session-a"))
                 .thenReturn(List.of(first, second));
         when(attachmentObjectDao.deleteById(org.mockito.ArgumentMatchers.<java.io.Serializable>any())).thenReturn(1);
         MinioArtifactService service = service(minioClient, attachmentObjectDao);
 
         service.deleteSession("app-a", "user-a", "session-a");
 
-        verify(attachmentObjectDao).selectBySession("app-a", "user-a", "session-a");
+        verify(attachmentObjectDao).selectBySession("minio", "app-a", "user-a", "session-a");
         verify(attachmentObjectDao).deleteById(21L);
         verify(attachmentObjectDao).deleteById(22L);
         verify(minioClient, org.mockito.Mockito.times(2)).removeObject(any());
     }
 
     private MinioArtifactService service(MinioClient minioClient, AttachmentObjectDao attachmentObjectDao) {
+        return service(minioClient, attachmentObjectDao, Duration.ofHours(24));
+    }
+
+    private MinioArtifactService service(
+            MinioClient minioClient, AttachmentObjectDao attachmentObjectDao, Duration ttl) {
         return new MinioArtifactService(
                 minioClient,
                 attachmentObjectDao,
-                new MinioAttachmentStorageSettings("attachments", Duration.ofHours(24)));
+                new MinioArtifactStorageSettings("app-a", "attachments", ttl, ttl != null));
     }
 }

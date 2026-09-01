@@ -8,6 +8,7 @@ import com.hh.config.agent.catalog.loader.resource.CatalogResourceBinder;
 import com.hh.config.agent.catalog.loader.node.*;
 import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
 import com.hh.domain.agent.model.definition.AgentDefinition;
+import com.hh.domain.agent.model.enums.ArtifactStorageType;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,8 @@ import org.springframework.mock.env.MockEnvironment;
 
 import java.io.IOException;
 import java.util.List;
+import java.time.Duration;
+import java.util.function.Consumer;
 
 import static org.springframework.boot.context.properties.source.ConfigurationPropertySources.from;
 
@@ -94,6 +97,7 @@ class AgentDefinitionLoaderTest {
             assertThat(agent.getSkillsDir()).isEqualTo("classpath:agent/skill-resources");
         });
         assertThat(hello.getRunner().getPersistence()).isTrue();
+        assertThat(hello.getRunner().getArtifactStorage().getType()).isEqualTo(ArtifactStorageType.LOCAL);
         assertThat(hello.getRunner().getGroupFunctionResponsesInHistory()).isTrue();
         assertThat(hello.getRunner().getPluginNameList()).containsExactly("myLoggingPlugin");
         assertThat(hello.getRunner().getContextCompress().getType()).isEqualTo("slidingWindow");
@@ -142,6 +146,59 @@ class AgentDefinitionLoaderTest {
         assertThat(chrome.getRunner().getPersistence()).isFalse();
         assertThat(chrome.getRunner().getGroupFunctionResponsesInHistory()).isFalse();
         assertThat(chrome.getRunner().getPluginNameList()).isEmpty();
+
+        AgentDefinition multimodal = definition(definitions, "multimodal-agent");
+        assertThat(multimodal.getRunner().getArtifactStorage().getType()).isEqualTo(ArtifactStorageType.LOCAL);
+        assertThat(multimodal.getRunner().getArtifactStorage().getTtl()).isEqualTo(Duration.ofHours(24));
+        assertThat(multimodal.getRunner().getArtifactStorage().isLifecycleEnabled()).isTrue();
+    }
+
+    @Test
+    void supportsDefaultMemoryAndExplicitPersistentBackends() {
+        assertThat(loadInline(application -> { }).get(0).getRunner().getArtifactStorage().getType())
+                .isEqualTo(ArtifactStorageType.LOCAL);
+        assertThat(loadInline(application -> application.getRunner().getArtifactStorage().setType("local"))
+                .get(0).getRunner().getArtifactStorage().getType()).isEqualTo(ArtifactStorageType.LOCAL);
+        assertThat(loadInline(application -> {
+            application.getRunner().getArtifactStorage().setType("minio");
+            application.getRunner().getArtifactStorage().setTtl(Duration.ofMinutes(90));
+        }).get(0).getRunner().getArtifactStorage().getType()).isEqualTo(ArtifactStorageType.MINIO);
+    }
+
+    @Test
+    void rejectsInvalidArtifactStorageCombinations() {
+        assertThatThrownBy(() -> loadInline(application ->
+                application.getRunner().getArtifactStorage().setType("database")))
+                .isInstanceOf(AgentConfigurationException.class)
+                .hasMessageContaining("unknown artifact storage type");
+        assertThatThrownBy(() -> loadInline(application -> {
+            application.getRunner().getArtifactStorage().setType("local");
+            application.getRunner().getArtifactStorage().setTtl(Duration.ofHours(1));
+        })).isInstanceOf(AgentConfigurationException.class)
+                .hasMessageContaining("ttl is only supported by minio");
+        assertThatThrownBy(() -> loadInline(application -> {
+            application.getRunner().getArtifactStorage().setType("minio");
+            application.getRunner().getArtifactStorage().setLifecycleEnabled(true);
+        })).isInstanceOf(AgentConfigurationException.class)
+                .hasMessageContaining("requires a minio ttl");
+    }
+
+    @Test
+    void rejectsUnsafeOrDuplicateAppNamesBeforeRuntimeAssembly() {
+        assertThatThrownBy(() -> loadInline(application -> application.setAppName("../unsafe")))
+                .isInstanceOf(AgentConfigurationException.class)
+                .hasMessageContaining("safe path segment");
+
+        AgentCatalogProperties catalog = inlineCatalog();
+        AgentCatalogProperties.ApplicationDefinition first = catalog.getApplications().get(0);
+        AgentCatalogProperties.ApplicationDefinition second = inlineApplication();
+        second.setId("second-app");
+        second.setAgentId("test-discovery-002");
+        second.setAppName(first.getAppName());
+        catalog.setApplications(List.of(first, second));
+        assertThatThrownBy(() -> loader.load(catalog))
+                .isInstanceOf(AgentConfigurationException.class)
+                .hasMessageContaining("duplicate app-name");
     }
 
     @Test
@@ -269,6 +326,34 @@ class AgentDefinitionLoaderTest {
 
     /** 测试自行完成 YAML 到 catalog 属性的绑定，生产 Loader 只保留正式的属性入口。 */
     private List<AgentDefinition> load(String catalogLocation) {
+        return loader.load(bindCatalog(catalogLocation));
+    }
+
+    private List<AgentDefinition> loadInline(Consumer<AgentCatalogProperties.ApplicationDefinition> customizer) {
+        AgentCatalogProperties catalog = inlineCatalog();
+        customizer.accept(catalog.getApplications().get(0));
+        return loader.load(catalog);
+    }
+
+    private AgentCatalogProperties inlineCatalog() {
+        AgentCatalogProperties catalog = bindCatalog("classpath:agent/catalog/discovery/wildcard-catalog.yml");
+        catalog.setApplicationResources(List.of());
+        catalog.setApplications(List.of(inlineApplication()));
+        return catalog;
+    }
+
+    private AgentCatalogProperties.ApplicationDefinition inlineApplication() {
+        AgentCatalogProperties.ApplicationDefinition application = new AgentCatalogProperties.ApplicationDefinition();
+        application.setId("inline-app");
+        application.setAppName("InlineApp");
+        application.setAgentId("test-discovery-001");
+        application.setAgentName("Inline Agent");
+        application.setAgentDesc("artifact storage loader test");
+        application.setAgentRef("discovered-agent");
+        return application;
+    }
+
+    private AgentCatalogProperties bindCatalog(String catalogLocation) {
         try {
             Resource resource = new DefaultResourceLoader().getResource(catalogLocation);
             MutablePropertySources sources = new MutablePropertySources();
@@ -277,7 +362,7 @@ class AgentDefinitionLoaderTest {
                     .bind("ai.agent.config", Bindable.of(AgentCatalogProperties.class))
                     .orElseThrow(() -> new IllegalStateException("missing test catalog binding"));
             catalog.setCatalogPath(catalogLocation);
-            return loader.load(catalog);
+            return catalog;
         } catch (IOException exception) {
             throw new IllegalStateException("unable to load test catalog " + catalogLocation, exception);
         }

@@ -20,6 +20,7 @@ public class AttachmentObjectPO {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    private String storageType;
     private String artifactName;
     private Integer artifactVersion;
     private String appName;

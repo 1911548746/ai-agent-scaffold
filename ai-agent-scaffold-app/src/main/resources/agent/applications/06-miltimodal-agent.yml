@@ -9,6 +9,11 @@ ai:
       agent-ref: multimodal-agent
       runner:
         persistence: true
+        artifact-storage:
+          type: minio # memory | minio | local
+          # minio 专属配置
+          ttl: 24h  # 仅允许 minio 使用；不配置表示保留到 Session 手动删除
+          lifecycle-enabled: true # 仅在配置 MinIO TTL 时生效，默认 `false`
         group-function-responses-in-history: true
         context-compress:
           type: pureSlidingWindow

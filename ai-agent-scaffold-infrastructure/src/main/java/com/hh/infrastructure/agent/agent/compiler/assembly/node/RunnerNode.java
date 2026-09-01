@@ -4,7 +4,6 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.google.adk.agents.BaseAgent;
 import com.google.adk.agents.RunConfig;
 import com.google.adk.apps.App;
-import com.google.adk.artifacts.BaseArtifactService;
 import com.google.adk.memory.InMemoryMemoryService;
 import com.google.adk.plugins.Plugin;
 import com.google.adk.runner.Runner;
@@ -18,6 +17,8 @@ import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCl
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
+import com.hh.infrastructure.agent.agent.artifact.ArtifactStorageService;
+import com.hh.infrastructure.agent.agent.artifact.ArtifactStorageServiceFactory;
 import com.hh.infrastructure.agent.agent.compiler.assembly.context.AgentAssemblyPipelineContext;
 import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
 import com.hh.infrastructure.agent.agent.compiler.assembly.command.AgentAssemblyCommand;
@@ -56,7 +57,7 @@ public class RunnerNode extends AgentAssemblyNode {
     private AgentObservabilityPluginFactory agentObservabilityPluginFactory;
 
     @Resource
-    private BaseArtifactService artifactService;
+    private ArtifactStorageServiceFactory artifactStorageServiceFactory;
 
     @Override
     protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, AgentAssemblyPipelineContext context) throws Exception {
@@ -144,8 +145,10 @@ public class RunnerNode extends AgentAssemblyNode {
         if (runnerConfig != null && runnerConfig.getPersistence()) {
             sessionService = sessionStore;
         }
-        // ArtifactService 由 app 层按部署环境装配；所有 Runner 必须共享它，才能让
-        // LoadArtifactsTool 在模型请求阶段找到 HTTP 上传的受控 Artifact。
+        // 每个 Runtime 独占一个服务实例；HTTP 上传端口随后通过已发布 Runtime 路由回该实例。
+        ArtifactStorageService artifactService = artifactStorageServiceFactory.create(
+                definition.getAppName(), runnerConfig.getArtifactStorage());
+
         return Runner.builder()
                 .app(app)
                 .artifactService(artifactService)

@@ -5,6 +5,7 @@ import com.hh.application.agent.port.AgentRuntimeCompiler;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblyPipeline;
+import com.hh.infrastructure.agent.agent.artifact.ArtifactStorageServiceFactory;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +25,8 @@ public class AdkAgentRuntimeCompiler implements AgentRuntimeCompiler {
     private AgentAssemblyPipeline assemblyPipeline;
     @Resource
     private AdkAgentRuntimeRegistry runtimeRegistry;
+    @Resource
+    private ArtifactStorageServiceFactory artifactStorageServiceFactory;
 
     @Override
     public void compileAndPublish(List<AgentDefinition> definitions) throws Exception {
@@ -36,7 +39,10 @@ public class AdkAgentRuntimeCompiler implements AgentRuntimeCompiler {
             runtimes.add(runtime);
         }
 
-        runtimeRegistry.publish(List.copyOf(runtimes));
+        List<AdkAgentRuntime> candidates = List.copyOf(runtimes);
+        // Lifecycle 对账属于候选 Runtime 的启动校验；失败时不能替换当前可用快照。
+        artifactStorageServiceFactory.reconcileLifecycle(candidates);
+        runtimeRegistry.publish(candidates);
     }
 
     @Override
