@@ -98,12 +98,16 @@ public class ApplicationBindingNode extends AgentDefinitionLoadNode {
                         "duplicate app-name '" + appName + "'");
             }
 
-            validateArtifactStorage(definition.getRunner().getArtifactStorage(), application.sourcePath());
+            validateArtifactStorage(
+                    definition.getRunner().getArtifactStorage(),
+                    definition.getRunner().isPersistence(),
+                    application.sourcePath());
         }
     }
 
     private void validateArtifactStorage(
             AgentCatalogProperties.ArtifactStorageDefinition storage,
+            boolean persistence,
             String applicationPath) {
         String path = applicationPath + ".runner.artifact-storage";
         String type = storage.getType().trim().toLowerCase(java.util.Locale.ROOT);
@@ -122,6 +126,11 @@ public class ApplicationBindingNode extends AgentDefinitionLoadNode {
         }
         if (storage.isLifecycleEnabled() && storage.getTtl() == null) {
             throw support.error(path + ".lifecycle-enabled", "lifecycle-enabled requires a minio ttl");
+        }
+        if ("memory".equals(type) && persistence) {
+            // memory Artifact 不跨进程持久化；禁止它与可跨重启恢复的 Session 混用，避免模型基于失效附件编造结论。
+            throw support.error(path + ".type",
+                    "memory artifact storage cannot be used when runner.persistence is enabled; use local or minio");
         }
     }
 

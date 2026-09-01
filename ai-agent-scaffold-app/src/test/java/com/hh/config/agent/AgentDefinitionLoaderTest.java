@@ -148,15 +148,17 @@ class AgentDefinitionLoaderTest {
         assertThat(chrome.getRunner().getPluginNameList()).isEmpty();
 
         AgentDefinition multimodal = definition(definitions, "multimodal-agent");
-        assertThat(multimodal.getRunner().getArtifactStorage().getType()).isEqualTo(ArtifactStorageType.LOCAL);
+        assertThat(multimodal.getRunner().getArtifactStorage().getType()).isEqualTo(ArtifactStorageType.MINIO);
         assertThat(multimodal.getRunner().getArtifactStorage().getTtl()).isEqualTo(Duration.ofHours(24));
         assertThat(multimodal.getRunner().getArtifactStorage().isLifecycleEnabled()).isTrue();
     }
 
     @Test
-    void supportsDefaultMemoryAndExplicitPersistentBackends() {
+    void supportsDefaultLocalAndExplicitStorageBackends() {
         assertThat(loadInline(application -> { }).get(0).getRunner().getArtifactStorage().getType())
                 .isEqualTo(ArtifactStorageType.LOCAL);
+        assertThat(loadInline(application -> application.getRunner().getArtifactStorage().setType("memory"))
+                .get(0).getRunner().getArtifactStorage().getType()).isEqualTo(ArtifactStorageType.MEMORY);
         assertThat(loadInline(application -> application.getRunner().getArtifactStorage().setType("local"))
                 .get(0).getRunner().getArtifactStorage().getType()).isEqualTo(ArtifactStorageType.LOCAL);
         assertThat(loadInline(application -> {
@@ -181,6 +183,12 @@ class AgentDefinitionLoaderTest {
             application.getRunner().getArtifactStorage().setLifecycleEnabled(true);
         })).isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("requires a minio ttl");
+        assertThatThrownBy(() -> loadInline(application -> {
+            application.getRunner().setPersistence(true);
+            application.getRunner().getArtifactStorage().setType("memory");
+        })).isInstanceOf(AgentConfigurationException.class)
+                .hasMessageContaining("memory artifact storage cannot be used")
+                .hasMessageContaining("runner.persistence");
     }
 
     @Test

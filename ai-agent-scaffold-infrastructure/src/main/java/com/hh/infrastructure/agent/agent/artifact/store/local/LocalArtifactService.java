@@ -1,6 +1,7 @@
 package com.hh.infrastructure.agent.agent.artifact.store.local;
 
 import com.hh.infrastructure.agent.agent.artifact.store.PersistentArtifactService;
+import com.hh.infrastructure.agent.agent.artifact.store.ArtifactObjectMissingException;
 import com.hh.infrastructure.agent.dao.AttachmentObjectDao;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
@@ -8,6 +9,7 @@ import com.hh.types.exception.AppException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
@@ -34,6 +36,8 @@ public class LocalArtifactService extends PersistentArtifactService {
         Path target = resolveObject(objectKey);
         Path temporary = target.resolveSibling(target.getFileName() + ".tmp-" + UUID.randomUUID());
         try {
+            // object key 按 Session 分层；首次上传到该会话前需要创建对应的物理目录。
+            Files.createDirectories(target.getParent());
             Files.write(temporary, bytes);
             try {
                 Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE);
@@ -54,6 +58,9 @@ public class LocalArtifactService extends PersistentArtifactService {
     protected byte[] readObject(String objectKey) {
         try {
             return Files.readAllBytes(resolveObject(objectKey));
+        } catch (NoSuchFileException missing) {
+            // 文件被外部清理时，交由父类删除失效元数据并向模型说明需要重新上传。
+            throw new ArtifactObjectMissingException(objectKey, missing);
         } catch (IOException error) {
             throw storageFailure(error);
         }

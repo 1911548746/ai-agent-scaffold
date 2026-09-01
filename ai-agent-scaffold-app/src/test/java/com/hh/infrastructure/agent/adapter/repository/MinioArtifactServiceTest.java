@@ -7,6 +7,8 @@ import com.hh.infrastructure.agent.agent.artifact.store.minio.MinioArtifactStora
 import com.hh.infrastructure.agent.dao.AttachmentObjectDao;
 import com.hh.infrastructure.agent.dao.po.AttachmentObjectPO;
 import io.minio.MinioClient;
+import io.minio.errors.ErrorResponseException;
+import io.minio.messages.ErrorResponse;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -102,6 +104,55 @@ class MinioArtifactServiceTest {
                 .test()
                 .assertNoValues()
                 .assertComplete();
+    }
+
+    @Test
+    void removesMetadataAndReturnsUploadGuidanceWhenMinioObjectIsMissing() throws Exception {
+        MinioClient minioClient = mock(MinioClient.class);
+        AttachmentObjectDao attachmentObjectDao = mock(AttachmentObjectDao.class);
+        AttachmentObjectPO object = AttachmentObjectPO.builder()
+                .id(13L)
+                .objectKey("artifacts/app-a/session-a/missing.png")
+                .sizeBytes(3L)
+                .build();
+        when(attachmentObjectDao.selectActiveByArtifactName(
+                "minio", "attachment-a", "app-a", "user-a", "session-a", null))
+                .thenReturn(object);
+        when(minioClient.getObject(any())).thenThrow(new ErrorResponseException(
+                new ErrorResponse("NoSuchKey", "missing", "attachments", object.getObjectKey(), null, null, null),
+                null,
+                "http://minio.test"));
+        MinioArtifactService service = service(minioClient, attachmentObjectDao);
+
+        String guidance = service.loadArtifact("app-a", "user-a", "session-a", "attachment-a", null)
+                .blockingGet().text().orElseThrow();
+
+        assertThat(guidance).contains("重新上传");
+        verify(attachmentObjectDao).deleteById(13L);
+    }
+
+    @Test
+    void keepsMetadataWhenMinioReadFailsForReasonsOtherThanMissingObject() throws Exception {
+        MinioClient minioClient = mock(MinioClient.class);
+        AttachmentObjectDao attachmentObjectDao = mock(AttachmentObjectDao.class);
+        AttachmentObjectPO object = AttachmentObjectPO.builder()
+                .id(14L)
+                .objectKey("artifacts/app-a/session-a/protected.png")
+                .build();
+        when(attachmentObjectDao.selectActiveByArtifactName(
+                "minio", "attachment-a", "app-a", "user-a", "session-a", null))
+                .thenReturn(object);
+        when(minioClient.getObject(any())).thenThrow(new ErrorResponseException(
+                new ErrorResponse("AccessDenied", "denied", "attachments", object.getObjectKey(), null, null, null),
+                null,
+                "http://minio.test"));
+        MinioArtifactService service = service(minioClient, attachmentObjectDao);
+
+        service.loadArtifact("app-a", "user-a", "session-a", "attachment-a", null)
+                .test()
+                .assertError(RuntimeException.class);
+
+        verify(attachmentObjectDao, never()).deleteById(14L);
     }
 
     @Test

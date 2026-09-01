@@ -27,6 +27,7 @@ public abstract class PersistentArtifactService implements ArtifactStorageServic
     private static final String ARTIFACT_NAME_PREFIX = "attachment-";
     private static final String OBJECT_KEY_PREFIX = "artifacts/";
     private static final String DEFAULT_MIME_TYPE = "application/octet-stream";
+    private static final String MISSING_ARTIFACT_MESSAGE = "附件已不可用，请提示用户重新上传后再继续处理。";
 
     private final String appName;
     private final String storageType;
@@ -99,7 +100,15 @@ public abstract class PersistentArtifactService implements ArtifactStorageServic
             if (object == null) {
                 return null;
             }
-            byte[] bytes = readObject(object.getObjectKey());
+            byte[] bytes;
+            try {
+                bytes = readObject(object.getObjectKey());
+            } catch (ArtifactObjectMissingException missing) {
+                // 物理对象已被生命周期或外部操作删除时，清理当前版本元数据，避免后续继续暴露失效附件。
+                attachmentObjectDao.deleteById(object.getId());
+                // LoadArtifactsTool 会将该文本临时附加到本轮 LlmRequest，使模型明确要求重新上传而非臆测内容。
+                return Part.fromText(MISSING_ARTIFACT_MESSAGE);
+            }
             if (bytes.length != object.getSizeBytes()) {
                 throw new AppException(ResponseCode.UN_ERROR);
             }

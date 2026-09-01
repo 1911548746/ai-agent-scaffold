@@ -1,6 +1,7 @@
 package com.hh.infrastructure.agent.agent.artifact.store.minio;
 
 import com.hh.infrastructure.agent.agent.artifact.store.PersistentArtifactService;
+import com.hh.infrastructure.agent.agent.artifact.store.ArtifactObjectMissingException;
 import com.hh.infrastructure.agent.agent.artifact.store.minio.MinioArtifactStorageSettings;
 import com.hh.infrastructure.agent.dao.AttachmentObjectDao;
 import com.hh.types.enums.ResponseCode;
@@ -9,6 +10,7 @@ import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import io.minio.errors.ErrorResponseException;
 
 import java.io.ByteArrayInputStream;
 
@@ -52,6 +54,12 @@ public class MinioArtifactService extends PersistentArtifactService {
                 .object(objectKey)
                 .build())) {
             return response.readAllBytes();
+        } catch (ErrorResponseException error) {
+            // 仅 NoSuchKey 表示对象确实不存在；鉴权、限流和服务端故障仍必须作为存储错误传播。
+            if ("NoSuchKey".equals(error.errorResponse().code())) {
+                throw new ArtifactObjectMissingException(objectKey, error);
+            }
+            throw storageFailure(error);
         } catch (Exception error) {
             throw storageFailure(error);
         }

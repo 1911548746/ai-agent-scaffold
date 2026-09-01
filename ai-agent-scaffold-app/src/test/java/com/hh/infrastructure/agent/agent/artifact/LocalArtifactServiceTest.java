@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /** 使用真实临时目录验证 local 后端的物理文件和元数据回滚。 */
@@ -67,6 +68,30 @@ class LocalArtifactServiceTest {
     }
 
     @Test
+    void removesMetadataAndReturnsUploadGuidanceWhenPhysicalFileIsMissing() throws Exception {
+        AttachmentObjectDao dao = mock(AttachmentObjectDao.class);
+        when(dao.insert(any(AttachmentObjectPO.class))).thenReturn(1);
+        LocalArtifactService service = new LocalArtifactService("app-a", root, dao);
+
+        var reference = service.store("app-a", "user-a", "session-a", List.of(
+                new AttachmentUpload("note.txt", "text/plain", new byte[]{4, 5, 6}))).get(0);
+        ArgumentCaptor<AttachmentObjectPO> metadata = ArgumentCaptor.forClass(AttachmentObjectPO.class);
+        verify(dao).insert(metadata.capture());
+        AttachmentObjectPO object = metadata.getValue();
+        object.setId(7L);
+        Files.delete(root.resolve(object.getObjectKey().substring("artifacts/".length())));
+        when(dao.selectActiveByArtifactName(
+                "local", reference.artifactName(), "app-a", "user-a", "session-a", null))
+                .thenReturn(object);
+
+        String guidance = service.loadArtifact("app-a", "user-a", "session-a", reference.artifactName(), null)
+                .blockingGet().text().orElseThrow();
+
+        assertThat(guidance).contains("重新上传");
+        verify(dao).deleteById(7L);
+    }
+
+    @Test
     void rejectsApplicationPathTraversal() {
         assertThatThrownBy(() -> new LocalArtifactService("../escape", root, mock(AttachmentObjectDao.class)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -74,8 +99,8 @@ class LocalArtifactServiceTest {
     }
 
     private void assertDirectoryEmpty(Path directory) throws Exception {
-        try (var files = Files.list(directory)) {
-            assertThat(files.toList()).isEmpty();
+        try (var entries = Files.walk(directory)) {
+            assertThat(entries.filter(Files::isRegularFile).toList()).isEmpty();
         }
     }
 }
