@@ -8,7 +8,7 @@ ai:
       agent-desc: 一个退款智能体
       agent-ref: order-agent
       runner:
-        persistence: true
+        session-storage: true
         group-function-responses-in-history: true
         context-compress:
           type: pureSlidingWindow

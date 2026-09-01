@@ -8,7 +8,7 @@ ai:
       agent-desc: 一个ssh运维智能体
       agent-ref: ssh-agent
       runner:
-        persistence: true
+        session-storage: true
         group-function-responses-in-history: true
         context-compress:
           type: pureSlidingWindow

@@ -11,7 +11,10 @@ import java.util.List;
 public class RunnerDefinition {
 
     private String agentName;
-    private Boolean persistence;
+    private Boolean sessionStorage;
+    private ArtifactStorageDefinition artifactStorage = new ArtifactStorageDefinition();
+    private ContextCompressionDefinition contextCompress;
+    private List<String> pluginNameList;
     /**
      * 是否将同一轮中的 FunctionCall 调整到 FunctionResponse 之前再交给模型。
      *
@@ -19,7 +22,4 @@ public class RunnerDefinition {
      * 它只影响模型历史组织，不改变工具执行顺序。</p>
      */
     private Boolean groupFunctionResponsesInHistory = false;
-    private ArtifactStorageDefinition artifactStorage = new ArtifactStorageDefinition();
-    private ContextCompressionDefinition contextCompress;
-    private List<String> pluginNameList;
 }

@@ -142,7 +142,7 @@ public class RunnerNode extends AgentAssemblyNode {
         // 默认存储在内存
         BaseSessionService sessionService = new InMemorySessionService();
         // 配置event持久化
-        if (runnerConfig != null && runnerConfig.getPersistence()) {
+        if (runnerConfig != null && runnerConfig.getSessionStorage()) {
             sessionService = sessionStore;
         }
         // 每个 Runtime 独占一个服务实例；HTTP 上传端口随后通过已发布 Runtime 路由回该实例。

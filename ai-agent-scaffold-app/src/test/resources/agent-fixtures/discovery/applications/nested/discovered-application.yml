@@ -8,4 +8,4 @@ ai:
       agent-desc: 验证 application 目录通配资源加载
       agent-ref: discovered-agent
       runner:
-        persistence: false
+        artifact-storage: false

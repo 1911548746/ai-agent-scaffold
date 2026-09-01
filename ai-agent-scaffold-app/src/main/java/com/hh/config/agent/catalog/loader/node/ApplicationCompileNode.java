@@ -291,7 +291,7 @@ public class ApplicationCompileNode extends AgentDefinitionLoadNode {
         // Runner 定义只描述运行参数；本节点不拥有 Runner、Plugin 或上下文压缩资源的生命周期。
         RunnerDefinition result = new RunnerDefinition();
         result.setAgentName(rootName);
-        result.setPersistence(source.isPersistence());
+        result.setSessionStorage(source.isSessionStorage());
         result.setGroupFunctionResponsesInHistory(source.isGroupFunctionResponsesInHistory());
         AgentCatalogProperties.ArtifactStorageDefinition configuredStorage = source.getArtifactStorage();
         ArtifactStorageDefinition artifactStorage = new ArtifactStorageDefinition();

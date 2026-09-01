@@ -72,7 +72,7 @@ class AiAgentAutoConfigUnitTest {
         com.hh.domain.agent.model.definition.ChatModelDefinition model = new com.hh.domain.agent.model.definition.ChatModelDefinition();
         com.hh.domain.agent.model.definition.RunnerDefinition runner = new com.hh.domain.agent.model.definition.RunnerDefinition();
         runner.setAgentName(id);
-        runner.setPersistence(false);
+        runner.setSessionStorage(false);
         runner.setPluginNameList(List.of());
         runner.setContextCompress(new com.hh.domain.agent.model.definition.ContextCompressionDefinition());
 

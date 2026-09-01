@@ -8,6 +8,6 @@ ai:
       agent-desc: 代码生成 pipeline 智能体
       workflow-ref: code-pipeline
       runner:
-        persistence: true
+        session-storage: true
         plugin-name-list:
           - myLoggingPlugin

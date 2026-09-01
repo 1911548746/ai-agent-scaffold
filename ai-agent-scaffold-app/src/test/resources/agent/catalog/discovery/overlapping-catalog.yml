@@ -20,4 +20,4 @@ ai:
           agent-desc: 验证同一资源去重
           agent-ref: discovered-agent
           runner:
-            persistence: false
+            artifact-storage: false

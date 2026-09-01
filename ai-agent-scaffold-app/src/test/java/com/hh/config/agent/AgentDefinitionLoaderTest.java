@@ -96,7 +96,7 @@ class AgentDefinitionLoaderTest {
                     assertThat(tool.getMethodName()).isNotBlank());
             assertThat(agent.getSkillsDir()).isEqualTo("classpath:agent/skill-resources");
         });
-        assertThat(hello.getRunner().getPersistence()).isTrue();
+        assertThat(hello.getRunner().getSessionStorage()).isTrue();
         assertThat(hello.getRunner().getArtifactStorage().getType()).isEqualTo(ArtifactStorageType.LOCAL);
         assertThat(hello.getRunner().getGroupFunctionResponsesInHistory()).isTrue();
         assertThat(hello.getRunner().getPluginNameList()).containsExactly("myLoggingPlugin");
@@ -124,7 +124,7 @@ class AgentDefinitionLoaderTest {
                     .containsExactly("CodeWriterAgent", "CodeReviewerAgent", "CodeRefactorerAgent");
         });
         assertThat(pipeline.getRootAgentName()).isEqualTo("CodePipelineAgent");
-        assertThat(pipeline.getRunner().getPersistence()).isTrue();
+        assertThat(pipeline.getRunner().getSessionStorage()).isTrue();
         // 未配置时保持 false，不因 ADK 升级改变历史消息组织方式。
         assertThat(pipeline.getRunner().getGroupFunctionResponsesInHistory()).isFalse();
 
@@ -143,7 +143,7 @@ class AgentDefinitionLoaderTest {
                         .containsExactly("/c", "npx", "-y", "chrome-devtools-mcp@latest");
             });
         });
-        assertThat(chrome.getRunner().getPersistence()).isFalse();
+        assertThat(chrome.getRunner().getSessionStorage()).isFalse();
         assertThat(chrome.getRunner().getGroupFunctionResponsesInHistory()).isFalse();
         assertThat(chrome.getRunner().getPluginNameList()).isEmpty();
 
@@ -184,11 +184,11 @@ class AgentDefinitionLoaderTest {
         })).isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("requires a minio ttl");
         assertThatThrownBy(() -> loadInline(application -> {
-            application.getRunner().setPersistence(true);
+            application.getRunner().setSessionStorage(true);
             application.getRunner().getArtifactStorage().setType("memory");
         })).isInstanceOf(AgentConfigurationException.class)
                 .hasMessageContaining("memory artifact storage cannot be used")
-                .hasMessageContaining("runner.persistence");
+                .hasMessageContaining("runner.sessionStorage");
     }
 
     @Test

@@ -8,7 +8,7 @@ ai:
       agent-desc: 一个测试的智能体
       agent-ref: hello-agent
       runner:
-        persistence: true
+        session-storage: true
         # 仅供要求 FC1/FC2/FR1/FR2 历史格式的兼容模型端点使用。
         group-function-responses-in-history: true
         context-compress:

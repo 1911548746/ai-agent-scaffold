@@ -8,7 +8,7 @@ ai:
       agent-desc: 一个多模态智能体
       agent-ref: multimodal-agent
       runner:
-        persistence: true
+        session-storage: true
         artifact-storage:
           type: minio # memory | minio | local
           # minio 专属配置
