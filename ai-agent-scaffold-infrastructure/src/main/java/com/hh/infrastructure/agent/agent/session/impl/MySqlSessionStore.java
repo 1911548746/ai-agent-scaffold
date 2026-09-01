@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
+import com.hh.infrastructure.agent.agent.session.compaction.summarizer.AbstractCompactionEventSummarizer;
 import com.hh.application.agent.port.AttachmentStoragePort;
 import com.hh.infrastructure.agent.dao.SessionDao;
 import com.hh.infrastructure.agent.dao.SessionEventDao;
@@ -381,7 +381,7 @@ public class MySqlSessionStore implements AdkSessionStore {
     }
 
     /**
-     * 仅信任由 TrackingLlmEventSummarizer 写入的 compaction metadata。
+     * 仅信任由 AbstractCompactionEventSummarizer 写入的 compaction metadata。
      *
      * <p>标准 EventCompaction 只给出时间范围，而 sliding-window overlap 与其他 Event 可能同秒产生；
      * 必须使用精确 eventId 集合，缺失 metadata 时保守地不删除。</p>
@@ -391,7 +391,7 @@ public class MySqlSessionStore implements AdkSessionStore {
             return List.of();
         }
         return event.customMetadata().orElse(List.of()).stream()
-                .filter(metadata -> TrackingLlmEventSummarizer.DELETABLE_EVENT_IDS_METADATA_KEY
+                .filter(metadata -> AbstractCompactionEventSummarizer.DELETABLE_EVENT_IDS_METADATA_KEY
                         .equals(metadata.key().orElse(null)))
                 .flatMap(metadata -> metadata.stringListValue().stream())
                 .flatMap(eventIds -> eventIds.values().stream())

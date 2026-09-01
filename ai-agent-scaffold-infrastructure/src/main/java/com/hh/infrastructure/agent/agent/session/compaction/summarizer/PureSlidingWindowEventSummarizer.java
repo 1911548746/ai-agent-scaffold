@@ -3,10 +3,11 @@ package com.hh.infrastructure.agent.agent.session.compaction.summarizer;
 import com.google.adk.events.Event;
 import com.google.adk.events.EventActions;
 import com.google.adk.events.EventCompaction;
-import com.google.adk.summarizer.BaseEventSummarizer;
 import com.google.genai.types.Content;
 import com.google.genai.types.CustomMetadata;
 import com.google.genai.types.StringList;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicy;
 import io.reactivex.rxjava3.core.Maybe;
 
 import java.util.ArrayList;
@@ -20,19 +21,23 @@ import java.util.Set;
  * <p>ADK 的 SlidingWindowEventCompactor 负责按 invocation 选择窗口。本实现只为窗口前缀创建一个内容为空的
  * compaction marker；marker 的时间边界让 ADK 后续构造上下文时忽略过期 Event，而不会产生任何模型摘要。</p>
  */
-public final class PureSlidingWindowEventSummarizer implements BaseEventSummarizer {
+public final class PureSlidingWindowEventSummarizer extends AbstractCompactionEventSummarizer {
 
     /** 仅供 MySQL Store 判断“可在物理删除源 Event 后省略落库”的内部 marker。 */
     public static final String PURE_SLIDING_WINDOW_MARKER_METADATA_KEY = "scaffold.pure-sliding-window-marker";
 
     private final int invocationRetentionSize;
 
-    public PureSlidingWindowEventSummarizer(int invocationRetentionSize) {
+    public PureSlidingWindowEventSummarizer(
+            int invocationRetentionSize,
+            CompactionCleanupPolicy cleanupPolicy,
+            CompactionCleanupContext cleanupContext) {
+        super(cleanupPolicy, cleanupContext);
         this.invocationRetentionSize = invocationRetentionSize;
     }
 
     @Override
-    public Maybe<Event> summarizeEvents(List<Event> events) {
+    protected Maybe<Event> summarizeCompactionEvents(List<Event> events) {
         int retainedStart = retainedStart(events);
         if (retainedStart <= 0) {
             // 窗口尚未超过容量时不追加 marker，避免在首次对话就隐藏上下文。

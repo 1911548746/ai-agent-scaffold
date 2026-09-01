@@ -9,15 +9,8 @@ import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.domain.agent.model.runtime.AgentDescriptor;
 import com.hh.infrastructure.agent.agent.compiler.assembly.context.AgentAssemblyPipelineContext;
 import com.hh.infrastructure.agent.agent.compiler.assembly.node.RunnerNode;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
 import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPlugin;
 import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
-import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
@@ -30,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * 固化 pureSlidingWindow 的关键装配边界：压缩计划留在 Runtime，不再注册到 ADK App 自动执行。
+ * 固化 pureSlidingWindow 的 Runner 装配边界：压缩计划留在 Runtime，不注册到 ADK App 自动执行。
  */
 @SuppressWarnings("deprecation")
 class RunnerNodePureSlidingWindowTest {
@@ -53,13 +46,9 @@ class RunnerNodePureSlidingWindowTest {
     }
 
     @Test
-    void pureSlidingWindowBuildsRuntimePlanWithoutRegisteringAutomaticCompaction() throws Exception {
+    void pureSlidingWindowKeepsAutomaticCompactionDisabledOnApp() throws Exception {
         RunnerNode node = new RunnerNode();
         ReflectionTestUtils.setField(node, "applicationContext", mock(ApplicationContext.class));
-        ReflectionTestUtils.setField(node, "compactionCleanupPolicyRegistry", new CompactionCleanupPolicyRegistry(List.of(
-                new SlidingWindowCompactionCleanupPolicy(),
-                new FixedSizeCompactionCleanupPolicy(),
-                new PureSlidingWindowCompactionCleanupPolicy())));
         ReflectionTestUtils.setField(node, "agentObservabilityPluginFactory",
                 new AgentObservabilityPluginFactory(new SimpleMeterRegistry()));
 
@@ -86,19 +75,6 @@ class RunnerNodePureSlidingWindowTest {
         App app = (App) createApp.invoke(node, definition, context);
 
         assertThat(app.eventsCompactionConfig()).isNull();
-        Method createPlan = RunnerNode.class.getDeclaredMethod(
-                "createCompactionPlan", AgentAssemblyPipelineContext.class, ContextCompressionDefinition.class);
-        createPlan.setAccessible(true);
-        RuntimeCompactionPlan plan = (RuntimeCompactionPlan) createPlan.invoke(node, context, compression);
-
-        assertThat(plan.postResponseRequired()).isTrue();
-        assertThat(plan.type().getType()).isEqualTo("pureSlidingWindow");
-        Object config = ReflectionTestUtils.getField(plan.compactor(), "config");
-        assertThat(ReflectionTestUtils.getField(config, "summarizer"))
-                .isInstanceOf(TrackingLlmEventSummarizer.class);
-        assertThat(ReflectionTestUtils.getField(
-                ReflectionTestUtils.getField(config, "summarizer"), "delegate"))
-                .isInstanceOf(PureSlidingWindowEventSummarizer.class);
         assertThat(app.plugins())
                 .singleElement()
                 .isInstanceOf(AgentObservabilityPlugin.class);

@@ -14,8 +14,8 @@ import com.google.genai.types.StringList;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
 import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.session.compaction.summarizer.AbstractCompactionEventSummarizer;
 import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.TrackingLlmEventSummarizer;
 import com.hh.infrastructure.agent.agent.session.impl.MySqlSessionStore;
 import com.hh.infrastructure.agent.dao.SessionDao;
 import com.hh.infrastructure.agent.dao.SessionEventDao;
@@ -102,11 +102,15 @@ class SessionEventRetentionTest {
     }
 
     @Test
-    void trackingSummarizerAddsExactSourceEventIdsToSummaryMetadata() {
-        TrackingLlmEventSummarizer summarizer = new TrackingLlmEventSummarizer(
-                events -> Maybe.just(Event.builder().id("summary-a").build()),
+    void compactionSummarizerAddsExactSourceEventIdsToSummaryMetadata() {
+        AbstractCompactionEventSummarizer summarizer = new AbstractCompactionEventSummarizer(
                 new FixedSizeCompactionCleanupPolicy(),
-                new CompactionCleanupContext(null, 30));
+                new CompactionCleanupContext(null, 30)) {
+            @Override
+            protected Maybe<Event> summarizeCompactionEvents(List<Event> events) {
+                return Maybe.just(Event.builder().id("summary-a").build());
+            }
+        };
 
         Event summary = summarizer.summarizeEvents(List.of(
                 Event.builder().id("source-a").build(),
@@ -116,7 +120,7 @@ class SessionEventRetentionTest {
 
         assertThat(summary.customMetadata()).isPresent();
         List<String> eventIds = summary.customMetadata().orElseThrow().stream()
-                .filter(item -> TrackingLlmEventSummarizer.DELETABLE_EVENT_IDS_METADATA_KEY
+                .filter(item -> AbstractCompactionEventSummarizer.DELETABLE_EVENT_IDS_METADATA_KEY
                         .equals(item.key().orElse(null)))
                 .flatMap(item -> item.stringListValue().stream())
                 .flatMap(value -> value.values().stream())
@@ -439,7 +443,7 @@ class SessionEventRetentionTest {
                                 .build())
                         .build())
                 .customMetadata(List.of(CustomMetadata.builder()
-                        .key(TrackingLlmEventSummarizer.DELETABLE_EVENT_IDS_METADATA_KEY)
+                        .key(AbstractCompactionEventSummarizer.DELETABLE_EVENT_IDS_METADATA_KEY)
                         .stringListValue(StringList.builder().values(sourceEventIds).build())
                         .build()))
                 .build();
