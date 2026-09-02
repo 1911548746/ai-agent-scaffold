@@ -20,4 +20,5 @@ ai:
           agent-desc: 验证同一资源去重
           agent-ref: discovered-agent
           runner:
-            artifact-storage: false
+            artifact-storage:
+              type: memory

@@ -3,10 +3,9 @@ package com.hh.infrastructure.persistence;
 import com.google.adk.events.Event;
 import com.google.adk.events.EventActions;
 import com.google.adk.events.EventCompaction;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -61,16 +60,6 @@ class CompactionCleanupPolicyTest {
                 .deletableEventIds();
 
         assertThat(deletableIds).containsExactly("summary-a", "old-user", "old-ai");
-    }
-
-    @Test
-    void unregisteredPolicyFallsBackToFixedSizeToMatchRunnerConfiguration() {
-        CompactionCleanupPolicyRegistry registry = new CompactionCleanupPolicyRegistry(List.of(
-                slidingPolicy, fixedPolicy));
-
-        assertThat(registry.resolve("future-mode")
-                .plan(List.of(event("event-a", "round-a")), new CompactionCleanupContext(1, null))
-                .deletableEventIds()).containsExactly("event-a");
     }
 
     private Event event(String id, String invocationId) {

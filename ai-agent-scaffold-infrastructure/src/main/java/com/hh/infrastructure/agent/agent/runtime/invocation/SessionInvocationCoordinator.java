@@ -1,16 +1,11 @@
 package com.hh.infrastructure.agent.agent.runtime.invocation;
 
-import com.google.adk.events.Event;
 import com.google.adk.sessions.Session;
 import com.google.genai.types.Content;
-import com.google.genai.types.FunctionCall;
-import com.google.genai.types.FunctionResponse;
-import com.google.genai.types.Part;
 import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
-import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
 import com.hh.application.agent.port.SessionLease;
 import com.hh.types.enums.ResponseCode;
 import com.hh.types.exception.AppException;
@@ -19,14 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -44,32 +33,38 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Component
 public class SessionInvocationCoordinator {
 
-    private static final String INTERRUPTED_TOOL_RESPONSE =
-            "Tool execution was interrupted. Verify external state before retrying this operation.";
-    private static final String INTERRUPTED_INVOCATION_MESSAGE =
-            "The previous invocation was interrupted after producing execution progress. "
-                    + "Use the preserved tool results and verify external state before continuing.";
-
     private final Executor executor;
+    private final InvocationFailureRecovery failureRecovery;
     private final ConcurrentMap<SessionKey, Semaphore> permits = new ConcurrentHashMap<>();
 
-    public SessionInvocationCoordinator(@Qualifier("contextCompactionExecutor") Executor executor) {
+    public SessionInvocationCoordinator(
+            @Qualifier("contextCompactionExecutor") Executor executor,
+            InvocationFailureRecovery failureRecovery) {
         this.executor = executor;
+        this.failureRecovery = failureRecovery;
     }
 
+    /**
+     * 为一次 Agent 调用取得 Session 独占许可，并在必要时执行调用前压缩。
+     *
+     * <p>返回的租约必须由调用方在成功、失败或取消路径中结束，否则同一 Session 的后续操作会一直等待。</p>
+     */
     public InvocationLease begin(
             AdkAgentRuntime runtime,
             String userId,
             String sessionId,
             Content pendingUserMessage) {
+        // Runtime 中的计划已经在启动编译阶段确定，这里只负责按计划执行，不再解析配置。
         RuntimeCompactionPlan plan = runtime.compactionPlan();
         SessionKey key = new SessionKey(runtime.appName(), userId, sessionId);
+        // 锁键必须包含 app、user 和 session，避免不同 Agent 或用户之间互相阻塞/串数据。
         Semaphore permit = permits.computeIfAbsent(key, ignored -> new Semaphore(1));
         permit.acquireUninterruptibly();
 
         try {
+            // 先确认 Session 存在，再执行压缩和模型调用，避免为无效身份占用后续流程。
             Session session = loadSession(runtime, userId, sessionId);
-            if (plan.enabled() && plan.preflightRequired(session, pendingUserMessage)) {
+            if (plan.preflightRequired(session, pendingUserMessage)) {
                 try {
                     // fixedSize 只压缩既有历史，当前用户消息尚未进入 ADK Session。
                     plan.compact(session, runtime.runner().sessionService()).blockingAwait();
@@ -87,7 +82,11 @@ public class SessionInvocationCoordinator {
         }
     }
 
-    /** 获取与 invocation 共用的 Session 独占租约，供删除等跨资源操作使用。 */
+    /**
+     * 获取与 invocation 共用的 Session 独占租约，供删除、归档等跨资源操作使用。
+     *
+     * <p>该方法只负责并发互斥，不读取或修改 Session；调用方完成操作后必须关闭返回的租约。</p>
+     */
     public SessionLease acquireSessionOperationLease(
             AdkAgentRuntime runtime, String userId, String sessionId) {
         SessionKey key = new SessionKey(runtime.appName(), userId, sessionId);
@@ -96,6 +95,7 @@ public class SessionInvocationCoordinator {
         return permit::release;
     }
 
+    /** 从当前 Runtime 的 SessionService 加载完整 Session，找不到时转换为稳定业务错误。 */
     private Session loadSession(AdkAgentRuntime runtime, String userId, String sessionId) {
         Session session = runtime.runner().sessionService()
                 .getSession(runtime.appName(), userId, sessionId, Optional.empty())
@@ -137,7 +137,7 @@ public class SessionInvocationCoordinator {
                 return;
             }
             try {
-                reconcileFailedInvocationEvents();
+                failureRecovery.recover(runtime, userId, sessionId, baseline);
             } catch (Throwable cleanupError) {
                 // 补偿失败不能替换已经确定的模型错误；保留两端状态并输出脱敏诊断信息。
                 logInvocationCleanupFailure(key, cleanupError);
@@ -153,6 +153,7 @@ public class SessionInvocationCoordinator {
             if (!completed.compareAndSet(false, true)) {
                 return;
             }
+            // success 只结束主调用；滑动窗口维护是否执行由 Runtime 计划决定。
             RuntimeCompactionPlan plan = runtime.compactionPlan();
             if (!plan.postResponseRequired()) {
                 permit.release();
@@ -176,174 +177,6 @@ public class SessionInvocationCoordinator {
             }
         }
 
-        private void reconcileFailedInvocationEvents() {
-            Session session = loadSession(runtime, userId, sessionId);
-            List<Event> newEvents = baseline.newEvents(session.events());
-            if (newEvents.isEmpty()) {
-                return;
-            }
-
-            Map<String, List<Event>> eventsByInvocation = new LinkedHashMap<>();
-            for (Event event : newEvents) {
-                if (hasText(event.invocationId())) {
-                    eventsByInvocation.computeIfAbsent(event.invocationId(), ignored -> new ArrayList<>()).add(event);
-                }
-            }
-
-            List<String> discardInvocationIds = new ArrayList<>();
-            for (Map.Entry<String, List<Event>> entry : eventsByInvocation.entrySet()) {
-                if (!hasRecoverableProgress(entry.getValue())) {
-                    discardInvocationIds.add(entry.getKey());
-                    continue;
-                }
-                preserveInterruptedInvocation(session, entry.getKey(), entry.getValue());
-            }
-            if (!discardInvocationIds.isEmpty()) {
-                discardInvocations(session, discardInvocationIds);
-            }
-        }
-
-        private void discardInvocations(Session session, List<String> invocationIds) {
-            if (runtime.runner().sessionService() instanceof AdkSessionStore sessionStore) {
-                sessionStore.discardInvocationEvents(session, invocationIds).blockingAwait();
-            } else {
-                session.events().removeIf(event -> invocationIds.contains(event.invocationId()));
-            }
-        }
-
-        private void preserveInterruptedInvocation(
-                Session session,
-                String invocationId,
-                List<Event> invocationEvents) {
-            InterruptedInvocationPlan recoveryPlan = buildInterruptedPlan(invocationId, invocationEvents);
-            if (runtime.runner().sessionService() instanceof AdkSessionStore sessionStore) {
-                sessionStore.preserveInterruptedInvocation(
-                        session,
-                        recoveryPlan.deletableEventIds(),
-                        recoveryPlan.recoveryEvents()).blockingAwait();
-            } else {
-                session.events().removeIf(event -> recoveryPlan.deletableEventIds().contains(event.id()));
-                session.events().addAll(recoveryPlan.recoveryEvents());
-            }
-        }
-
-        private InterruptedInvocationPlan buildInterruptedPlan(
-                String invocationId,
-                List<Event> invocationEvents) {
-            Event userEvent = invocationEvents.stream()
-                    .filter(event -> "user".equalsIgnoreCase(event.author()))
-                    .filter(event -> event.functionResponses().isEmpty())
-                    .findFirst()
-                    .orElse(invocationEvents.get(0));
-            List<String> deletableEventIds = invocationEvents.stream()
-                    .filter(event -> shouldDiscardInterruptedEvent(event, userEvent))
-                    .map(Event::id)
-                    .filter(SessionInvocationCoordinator::hasText)
-                    .distinct()
-                    .toList();
-
-            List<Event> recoveryEvents = new ArrayList<>();
-            List<FunctionCall> unmatchedCalls = unmatchedFunctionCalls(invocationEvents);
-            if (!unmatchedCalls.isEmpty()) {
-                recoveryEvents.add(interruptedFunctionResponseEvent(invocationId, unmatchedCalls));
-            }
-            recoveryEvents.add(interruptedMarkerEvent(invocationId));
-            return new InterruptedInvocationPlan(deletableEventIds, List.copyOf(recoveryEvents));
-        }
-
-        private boolean shouldDiscardInterruptedEvent(Event event, Event userEvent) {
-            if (event == userEvent) {
-                return false;
-            }
-            if (hasActionProgress(event)) {
-                return false;
-            }
-            if (event.partial().orElse(false)) {
-                return true;
-            }
-            if (!event.functionCalls().isEmpty() || !event.functionResponses().isEmpty()) {
-                return false;
-            }
-            // 无 Content 的 state/transfer Event 仍可能帮助工作流定位；只清除纯中间模型内容。
-            return event.content().isPresent();
-        }
-
-        private List<FunctionCall> unmatchedFunctionCalls(List<Event> invocationEvents) {
-            List<FunctionResponse> remainingResponses = invocationEvents.stream()
-                    .filter(event -> !event.partial().orElse(false))
-                    .flatMap(event -> event.functionResponses().stream())
-                    .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
-            List<FunctionCall> unmatchedCalls = new ArrayList<>();
-            invocationEvents.stream()
-                    .filter(event -> !event.partial().orElse(false))
-                    .flatMap(event -> event.functionCalls().stream())
-                    .forEach(call -> {
-                        int matchingResponse = matchingResponseIndex(call, remainingResponses);
-                        if (matchingResponse >= 0) {
-                            remainingResponses.remove(matchingResponse);
-                        } else {
-                            unmatchedCalls.add(call);
-                        }
-                    });
-            return unmatchedCalls;
-        }
-
-        private int matchingResponseIndex(FunctionCall call, List<FunctionResponse> responses) {
-            if (call.id().isPresent()) {
-                for (int index = 0; index < responses.size(); index++) {
-                    if (call.id().equals(responses.get(index).id())) {
-                        return index;
-                    }
-                }
-            }
-            for (int index = 0; index < responses.size(); index++) {
-                if (call.name().isPresent() && call.name().equals(responses.get(index).name())) {
-                    return index;
-                }
-            }
-            return -1;
-        }
-
-        private Event interruptedFunctionResponseEvent(String invocationId, List<FunctionCall> unmatchedCalls) {
-            List<Part> responseParts = unmatchedCalls.stream()
-                    .map(this::interruptedFunctionResponsePart)
-                    .toList();
-            return Event.builder()
-                    .id(Event.generateEventId())
-                    .invocationId(invocationId)
-                    .author(runtimeAgentName())
-                    .content(Content.builder().role("user").parts(responseParts).build())
-                    .interrupted(true)
-                    .timestamp(Instant.now().getEpochSecond())
-                    .build();
-        }
-
-        private Part interruptedFunctionResponsePart(FunctionCall call) {
-            FunctionResponse.Builder response = FunctionResponse.builder()
-                    .response(Map.of("error", INTERRUPTED_TOOL_RESPONSE));
-            call.id().ifPresent(response::id);
-            call.name().ifPresent(response::name);
-            return Part.builder().functionResponse(response).build();
-        }
-
-        private Event interruptedMarkerEvent(String invocationId) {
-            return Event.builder()
-                    .id(Event.generateEventId())
-                    .invocationId(invocationId)
-                    .author(runtimeAgentName())
-                    .content(Content.builder()
-                            .role("model")
-                            .parts(Part.fromText(INTERRUPTED_INVOCATION_MESSAGE))
-                            .build())
-                    .interrupted(true)
-                    .turnComplete(true)
-                    .timestamp(Instant.now().getEpochSecond())
-                    .build();
-        }
-
-        private String runtimeAgentName() {
-            return runtime.runner().agent() == null ? runtime.agentId() : runtime.runner().agent().name();
-        }
     }
 
     private void logInvocationCleanupFailure(SessionKey key, Throwable error) {
@@ -368,52 +201,4 @@ public class SessionInvocationCoordinator {
     private record SessionKey(String appName, String userId, String sessionId) {
     }
 
-    private record InterruptedInvocationPlan(List<String> deletableEventIds, List<Event> recoveryEvents) {
-    }
-
-    /**
-     * 记录 Runner 调用前的 Event 边界；非空 eventId 优先用于跨 MySQL 快照比较，数量仅兜底无 ID Event。
-     */
-    private record InvocationBaseline(Set<String> eventIds, int eventCount) {
-
-        private static InvocationBaseline capture(List<Event> events) {
-            Set<String> eventIds = new HashSet<>();
-            events.stream()
-                    .map(Event::id)
-                    .filter(SessionInvocationCoordinator::hasText)
-                    .forEach(eventIds::add);
-            return new InvocationBaseline(Set.copyOf(eventIds), events.size());
-        }
-
-        private List<Event> newEvents(List<Event> events) {
-            List<Event> newEvents = new ArrayList<>();
-            for (int index = 0; index < events.size(); index++) {
-                Event event = events.get(index);
-                boolean newEvent = hasText(event.id())
-                        ? !eventIds.contains(event.id())
-                        : index >= eventCount;
-                if (newEvent) {
-                    newEvents.add(event);
-                }
-            }
-            return List.copyOf(newEvents);
-        }
-    }
-
-    private static boolean hasRecoverableProgress(List<Event> events) {
-        return events.stream().anyMatch(event -> !event.functionResponses().isEmpty()
-                || (!event.partial().orElse(false) && !event.functionCalls().isEmpty())
-                || hasActionProgress(event));
-    }
-
-    private static boolean hasActionProgress(Event event) {
-        return event.actions() != null && (!event.actions().stateDelta().isEmpty()
-                || !event.actions().artifactDelta().isEmpty()
-                || !event.actions().deletedArtifactIds().isEmpty()
-                || event.actions().transferToAgent().isPresent());
-    }
-
-    private static boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
 }

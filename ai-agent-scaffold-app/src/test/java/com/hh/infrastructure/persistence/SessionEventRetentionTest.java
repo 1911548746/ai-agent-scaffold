@@ -11,11 +11,12 @@ import com.google.genai.types.Content;
 import com.google.genai.types.Part;
 import com.hh.application.agent.port.AttachmentStoragePort;
 import com.google.genai.types.StringList;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.AbstractCompactionEventSummarizer;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.SessionEventCompactionCleanupSettings;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.compaction.metadata.CompactionEventMetadata;
+import com.hh.infrastructure.agent.agent.runtime.compaction.summarizer.AbstractCompactionEventSummarizer;
+import com.hh.infrastructure.agent.agent.runtime.compaction.summarizer.PureSlidingWindowEventSummarizer;
 import com.hh.infrastructure.agent.agent.session.impl.MySqlSessionStore;
 import com.hh.infrastructure.agent.dao.SessionDao;
 import com.hh.infrastructure.agent.dao.SessionEventDao;
@@ -120,7 +121,7 @@ class SessionEventRetentionTest {
 
         assertThat(summary.customMetadata()).isPresent();
         List<String> eventIds = summary.customMetadata().orElseThrow().stream()
-                .filter(item -> AbstractCompactionEventSummarizer.DELETABLE_EVENT_IDS_METADATA_KEY
+                .filter(item -> CompactionEventMetadata.DELETABLE_EVENT_IDS_KEY
                         .equals(item.key().orElse(null)))
                 .flatMap(item -> item.stringListValue().stream())
                 .flatMap(value -> value.values().stream())
@@ -443,7 +444,7 @@ class SessionEventRetentionTest {
                                 .build())
                         .build())
                 .customMetadata(List.of(CustomMetadata.builder()
-                        .key(AbstractCompactionEventSummarizer.DELETABLE_EVENT_IDS_METADATA_KEY)
+                        .key(CompactionEventMetadata.DELETABLE_EVENT_IDS_KEY)
                         .stringListValue(StringList.builder().values(sourceEventIds).build())
                         .build()))
                 .build();
@@ -453,7 +454,7 @@ class SessionEventRetentionTest {
         Event marker = compactionEvent(markerEventId, sourceEventIds);
         List<CustomMetadata> metadata = new ArrayList<>(marker.customMetadata().orElseThrow());
         metadata.add(CustomMetadata.builder()
-                .key(PureSlidingWindowEventSummarizer.PURE_SLIDING_WINDOW_MARKER_METADATA_KEY)
+                        .key(CompactionEventMetadata.PURE_SLIDING_WINDOW_MARKER_KEY)
                 .stringListValue(StringList.builder().values(List.of("true")).build())
                 .build());
         marker.setCustomMetadata(metadata);

@@ -22,17 +22,6 @@ public record AdkAgentRuntime(
         RunConfig runConfig,
         RuntimeCompactionPlan compactionPlan) {
 
-    public AdkAgentRuntime(
-            String appName,
-            String agentId,
-            String agentName,
-            String agentDesc,
-            Runner runner,
-            RunConfig runConfig) {
-        this(appName, agentId, agentName, agentDesc, runner, runConfig,
-                RuntimeCompactionPlan.disabled());
-    }
-
     public AdkAgentRuntime {
         Objects.requireNonNull(appName, "appName must not be null");
         Objects.requireNonNull(agentId, "agentId must not be null");

@@ -19,4 +19,5 @@ ai:
           agent-desc: 验证空目录模式失败
           agent-ref: discovered-agent
           runner:
-            artifact-storage: false
+            artifact-storage:
+              type: memory

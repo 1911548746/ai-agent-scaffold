@@ -15,6 +15,7 @@ import com.google.genai.types.Part;
 import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.application.agent.port.SessionLease;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
+import com.hh.infrastructure.agent.agent.runtime.invocation.InvocationFailureRecovery;
 import com.hh.infrastructure.agent.agent.runtime.invocation.SessionInvocationCoordinator;
 import com.hh.infrastructure.agent.agent.session.AdkSessionStore;
 import com.hh.types.enums.ContextCompressTypeEnum;
@@ -97,10 +98,10 @@ class SessionInvocationCoordinatorTest {
         EventCompactor compactor = mock(EventCompactor.class);
         when(compactor.compact(any(), any())).thenReturn(Completable.error(new IllegalStateException("summary failed")));
         Session session = sessionWithLongHistory();
-        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator coordinator = coordinator(Runnable::run);
 
         assertThatThrownBy(() -> coordinator.begin(
-                runtime(new RuntimeCompactionPlan(ContextCompressTypeEnum.FIXED_SIZE, compactor, 1, true), session),
+                runtime(new RuntimeCompactionPlan(ContextCompressTypeEnum.FIXED_SIZE, compactor, 1), session),
                 "user-a", "session-a", Content.fromParts(Part.fromText("next message"))))
                 .isInstanceOf(ContextCompactionException.class);
 
@@ -112,10 +113,9 @@ class SessionInvocationCoordinatorTest {
     @Test
     void compactionPreflightFailureIsNotMappedToContextCompactionFailure() {
         RuntimeCompactionPlan plan = mock(RuntimeCompactionPlan.class);
-        when(plan.enabled()).thenReturn(true);
         when(plan.preflightRequired(any(), any()))
                 .thenThrow(new IllegalStateException("preflight failure"));
-        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator coordinator = coordinator(Runnable::run);
 
         assertThatThrownBy(() -> coordinator.begin(
                 runtime(plan, session()), "user-a", "session-a", Content.fromParts(Part.fromText("hello"))))
@@ -134,7 +134,7 @@ class SessionInvocationCoordinatorTest {
                 "app-a", "agent-a", "Agent A", "test", runner, RunConfig.builder().build(),
                 fixedSizePlan(Integer.MAX_VALUE));
 
-        assertThatThrownBy(() -> new SessionInvocationCoordinator(Runnable::run).begin(
+        assertThatThrownBy(() -> coordinator(Runnable::run).begin(
                 runtime, "user-a", "missing-session", Content.fromParts(Part.fromText("hello"))))
                 .isInstanceOf(AppException.class)
                 .isNotInstanceOf(ContextCompactionException.class)
@@ -147,9 +147,9 @@ class SessionInvocationCoordinatorTest {
         EventCompactor compactor = mock(EventCompactor.class);
         when(compactor.compact(any(), any())).thenReturn(Completable.error(new IllegalStateException("summary failed")));
         QueueExecutor executor = new QueueExecutor();
-        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(executor);
+        SessionInvocationCoordinator coordinator = coordinator(executor);
         AdkAgentRuntime runtime = runtime(new RuntimeCompactionPlan(
-                ContextCompressTypeEnum.SLIDING_WINDOW, compactor, 0, true), sessionWithLongHistory());
+                ContextCompressTypeEnum.SLIDING_WINDOW, compactor, 0), sessionWithLongHistory());
 
         SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime, "user-a", "session-a", Content.fromParts(Part.fromText("next message")));
@@ -167,7 +167,7 @@ class SessionInvocationCoordinatorTest {
                 .id("history-a")
                 .invocationId("invocation-history")
                 .build());
-        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator coordinator = coordinator(Runnable::run);
         SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime(fixedSizePlan(Integer.MAX_VALUE), session),
                 "user-a", "session-a", Content.fromParts(Part.fromText("next message")));
@@ -185,7 +185,7 @@ class SessionInvocationCoordinatorTest {
     @Test
     void successfulInvocationKeepsNewEvents() {
         Session session = session(Event.builder().id("history-a").invocationId("invocation-history").build());
-        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator coordinator = coordinator(Runnable::run);
         SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime(fixedSizePlan(Integer.MAX_VALUE), session),
                 "user-a", "session-a", Content.fromParts(Part.fromText("next message")));
@@ -199,7 +199,7 @@ class SessionInvocationCoordinatorTest {
     @Test
     void interruptedToolInvocationKeepsRecoverableTraceAndCompletesDanglingCall() {
         Session session = session(Event.builder().id("history-a").invocationId("invocation-history").build());
-        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator coordinator = coordinator(Runnable::run);
         SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime(fixedSizePlan(Integer.MAX_VALUE), session),
                 "user-a", "session-a", Content.fromParts(Part.fromText("deploy the application")));
@@ -238,7 +238,7 @@ class SessionInvocationCoordinatorTest {
     @Test
     void invocationWithStateProgressIsMarkedInterruptedInsteadOfDiscarded() {
         Session session = session();
-        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator coordinator = coordinator(Runnable::run);
         SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime(fixedSizePlan(Integer.MAX_VALUE), session),
                 "user-a", "session-a", Content.fromParts(Part.fromText("prepare deployment")));
@@ -264,7 +264,7 @@ class SessionInvocationCoordinatorTest {
         when(sessionStore.getSession(any(), any(), any(), any())).thenReturn(Maybe.just(session));
         when(sessionStore.discardInvocationEvents(any(), any()))
                 .thenReturn(Completable.error(new IllegalStateException("cleanup failed")));
-        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator coordinator = coordinator(Runnable::run);
         SessionInvocationCoordinator.InvocationLease lease = coordinator.begin(
                 runtime(fixedSizePlan(Integer.MAX_VALUE), session, sessionStore),
                 "user-a", "session-a", Content.fromParts(Part.fromText("next message")));
@@ -277,7 +277,7 @@ class SessionInvocationCoordinatorTest {
 
     @Test
     void sessionLeaseSerializesOperationsAndReleasesPermit() throws Exception {
-        SessionInvocationCoordinator coordinator = new SessionInvocationCoordinator(Runnable::run);
+        SessionInvocationCoordinator coordinator = coordinator(Runnable::run);
         AdkAgentRuntime runtime = runtime(fixedSizePlan(Integer.MAX_VALUE), session());
         SessionLease firstLease = coordinator.acquireSessionOperationLease(runtime, "user-a", "session-a");
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -311,6 +311,10 @@ class SessionInvocationCoordinatorTest {
         return runtime(plan, session, sessionService);
     }
 
+    private SessionInvocationCoordinator coordinator(Executor executor) {
+        return new SessionInvocationCoordinator(executor, new InvocationFailureRecovery());
+    }
+
     private AdkAgentRuntime runtime(
             RuntimeCompactionPlan plan,
             Session session,
@@ -324,8 +328,7 @@ class SessionInvocationCoordinatorTest {
         return new RuntimeCompactionPlan(
                 ContextCompressTypeEnum.FIXED_SIZE,
                 mock(EventCompactor.class),
-                tokenThreshold,
-                true);
+                tokenThreshold);
     }
 
     private Session session(Event... events) {

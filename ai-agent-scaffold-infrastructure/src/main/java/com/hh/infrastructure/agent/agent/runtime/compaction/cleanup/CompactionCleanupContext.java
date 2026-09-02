@@ -1,4 +1,4 @@
-package com.hh.infrastructure.agent.agent.session.compaction.cleanup;
+package com.hh.infrastructure.agent.agent.runtime.compaction.cleanup;
 
 /**
  * 一次摘要任务的保留参数。

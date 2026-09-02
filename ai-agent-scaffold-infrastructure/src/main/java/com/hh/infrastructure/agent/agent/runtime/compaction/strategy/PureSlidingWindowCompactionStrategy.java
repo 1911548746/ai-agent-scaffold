@@ -5,9 +5,9 @@ import com.google.adk.summarizer.EventsCompactionConfig;
 import com.google.adk.summarizer.SlidingWindowEventCompactor;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.compaction.summarizer.PureSlidingWindowEventSummarizer;
 import com.hh.types.enums.ContextCompressTypeEnum;
 import org.springframework.stereotype.Component;
 
@@ -20,32 +20,35 @@ import org.springframework.stereotype.Component;
 @Component
 public class PureSlidingWindowCompactionStrategy implements RuntimeCompactionStrategy {
 
-    private final CompactionCleanupPolicyRegistry cleanupPolicyRegistry;
+    private final PureSlidingWindowCompactionCleanupPolicy cleanupPolicy;
 
-    public PureSlidingWindowCompactionStrategy(CompactionCleanupPolicyRegistry cleanupPolicyRegistry) {
-        this.cleanupPolicyRegistry = cleanupPolicyRegistry;
+    /** 注入纯窗口清理策略，使 marker 边界与数据库删除边界保持一致。 */
+    public PureSlidingWindowCompactionStrategy(PureSlidingWindowCompactionCleanupPolicy cleanupPolicy) {
+        this.cleanupPolicy = cleanupPolicy;
     }
 
+    /** pureSlidingWindow 对应配置中的稳定类型。 */
     @Override
     public ContextCompressTypeEnum type() {
         return ContextCompressTypeEnum.PURE_SLIDING_WINDOW;
     }
 
+    /** 创建“主回复后检查、不调用模型”的纯滑动窗口压缩计划。 */
     @Override
     public RuntimeCompactionPlan create(BaseLlm llmModel, ContextCompressionDefinition definition) {
         // pureSlidingWindow 不读取 llmModel，因此可用于没有摘要模型的本地历史裁剪场景。
         int retentionSize = definition.getInvocationRetentionSize();
         PureSlidingWindowEventSummarizer summarizer = new PureSlidingWindowEventSummarizer(
                 retentionSize,
-                cleanupPolicyRegistry.resolve(type().getType()),
+                cleanupPolicy,
                 new CompactionCleanupContext(retentionSize, null));
         EventsCompactionConfig adkConfig = EventsCompactionConfig.builder()
-                // 每轮回复后均检查完整 invocation 窗口，实际是否产生 marker 由 summarizer 决定。
+                // 每轮回复后检查完整 invocation 窗口，是否实际产生 marker 由摘要器决定。
                 .compactionInterval(1)
                 .overlapSize(retentionSize)
                 .summarizer(summarizer)
                 .build();
 
-        return new RuntimeCompactionPlan(type(), new SlidingWindowEventCompactor(adkConfig), 0, true);
+        return new RuntimeCompactionPlan(type(), new SlidingWindowEventCompactor(adkConfig), 0);
     }
 }

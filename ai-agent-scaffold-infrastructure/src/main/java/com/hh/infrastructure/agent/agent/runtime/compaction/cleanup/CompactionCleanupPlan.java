@@ -1,4 +1,4 @@
-package com.hh.infrastructure.agent.agent.session.compaction.cleanup;
+package com.hh.infrastructure.agent.agent.runtime.compaction.cleanup;
 
 import java.util.List;
 

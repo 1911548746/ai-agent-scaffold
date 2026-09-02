@@ -2,9 +2,12 @@ package com.hh.dev.adkweb;
 
 import com.google.adk.agents.BaseAgent;
 import com.google.adk.agents.RunConfig;
+import com.google.adk.summarizer.EventCompactor;
 import com.google.adk.runner.Runner;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
+import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
+import com.hh.types.enums.ContextCompressTypeEnum;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -84,6 +87,7 @@ class ScaffoldAgentLoaderTest {
                 appName + "-name",
                 appName + "-description",
                 runner,
-                RunConfig.builder().build());
+                RunConfig.builder().build(),
+                new RuntimeCompactionPlan(ContextCompressTypeEnum.FIXED_SIZE, mock(EventCompactor.class), Integer.MAX_VALUE));
     }
 }

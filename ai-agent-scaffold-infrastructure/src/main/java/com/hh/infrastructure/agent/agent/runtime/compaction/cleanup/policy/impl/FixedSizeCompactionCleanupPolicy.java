@@ -1,10 +1,9 @@
-package com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl;
+package com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl;
 
 import com.google.adk.events.Event;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupPlan;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicy;
-import com.hh.types.enums.ContextCompressTypeEnum;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupPlan;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.CompactionCleanupPolicy;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -18,11 +17,7 @@ import java.util.List;
 @Component
 public class FixedSizeCompactionCleanupPolicy implements CompactionCleanupPolicy {
 
-    @Override
-    public String type() {
-        return ContextCompressTypeEnum.FIXED_SIZE.getType();
-    }
-
+    /** fixedSize 的输入 Event 都已被新摘要覆盖，因此全部纳入删除候选。 */
     @Override
     public CompactionCleanupPlan plan(List<Event> eventsToSummarize, CompactionCleanupContext context) {
         return new CompactionCleanupPlan(eventsToSummarize.stream()

@@ -1,12 +1,15 @@
 package com.hh.infrastructure.agent.agent.artifact;
 
 import com.google.adk.agents.RunConfig;
+import com.google.adk.summarizer.EventCompactor;
 import com.google.adk.runner.Runner;
 import com.hh.application.agent.model.AttachmentUpload;
 import com.hh.infrastructure.agent.agent.artifact.routing.RuntimeAttachmentStoragePort;
 import com.hh.infrastructure.agent.agent.artifact.store.memory.MemoryArtifactService;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
+import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
+import com.hh.types.enums.ContextCompressTypeEnum;
 import com.hh.types.exception.AppException;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +30,7 @@ class MemoryArtifactServiceTest {
         when(runner.artifactService()).thenReturn(service);
         AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
         registry.publish(List.of(new AdkAgentRuntime(
-                "app-a", "agent-a", "Agent A", "test", runner, RunConfig.builder().build())));
+                "app-a", "agent-a", "Agent A", "test", runner, RunConfig.builder().build(), plan())));
         RuntimeAttachmentStoragePort router = new RuntimeAttachmentStoragePort(registry);
 
         var reference = router.store("app-a", "user-a", "session-a", List.of(
@@ -54,12 +57,16 @@ class MemoryArtifactServiceTest {
         Runner second = mock(Runner.class);
 
         assertThatThrownBy(() -> registry.publish(List.of(
-                new AdkAgentRuntime("same-app", "agent-a", "A", "test", first, RunConfig.builder().build()),
-                new AdkAgentRuntime("same-app", "agent-b", "B", "test", second, RunConfig.builder().build()))))
+                new AdkAgentRuntime("same-app", "agent-a", "A", "test", first, RunConfig.builder().build(), plan()),
+                new AdkAgentRuntime("same-app", "agent-b", "B", "test", second, RunConfig.builder().build(), plan()))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("duplicate appName");
         assertThatThrownBy(() -> new RuntimeAttachmentStoragePort(registry).store(
                 "missing-app", "user", "session", List.of()))
                 .isInstanceOf(AppException.class);
+    }
+
+    private RuntimeCompactionPlan plan() {
+        return new RuntimeCompactionPlan(ContextCompressTypeEnum.FIXED_SIZE, mock(EventCompactor.class), Integer.MAX_VALUE);
     }
 }

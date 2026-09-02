@@ -21,14 +21,19 @@ public class RuntimeCompactionPlanFactory {
 
     private final Map<ContextCompressTypeEnum, RuntimeCompactionStrategy> strategies;
 
+    /**
+     * 收集并校验所有内置压缩策略，启动时即拒绝重复或缺失的策略实现。
+     */
     public RuntimeCompactionPlanFactory(List<RuntimeCompactionStrategy> strategies) {
         Map<ContextCompressTypeEnum, RuntimeCompactionStrategy> resolved = new EnumMap<>(ContextCompressTypeEnum.class);
+        // 用枚举作为内部键，避免运行时依赖 YAML 字符串进行二次分支判断。
         for (RuntimeCompactionStrategy strategy : strategies) {
             RuntimeCompactionStrategy previous = resolved.putIfAbsent(strategy.type(), strategy);
             if (previous != null) {
                 throw new IllegalStateException("duplicate runtime compaction strategy: " + strategy.type());
             }
         }
+        // 每一种配置类型都必须有唯一实现，否则不能保证 Runtime 的压缩语义稳定。
         for (ContextCompressTypeEnum type : ContextCompressTypeEnum.values()) {
             if (!resolved.containsKey(type)) {
                 throw new IllegalStateException("missing runtime compaction strategy: " + type);
@@ -44,12 +49,13 @@ public class RuntimeCompactionPlanFactory {
      * 因此可以在没有摘要模型的场景下工作。</p>
      */
     public RuntimeCompactionPlan create(BaseLlm llmModel, ContextCompressionDefinition configured) {
+        // Loader 通常会提供非空配置，但这里保留默认值处理，保证独立装配和测试调用也有确定行为。
         ContextCompressionDefinition config = configured == null
                 ? new ContextCompressionDefinition()
                 : configured;
         ContextCompressTypeEnum type = ContextCompressTypeEnum.getByType(config.getType());
 
-        // 枚举解析已经将未知配置回退为 fixedSize，这里只需按解析后的稳定类型取得策略。
+        // 枚举解析负责未知类型回退为 fixedSize；工厂只按稳定枚举值选择具体策略。
         return strategies.get(type).create(llmModel, config);
     }
 }

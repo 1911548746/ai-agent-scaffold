@@ -9,14 +9,13 @@ import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
 import com.hh.infrastructure.agent.agent.runtime.compaction.strategy.FixedSizeCompactionStrategy;
 import com.hh.infrastructure.agent.agent.runtime.compaction.strategy.PureSlidingWindowCompactionStrategy;
 import com.hh.infrastructure.agent.agent.runtime.compaction.strategy.SlidingWindowCompactionStrategy;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.FixedSizeLlmEventSummarizer;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.SlidingWindowLlmEventSummarizer;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl.SlidingWindowCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.compaction.summarizer.FixedSizeLlmEventSummarizer;
+import com.hh.infrastructure.agent.agent.runtime.compaction.summarizer.PureSlidingWindowEventSummarizer;
+import com.hh.infrastructure.agent.agent.runtime.compaction.summarizer.SlidingWindowLlmEventSummarizer;
 import com.hh.types.enums.ContextCompressTypeEnum;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -29,14 +28,9 @@ import static org.mockito.Mockito.mock;
 /** 验证各策略对 ADK compactor、摘要器和 Event 清理 metadata 的具体装配。 */
 class RuntimeCompactionStrategyTest {
 
-    private final CompactionCleanupPolicyRegistry cleanupPolicyRegistry = new CompactionCleanupPolicyRegistry(List.of(
-            new SlidingWindowCompactionCleanupPolicy(),
-            new FixedSizeCompactionCleanupPolicy(),
-            new PureSlidingWindowCompactionCleanupPolicy()));
-
     @Test
     void fixedSizeUsesTailRetentionAndLlmSummaryWithRetentionCleanup() {
-        RuntimeCompactionPlan plan = new FixedSizeCompactionStrategy(cleanupPolicyRegistry)
+        RuntimeCompactionPlan plan = new FixedSizeCompactionStrategy(new FixedSizeCompactionCleanupPolicy())
                 .create(mock(BaseLlm.class), new ContextCompressionDefinition());
 
         assertThat(plan.type()).isEqualTo(ContextCompressTypeEnum.FIXED_SIZE);
@@ -61,7 +55,7 @@ class RuntimeCompactionStrategyTest {
         config.setCompactionInterval(5);
         config.setOverlapSize(2);
 
-        RuntimeCompactionPlan plan = new SlidingWindowCompactionStrategy(cleanupPolicyRegistry)
+        RuntimeCompactionPlan plan = new SlidingWindowCompactionStrategy(new SlidingWindowCompactionCleanupPolicy())
                 .create(mock(BaseLlm.class), config);
 
         assertThat(plan.type()).isEqualTo(ContextCompressTypeEnum.SLIDING_WINDOW);
@@ -85,7 +79,7 @@ class RuntimeCompactionStrategyTest {
         ContextCompressionDefinition config = new ContextCompressionDefinition();
         config.setInvocationRetentionSize(3);
 
-        RuntimeCompactionPlan plan = new PureSlidingWindowCompactionStrategy(cleanupPolicyRegistry)
+        RuntimeCompactionPlan plan = new PureSlidingWindowCompactionStrategy(new PureSlidingWindowCompactionCleanupPolicy())
                 .create(null, config);
 
         assertThat(plan.type()).isEqualTo(ContextCompressTypeEnum.PURE_SLIDING_WINDOW);

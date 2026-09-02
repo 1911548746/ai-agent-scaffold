@@ -1,6 +1,6 @@
 package com.hh.config.agent.session.compaction;
 
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.SessionEventCompactionCleanupSettings;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

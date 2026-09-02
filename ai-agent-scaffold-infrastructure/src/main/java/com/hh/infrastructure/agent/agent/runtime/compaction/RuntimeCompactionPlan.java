@@ -21,16 +21,21 @@ import java.util.Optional;
 public record RuntimeCompactionPlan(
         ContextCompressTypeEnum type,
         EventCompactor compactor,
-        int tokenThreshold,
-        boolean enabled) {
+        int tokenThreshold) {
 
     public RuntimeCompactionPlan {
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(compactor, "compactor must not be null");
     }
 
+    /**
+     * 判断固定大小策略是否需要在本轮模型调用前压缩已有历史。
+     *
+     * <p>当前用户消息尚未写入 Session，因此没有可靠的 prompt token usage 时，需要把它临时计入
+     * 字符估算；滑动窗口策略不在调用前执行压缩。</p>
+     */
     public boolean preflightRequired(Session session, Content pendingUserMessage) {
-        if (!enabled || type != ContextCompressTypeEnum.FIXED_SIZE) {
+        if (type != ContextCompressTypeEnum.FIXED_SIZE) {
             return false;
         }
 
@@ -42,23 +47,18 @@ public record RuntimeCompactionPlan(
         return estimateTokens(session.events(), pendingUserMessage) > tokenThreshold;
     }
 
+    /** 判断主回复成功后是否需要异步执行一次窗口维护。 */
     public boolean postResponseRequired() {
-        return enabled && (type == ContextCompressTypeEnum.SLIDING_WINDOW
-                || type == ContextCompressTypeEnum.PURE_SLIDING_WINDOW);
+        return type == ContextCompressTypeEnum.SLIDING_WINDOW
+                || type == ContextCompressTypeEnum.PURE_SLIDING_WINDOW;
     }
 
+    /** 将已装配的 ADK compactor 应用于指定 Session；事务持久化由 SessionService 自己负责。 */
     public Completable compact(Session session, BaseSessionService sessionService) {
         return compactor.compact(session, sessionService);
     }
 
-    public static RuntimeCompactionPlan disabled() {
-        return new RuntimeCompactionPlan(
-                ContextCompressTypeEnum.FIXED_SIZE,
-                (session, sessionService) -> Completable.complete(),
-                0,
-                false);
-    }
-
+    /** 在缺少供应商 usage metadata 时，用 ADK Event 文本长度做保守的 Token 估算。 */
     private long estimateTokens(Iterable<Event> events, Content pendingUserMessage) {
         long characters = 0;
         for (Event event : events) {

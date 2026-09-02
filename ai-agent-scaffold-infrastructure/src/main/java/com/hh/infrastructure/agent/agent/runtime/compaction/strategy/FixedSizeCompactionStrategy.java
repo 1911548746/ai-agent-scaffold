@@ -4,9 +4,9 @@ import com.google.adk.models.BaseLlm;
 import com.google.adk.summarizer.TailRetentionEventCompactor;
 import com.hh.domain.agent.model.definition.ContextCompressionDefinition;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicyRegistry;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.FixedSizeLlmEventSummarizer;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl.FixedSizeCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.compaction.summarizer.FixedSizeLlmEventSummarizer;
 import com.hh.types.enums.ContextCompressTypeEnum;
 import org.springframework.stereotype.Component;
 
@@ -21,32 +21,34 @@ import java.util.Objects;
 @Component
 public class FixedSizeCompactionStrategy implements RuntimeCompactionStrategy {
 
-    private final CompactionCleanupPolicyRegistry cleanupPolicyRegistry;
+    private final FixedSizeCompactionCleanupPolicy cleanupPolicy;
 
-    public FixedSizeCompactionStrategy(CompactionCleanupPolicyRegistry cleanupPolicyRegistry) {
-        this.cleanupPolicyRegistry = cleanupPolicyRegistry;
+    /** 注入 fixedSize 专用清理策略，避免摘要器自行决定数据库删除范围。 */
+    public FixedSizeCompactionStrategy(FixedSizeCompactionCleanupPolicy cleanupPolicy) {
+        this.cleanupPolicy = cleanupPolicy;
     }
 
+    /** fixedSize 对应配置中的稳定类型。 */
     @Override
     public ContextCompressTypeEnum type() {
         return ContextCompressTypeEnum.FIXED_SIZE;
     }
 
+    /** 创建“调用前触发、TailRetention 保留尾部”的固定大小压缩计划。 */
     @Override
     public RuntimeCompactionPlan create(BaseLlm llmModel, ContextCompressionDefinition definition) {
         // fixedSize 需要模型将被淘汰的历史归纳为新摘要，缺少模型属于运行时装配错误。
         Objects.requireNonNull(llmModel, "llmModel must not be null for fixed-size context compaction");
 
-        // 清理 metadata 使用实际保留参数，供 Session Store 在摘要成功落库后精确删除被覆盖 Event。
+        // 摘要器只生成删除 metadata；真正的删除要等摘要 Event 成功持久化后由 Session Store 完成。
         FixedSizeLlmEventSummarizer summarizer = new FixedSizeLlmEventSummarizer(
                 llmModel,
-                cleanupPolicyRegistry.resolve(type().getType()),
+                cleanupPolicy,
                 new CompactionCleanupContext(definition.getOverlapSize(), definition.getEventRetentionSize()));
 
         return new RuntimeCompactionPlan(
                 type(),
                 new TailRetentionEventCompactor(summarizer, definition.getEventRetentionSize(), 0),
-                definition.getTokenThreshold(),
-                true);
+                definition.getTokenThreshold());
     }
 }

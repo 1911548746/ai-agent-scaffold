@@ -1,4 +1,4 @@
-package com.hh.infrastructure.agent.agent.session.compaction.cleanup;
+package com.hh.infrastructure.agent.agent.runtime.compaction.cleanup;
 
 /**
  * 压缩后 Event 清理的不可变运行参数。

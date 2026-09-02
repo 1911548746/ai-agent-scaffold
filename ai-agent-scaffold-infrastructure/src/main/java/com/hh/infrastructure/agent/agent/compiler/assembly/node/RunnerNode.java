@@ -31,6 +31,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * 装配单个 Agent Runtime 的末端节点。
+ *
+ * <p>前置节点已经完成配置解析、引用解析、模型和 Agent 图装配。本节点只把这些结果组合成
+ * ADK {@link App}、{@link Runner} 和项目自己的 {@link AdkAgentRuntime}，不再承载配置校验或
+ * 压缩策略的具体实现。</p>
+ */
 @Slf4j
 @Component
 public class RunnerNode extends AgentAssemblyNode {
@@ -50,6 +57,11 @@ public class RunnerNode extends AgentAssemblyNode {
     @Resource
     private ArtifactStorageServiceFactory artifactStorageServiceFactory;
 
+    /**
+     * 创建当前 Application 的运行时候选对象，并把它交给装配链的结束节点。
+     *
+     * <p>这里生成的 Runtime 尚未进入全局 Registry，只有整个编译链成功后才会被原子发布。</p>
+     */
     @Override
     protected AdkAgentRuntime doApply(AgentAssemblyCommand requestParameter, AgentAssemblyPipelineContext context) throws Exception {
         log.info("Ai Agent 装配操作 - RunnerNode");
@@ -57,18 +69,19 @@ public class RunnerNode extends AgentAssemblyNode {
         AgentDefinition agentDefinition = requestParameter.getAgentDefinition();
         String appName = agentDefinition.getAppName();
 
-        // descriptor 仅携带对外展示元数据，不让运行时依赖配置聚合对象。
+        // 只提取对外展示字段，避免已编译 Runtime 持有 Loader 的可变配置聚合对象。
         String agentId = agentDefinition.getAgentDescriptor().getAgentId();
         String agentName = agentDefinition.getAgentDescriptor().getAgentName();
         String agentDesc = agentDefinition.getAgentDescriptor().getAgentDesc();
 
-        // App 不再注册自动压缩。压缩由 Runtime 协调器显式执行，避免后置摘要失败反向终止主回复。
+        // App 只负责 ADK Agent、Plugin 等基础装配；Event 压缩由 Runtime 协调器显式调度，
+        // 这样后置摘要失败不会反向终止已经成功的主回复。
         App app = createApp(agentDefinition, context);
 
-        // 创建Runner
+        // Runner 持有 Session、Artifact、Memory 等本次 Runtime 独占的 ADK 服务实例。
         Runner runner = createRunner(agentDefinition, app);
 
-        // 策略树到此才产生完整运行时；在 AgentCompiler 发布前它仍是私有候选对象。
+        // 压缩计划在运行时装配阶段固定下来；发布前它仍只是私有候选对象。
         RunConfig runConfig = createRunConfig(agentDefinition.getRunner());
         RuntimeCompactionPlan compactionPlan = runtimeCompactionPlanFactory.create(
                 context.getLlmModel(), agentDefinition.getRunner().getContextCompress());
@@ -80,22 +93,23 @@ public class RunnerNode extends AgentAssemblyNode {
         return router(requestParameter, context);
     }
 
+    /** 装配链已经完成，本节点始终把结果路由到结束节点。 */
     @Override
     public StrategyHandler<AgentAssemblyCommand, AgentAssemblyPipelineContext, AdkAgentRuntime> get(AgentAssemblyCommand command, AgentAssemblyPipelineContext context) throws Exception {
         return endNode;
     }
 
-    // 创建App
+    /** 创建 ADK App，并装配根 Agent 与插件。 */
     private App createApp(AgentDefinition definition, AgentAssemblyPipelineContext context) {
 
         String appName = definition.getAppName();
         RunnerDefinition runnerConfig = definition.getRunner();
 
-        // runnerAgentName 运行时用的智能体名称
+        // runnerAgentName 是前置 Agent 图校验后确定的根 Agent 名称。
         String runnerAgentName = runnerConfig.getAgentName();
         BaseAgent baseAgent = context.getAgentGroup().get(runnerAgentName);
 
-        // 配置插件列表
+        // 先放入系统观测插件，再按 Application 配置追加业务插件。
         List<String> pluginNameList = runnerConfig.getPluginNameList();
         List<Plugin> plugins = new ArrayList<>();
         Set<String> pluginNames = new HashSet<>();
@@ -125,18 +139,19 @@ public class RunnerNode extends AgentAssemblyNode {
                 .build();
     }
 
-    // 创建Runner
+    /** 创建当前 Runtime 使用的 Session、Artifact 和 Memory 服务，并绑定到 ADK Runner。 */
     private Runner createRunner(AgentDefinition definition, App app) {
 
         RunnerDefinition runnerConfig = definition.getRunner();
 
-        // 默认存储在内存
+        // 未开启 session-storage 时使用 ADK 内存 Session；这种模式不跨进程保留会话。
         BaseSessionService sessionService = new InMemorySessionService();
-        // 配置event持久化
+        // 开启 session-storage 后切换到共享的 MySQL Session Store。
         if (runnerConfig != null && runnerConfig.getSessionStorage()) {
             sessionService = sessionStore;
         }
-        // 每个 Runtime 独占一个服务实例；HTTP 上传端口随后通过已发布 Runtime 路由回该实例。
+        // 每个 Runtime 独占 ArtifactService；HTTP 上传端口随后通过已发布 Runtime 路由回同一实例，
+        // 确保上传、LoadArtifactsTool 和 Session 删除不会使用不同的存储后端。
         ArtifactStorageService artifactService = artifactStorageServiceFactory.create(
                 definition.getAppName(), runnerConfig.getArtifactStorage());
 

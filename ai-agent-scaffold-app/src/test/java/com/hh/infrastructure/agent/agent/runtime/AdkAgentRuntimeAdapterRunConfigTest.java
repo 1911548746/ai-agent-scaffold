@@ -19,6 +19,7 @@ import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.domain.agent.model.entity.ChatCommandEntity;
 import com.hh.domain.agent.model.valobj.AttachmentReference;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
+import com.hh.infrastructure.agent.agent.runtime.invocation.InvocationFailureRecovery;
 import com.hh.infrastructure.agent.agent.runtime.invocation.SessionInvocationCoordinator;
 import com.hh.types.enums.ContextCompressTypeEnum;
 import io.reactivex.rxjava3.core.Flowable;
@@ -60,9 +61,10 @@ class AdkAgentRuntimeAdapterRunConfigTest {
                 .build();
         AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
         registry.publish(List.of(new AdkAgentRuntime(
-                "app-a", "agent-a", "Agent A", "test", runner, baseRunConfig)));
+                "app-a", "agent-a", "Agent A", "test", runner, baseRunConfig,
+                new RuntimeCompactionPlan(ContextCompressTypeEnum.FIXED_SIZE, mock(EventCompactor.class), Integer.MAX_VALUE))));
         AdkAgentRuntimeAdapter adapter = new AdkAgentRuntimeAdapter(
-                registry, new SessionInvocationCoordinator(Runnable::run));
+                registry, new SessionInvocationCoordinator(Runnable::run, new InvocationFailureRecovery()));
 
         adapter.run("agent-a", "user-a", "session-a", "hello");
         adapter.runStream("agent-a", "user-a", "session-a", "hello")
@@ -445,9 +447,10 @@ class AdkAgentRuntimeAdapterRunConfigTest {
     private AdkAgentRuntimeAdapter adapter(Runner runner) {
         AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
         registry.publish(List.of(new AdkAgentRuntime(
-                "app-a", "agent-a", "Agent A", "test", runner, RunConfig.builder().build())));
+                "app-a", "agent-a", "Agent A", "test", runner, RunConfig.builder().build(),
+                new RuntimeCompactionPlan(ContextCompressTypeEnum.FIXED_SIZE, mock(EventCompactor.class), Integer.MAX_VALUE))));
         return new AdkAgentRuntimeAdapter(
-                registry, new SessionInvocationCoordinator(Runnable::run));
+                registry, new SessionInvocationCoordinator(Runnable::run, new InvocationFailureRecovery()));
     }
 
     private AdkAgentRuntimeAdapter adapterWithCleanup(Runner runner) {
@@ -462,10 +465,9 @@ class AdkAgentRuntimeAdapterRunConfigTest {
                 new RuntimeCompactionPlan(
                         ContextCompressTypeEnum.FIXED_SIZE,
                         mock(EventCompactor.class),
-                        Integer.MAX_VALUE,
-                        true))));
+                        Integer.MAX_VALUE))));
         return new AdkAgentRuntimeAdapter(
-                registry, new SessionInvocationCoordinator(Runnable::run));
+                registry, new SessionInvocationCoordinator(Runnable::run, new InvocationFailureRecovery()));
     }
 
     private Runner runner(Session session) {

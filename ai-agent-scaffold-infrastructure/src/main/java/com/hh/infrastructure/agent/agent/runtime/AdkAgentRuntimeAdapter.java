@@ -55,6 +55,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
     }
 
     @Override
+    /** 返回当前已发布 Runtime 的对外 Agent 描述，不暴露 ADK Runner。 */
     public List<AgentDescriptor> listAgents() {
         return runtimeRegistry.snapshot().values().stream()
                 .map(AdkAgentRuntime::toAgentDescriptor)
@@ -62,11 +63,13 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
     }
 
     @Override
+    /** 根据 Agent ID 返回其已编译的 Application 名称。 */
     public String appName(String agentId) {
         return requireRuntime(agentId).appName();
     }
 
     @Override
+    /** 为用户创建 Session，并使用当前 Runtime 绑定的 SessionService 保存。 */
     public String createSession(String agentId, String userId) {
         AdkAgentRuntime runtime = requireRuntime(agentId);
         Session session = runtime.runner().sessionService()
@@ -76,6 +79,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
     }
 
     @Override
+    /** 校验用户是否拥有指定的完整 Session 身份。 */
     public void requireSession(String agentId, String userId, String sessionId) {
         AdkAgentRuntime runtime = requireRuntime(agentId);
         Session session = runtime.runner().sessionService()
@@ -87,12 +91,18 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
     }
 
     @Override
+    /** 为删除或归档等操作取得与 Agent 调用共用的 Session 独占租约。 */
     public SessionLease acquire(String agentId, String userId, String sessionId) {
         AdkAgentRuntime runtime = requireRuntime(agentId);
         return compactionCoordinator.acquireSessionOperationLease(runtime, userId, sessionId);
     }
 
-    /** 同步调用 */
+    /**
+     * 执行文本同步调用。
+     *
+     * <p>同步消费完整 Event 流，只向 application 返回可展示文本和人工确认请求；调用结束后由租约
+     * 触发后置压缩，异常路径则进入 invocation 恢复。</p>
+     */
     @Override
     public ChatResult run(String agentId, String userId, String sessionId, String message) {
 
@@ -117,7 +127,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         }
     }
 
-    /** 流式调用 */
+    /** 创建文本流式调用；真正订阅时才取得 Session 租约并启动 ADK Flowable。 */
     @Override
     public ChatStream runStream(String agentId, String userId, String sessionId, String message) {
         AdkAgentRuntime runtime = requireRuntime(agentId);
@@ -125,7 +135,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         return runStream(runtime, userId, sessionId, content);
     }
 
-    /** 多模态同步调用 */
+    /** 执行多模态同步调用，附件以 Artifact 名称进入请求并由 LoadArtifactsTool 按需加载。 */
     @Override
     public ChatResult run(String agentId, ChatCommandEntity command) {
         List<String> outputs = new ArrayList<>();
@@ -147,14 +157,19 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         }
     }
 
-    /** 多模态流式调用 */
+    /** 创建多模态流式调用，并复用统一的流式租约、取消和失败恢复路径。 */
     @Override
     public ChatStream runStream(String agentId, ChatCommandEntity command) {
         AdkAgentRuntime runtime = requireRuntime(agentId);
         return runStream(runtime, command.getUserId(), command.getSessionId(), commandContent(command));
     }
 
-    /** 统一处理文本和多模态流，确保两种入口使用相同的租约和取消语义。 */
+    /**
+     * 统一处理文本和多模态流，确保两种入口使用相同的租约和取消语义。
+     *
+     * <p>订阅错误、正常完成、客户端取消和订阅建立异常分别收敛到租约的 fail/success 终态方法，
+     * 其中租约本身保证终态操作幂等。</p>
+     */
     private ChatStream runStream(
             AdkAgentRuntime runtime,
             String userId,
@@ -194,7 +209,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         };
     }
 
-    /** HITL 恢复 同步调用 */
+    /** 执行 HITL 同步恢复调用，将确认结果编码为 ADK 保留函数的 FunctionResponse。 */
     @Override
     public ChatResult runConfirmation(
             String agentId,
@@ -225,7 +240,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         }
     }
 
-    /** HITL 恢复 流式调用 */
+    /** 创建 HITL 流式恢复调用；原请求的 SSE 已结束，本次是新的独立 ADK invocation。 */
     @Override
     public ChatStream runConfirmationStream(
             String agentId,
@@ -276,6 +291,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
      * <p>这里不能读取对象存储并构造 inlineData。模型随后调用 {@code LoadArtifactsTool} 时，ADK 才会
      * 以当前 ToolContext 的完整 Session 身份临时加载二进制；该内容不会写入 Session Event。</p>
      */
+    /** 将文本、外部 URI 和 Artifact 引用组装成当前 invocation 的 ADK 用户 Content。 */
     private Content commandContent(ChatCommandEntity command) {
         List<Part> parts = new ArrayList<>();
         if (command.getTexts() != null) {
@@ -330,6 +346,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         return Content.fromParts(Part.builder().functionResponse(response).build());
     }
 
+    /** 从同步调用的终态 Event 中提取文本和去重后的确认请求。 */
     private void appendFinalResponse(
             List<String> outputs,
             List<ToolConfirmationRequest> confirmations,
@@ -392,6 +409,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         }
     }
 
+    /** 拼接 Event 中的非 thought 文本 Part，过滤内部思考内容。 */
     private String displayableText(Event event) {
         StringBuilder text = new StringBuilder();
         event.content()
@@ -446,6 +464,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
     }
 
     /** ADK 内存 Event 使用 FunctionCall 对象，数据库 JSON 回放后则可能变成 Map。 */
+    /** 从内存对象或 JSON 回放后的 Map 中读取原始工具名称。 */
     private String functionCallName(Object value) {
         if (value instanceof FunctionCall functionCall) {
             return functionCall.name().orElse(null);
@@ -454,6 +473,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
     }
 
     /** ToolConfirmation 同样需要兼容 ADK 对象和 JSON Map 两种形态。 */
+    /** 从内存对象或 JSON 回放后的 Map 中读取人工确认提示。 */
     private String confirmationHint(Object value) {
         if (value instanceof ToolConfirmation toolConfirmation) {
             return toolConfirmation.hint();
@@ -461,6 +481,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         return stringValue(nestedMap(value).get("hint"));
     }
 
+    /** 只接受字符串类型的协议字段，其他值按缺失处理。 */
     private String stringValue(Object value) {
         return value instanceof String text ? text : null;
     }

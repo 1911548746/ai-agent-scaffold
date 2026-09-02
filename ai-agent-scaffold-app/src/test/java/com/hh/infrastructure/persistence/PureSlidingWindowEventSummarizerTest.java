@@ -1,10 +1,10 @@
 package com.hh.infrastructure.persistence;
 
 import com.google.adk.events.Event;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.AbstractCompactionEventSummarizer;
-import com.hh.infrastructure.agent.agent.session.compaction.summarizer.PureSlidingWindowEventSummarizer;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl.PureSlidingWindowCompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.compaction.metadata.CompactionEventMetadata;
+import com.hh.infrastructure.agent.agent.runtime.compaction.summarizer.PureSlidingWindowEventSummarizer;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -40,7 +40,7 @@ class PureSlidingWindowEventSummarizerTest {
                 .containsExactly(10L, 10L);
         assertThat(marker.actions().compaction().orElseThrow().compactedContent().role())
                 .contains("model");
-        assertThat(PureSlidingWindowEventSummarizer.isPureSlidingWindowMarker(marker)).isTrue();
+        assertThat(CompactionEventMetadata.isPureSlidingWindowMarker(marker)).isTrue();
     }
 
     @Test
@@ -53,7 +53,7 @@ class PureSlidingWindowEventSummarizerTest {
                 event("round-3", "round-3", 30))).blockingGet();
 
         List<String> deletableIds = marker.customMetadata().orElseThrow().stream()
-                .filter(metadata -> AbstractCompactionEventSummarizer.DELETABLE_EVENT_IDS_METADATA_KEY
+                .filter(metadata -> CompactionEventMetadata.DELETABLE_EVENT_IDS_KEY
                         .equals(metadata.key().orElse(null)))
                 .flatMap(metadata -> metadata.stringListValue().stream())
                 .flatMap(value -> value.values().stream())

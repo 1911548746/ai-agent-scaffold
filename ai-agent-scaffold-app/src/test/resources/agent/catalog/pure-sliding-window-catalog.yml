@@ -21,7 +21,8 @@ ai:
           agent-desc: 离线配置编译测试
           agent-ref: hello-agent
           runner:
-            artifact-storage: false
+            artifact-storage:
+              type: memory
             context-compress:
               type: pureSlidingWindow
               invocation-retention-size: 3

@@ -7,7 +7,7 @@ import com.google.adk.events.EventActions;
 import com.google.adk.sessions.Session;
 import com.hh.infrastructure.agent.adapter.repository.ConversationArchiveRepository;
 import com.hh.infrastructure.agent.agent.session.impl.MySqlSessionStore;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.SessionEventCompactionCleanupSettings;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.SessionEventCompactionCleanupSettings;
 import com.hh.infrastructure.agent.dao.ConversationDao;
 import com.hh.infrastructure.agent.dao.MessageDao;
 import com.hh.infrastructure.agent.dao.SessionDao;

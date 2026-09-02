@@ -1,10 +1,10 @@
-package com.hh.infrastructure.agent.agent.session.compaction.summarizer;
+package com.hh.infrastructure.agent.agent.runtime.compaction.summarizer;
 
 import com.google.adk.events.Event;
 import com.google.adk.models.BaseLlm;
 import com.google.adk.summarizer.LlmEventSummarizer;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicy;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.CompactionCleanupPolicy;
 import io.reactivex.rxjava3.core.Maybe;
 
 import java.util.List;
@@ -19,6 +19,7 @@ public final class SlidingWindowLlmEventSummarizer extends AbstractCompactionEve
 
     private final LlmEventSummarizer delegate;
 
+    /** 创建 slidingWindow 专属的 ADK LLM 摘要器。 */
     public SlidingWindowLlmEventSummarizer(
             BaseLlm llmModel,
             CompactionCleanupPolicy cleanupPolicy,
@@ -27,6 +28,7 @@ public final class SlidingWindowLlmEventSummarizer extends AbstractCompactionEve
         this.delegate = new LlmEventSummarizer(llmModel);
     }
 
+    /** 委托 ADK 生成滑动窗口前缀的历史摘要。 */
     @Override
     protected Maybe<Event> summarizeCompactionEvents(List<Event> events) {
         return delegate.summarizeEvents(events);

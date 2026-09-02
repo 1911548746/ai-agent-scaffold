@@ -1,10 +1,9 @@
-package com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.impl;
+package com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.impl;
 
 import com.google.adk.events.Event;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupContext;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.CompactionCleanupPlan;
-import com.hh.infrastructure.agent.agent.session.compaction.cleanup.policy.CompactionCleanupPolicy;
-import com.hh.types.enums.ContextCompressTypeEnum;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupContext;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.CompactionCleanupPlan;
+import com.hh.infrastructure.agent.agent.runtime.compaction.cleanup.policy.CompactionCleanupPolicy;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -23,16 +22,12 @@ import java.util.Set;
 @Component
 public class SlidingWindowCompactionCleanupPolicy implements CompactionCleanupPolicy {
 
-    @Override
-    public String type() {
-        return ContextCompressTypeEnum.SLIDING_WINDOW.getType();
-    }
-
+    /** 保留最近 overlap 个完整 invocation，并删除更早的普通 Event。 */
     @Override
     public CompactionCleanupPlan plan(List<Event> eventsToSummarize, CompactionCleanupContext context) {
         Map<String, List<Event>> eventsByInvocation = new LinkedHashMap<>();
         for (Event event : eventsToSummarize) {
-            // 摘要本身对应独立历史分段；无 invocationId 的 Event 无法可靠归属轮次，均保守保留。
+            // 摘要本身代表独立历史分段；没有 invocationId 的 Event 无法可靠归属轮次，因此保守保留。
             if (isCompactionEvent(event) || event.invocationId() == null || event.invocationId().isBlank()) {
                 continue;
             }
@@ -57,10 +52,12 @@ public class SlidingWindowCompactionCleanupPolicy implements CompactionCleanupPo
     }
 
     private boolean isCompactionEvent(Event event) {
+        // compaction Event 不是普通对话 invocation，不能作为窗口前缀删除。
         return event.actions() != null && event.actions().compaction().isPresent();
     }
 
     private boolean hasText(String value) {
+        // 删除操作只接受真实 Event ID，避免把空值传入批量 SQL。
         return value != null && !value.isBlank();
     }
 }
