@@ -5,6 +5,7 @@ import com.google.genai.types.Content;
 import com.hh.application.agent.exception.ContextCompactionException;
 import com.hh.application.agent.exception.ModelInvocationException;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
+import com.hh.infrastructure.agent.agent.runtime.RuntimeLease;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.application.agent.port.SessionLease;
 import com.hh.types.enums.ResponseCode;
@@ -50,10 +51,17 @@ public class SessionInvocationCoordinator {
      * <p>返回的租约必须由调用方在成功、失败或取消路径中结束，否则同一 Session 的后续操作会一直等待。</p>
      */
     public InvocationLease begin(
-            AdkAgentRuntime runtime,
+            RuntimeLease runtimeLease,
             String userId,
             String sessionId,
             Content pendingUserMessage) {
+        AdkAgentRuntime runtime;
+        try {
+            runtime = runtimeLease.runtime();
+        } catch (RuntimeException | Error error) {
+            runtimeLease.close();
+            throw error;
+        }
         // Runtime 中的计划已经在启动编译阶段确定，这里只负责按计划执行，不再解析配置。
         RuntimeCompactionPlan plan = runtime.compactionPlan();
         SessionKey key = new SessionKey(runtime.appName(), userId, sessionId);
@@ -75,11 +83,22 @@ public class SessionInvocationCoordinator {
             }
             // 预检可能追加摘要或清理旧 Event，必须在预检完成后记录本轮调用的真实起点。
             InvocationBaseline baseline = InvocationBaseline.capture(session.events());
-            return new InvocationLease(key, permit, runtime, userId, sessionId, baseline);
+            return new InvocationLease(
+                    key, permit, runtimeLease, runtime, userId, sessionId, baseline);
         } catch (RuntimeException | Error error) {
             permit.release();
+            runtimeLease.close();
             throw error;
         }
+    }
+
+    /** 保留旧的直接 Runtime 测试入口；正式请求由 Registry 获取带 generation 的租约。 */
+    public InvocationLease begin(
+            AdkAgentRuntime runtime,
+            String userId,
+            String sessionId,
+            Content pendingUserMessage) {
+        return begin(RuntimeLease.detached(runtime), userId, sessionId, pendingUserMessage);
     }
 
     /**
@@ -88,11 +107,30 @@ public class SessionInvocationCoordinator {
      * <p>该方法只负责并发互斥，不读取或修改 Session；调用方完成操作后必须关闭返回的租约。</p>
      */
     public SessionLease acquireSessionOperationLease(
-            AdkAgentRuntime runtime, String userId, String sessionId) {
+            RuntimeLease runtimeLease, String userId, String sessionId) {
+        AdkAgentRuntime runtime;
+        try {
+            runtime = runtimeLease.runtime();
+        } catch (RuntimeException | Error error) {
+            runtimeLease.close();
+            throw error;
+        }
         SessionKey key = new SessionKey(runtime.appName(), userId, sessionId);
         Semaphore permit = permits.computeIfAbsent(key, ignored -> new Semaphore(1));
         permit.acquireUninterruptibly();
-        return permit::release;
+        AtomicBoolean released = new AtomicBoolean(false);
+        return () -> {
+            if (released.compareAndSet(false, true)) {
+                permit.release();
+                runtimeLease.close();
+            }
+        };
+    }
+
+    /** 保留旧的直接 Runtime 测试入口；正式操作由 Adapter 传入 Registry 租约。 */
+    public SessionLease acquireSessionOperationLease(
+            AdkAgentRuntime runtime, String userId, String sessionId) {
+        return acquireSessionOperationLease(RuntimeLease.detached(runtime), userId, sessionId);
     }
 
     /** 从当前 Runtime 的 SessionService 加载完整 Session，找不到时转换为稳定业务错误。 */
@@ -110,6 +148,7 @@ public class SessionInvocationCoordinator {
 
         private final SessionKey key;
         private final Semaphore permit;
+        private final RuntimeLease runtimeLease;
         private final AdkAgentRuntime runtime;
         private final String userId;
         private final String sessionId;
@@ -119,12 +158,14 @@ public class SessionInvocationCoordinator {
         private InvocationLease(
                 SessionKey key,
                 Semaphore permit,
+                RuntimeLease runtimeLease,
                 AdkAgentRuntime runtime,
                 String userId,
                 String sessionId,
                 InvocationBaseline baseline) {
             this.key = key;
             this.permit = permit;
+            this.runtimeLease = runtimeLease;
             this.runtime = runtime;
             this.userId = userId;
             this.sessionId = sessionId;
@@ -142,7 +183,7 @@ public class SessionInvocationCoordinator {
                 // 补偿失败不能替换已经确定的模型错误；保留两端状态并输出脱敏诊断信息。
                 logInvocationCleanupFailure(key, cleanupError);
             } finally {
-                permit.release();
+                releaseResources();
             }
         }
 
@@ -156,7 +197,7 @@ public class SessionInvocationCoordinator {
             // success 只结束主调用；滑动窗口维护是否执行由 Runtime 计划决定。
             RuntimeCompactionPlan plan = runtime.compactionPlan();
             if (!plan.postResponseRequired()) {
-                permit.release();
+                releaseResources();
                 return;
             }
             try {
@@ -167,14 +208,20 @@ public class SessionInvocationCoordinator {
                     } catch (Throwable error) {
                         logPostCompactionFailure(key, error);
                     } finally {
-                        permit.release();
+                        releaseResources();
                     }
                 });
             } catch (RuntimeException executorError) {
                 // 线程池拒绝任务时主回复仍然成功；保留原始 Event，后续请求可再次触发维护。
                 logPostCompactionFailure(key, executorError);
-                permit.release();
+                releaseResources();
             }
+        }
+
+        /** 同时释放 Session 并发许可和保护旧 generation 的 Runtime lease。 */
+        private void releaseResources() {
+            permit.release();
+            runtimeLease.close();
         }
 
     }

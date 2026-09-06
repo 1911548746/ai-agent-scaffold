@@ -32,22 +32,30 @@ public class AdkAgentRuntimeCompiler implements AgentRuntimeCompiler {
     public void compileAndPublish(List<AgentDefinition> definitions) throws Exception {
 
         List<AdkAgentRuntime> runtimes = new ArrayList<>();
+        boolean published = false;
+        try {
+            for (AgentDefinition definition : definitions) {
+                // 每个 Agent 使用独立上下文构建；返回值由 Registry 统一原子发布。
+                AdkAgentRuntime runtime = assemblyPipeline.compile(definition);
+                runtimes.add(runtime);
+            }
 
-        for (AgentDefinition definition : definitions) {
-            // 每个 Agent 使用独立上下文构建；返回值由 AgentCompiler 统一原子发布。
-            AdkAgentRuntime runtime = assemblyPipeline.compile(definition);
-            runtimes.add(runtime);
+            List<AdkAgentRuntime> candidates = List.copyOf(runtimes);
+            // Lifecycle 对账属于候选 Runtime 的启动校验；失败时不能替换当前可用快照。
+            artifactStorageServiceFactory.reconcileLifecycle(candidates);
+            runtimeRegistry.publish(candidates);
+            published = true;
+        } finally {
+            if (!published) {
+                // 任一候选失败都不能遗留已经创建的 MCP、stdio 和观测资源。
+                runtimes.forEach(AdkAgentRuntime::close);
+            }
         }
-
-        List<AdkAgentRuntime> candidates = List.copyOf(runtimes);
-        // Lifecycle 对账属于候选 Runtime 的启动校验；失败时不能替换当前可用快照。
-        artifactStorageServiceFactory.reconcileLifecycle(candidates);
-        runtimeRegistry.publish(candidates);
     }
 
     @Override
     public void clear() {
-        runtimeRegistry.publish(List.of());
+        runtimeRegistry.clear();
     }
 
 }

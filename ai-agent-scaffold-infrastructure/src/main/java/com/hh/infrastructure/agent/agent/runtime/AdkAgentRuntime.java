@@ -20,7 +20,20 @@ public record AdkAgentRuntime(
         String agentDesc,
         Runner runner,
         RunConfig runConfig,
-        RuntimeCompactionPlan compactionPlan) {
+        RuntimeCompactionPlan compactionPlan,
+        RuntimeResourceScope resourceScope) {
+
+    public AdkAgentRuntime(
+            String appName,
+            String agentId,
+            String agentName,
+            String agentDesc,
+            Runner runner,
+            RunConfig runConfig,
+            RuntimeCompactionPlan compactionPlan) {
+        this(appName, agentId, agentName, agentDesc, runner, runConfig, compactionPlan,
+                RuntimeResourceScope.noop());
+    }
 
     public AdkAgentRuntime {
         Objects.requireNonNull(appName, "appName must not be null");
@@ -30,6 +43,12 @@ public record AdkAgentRuntime(
         Objects.requireNonNull(runner, "runner must not be null");
         Objects.requireNonNull(runConfig, "runConfig must not be null");
         Objects.requireNonNull(compactionPlan, "compactionPlan must not be null");
+        Objects.requireNonNull(resourceScope, "resourceScope must not be null");
+    }
+
+    /** 释放该 Runtime 独占的 Agent 树和运行时 Plugin。 */
+    public void close() {
+        resourceScope.close();
     }
 
     /**

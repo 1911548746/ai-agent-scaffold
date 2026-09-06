@@ -57,44 +57,54 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
     @Override
     /** 返回当前已发布 Runtime 的对外 Agent 描述，不暴露 ADK Runner。 */
     public List<AgentDescriptor> listAgents() {
-        return runtimeRegistry.snapshot().values().stream()
-                .map(AdkAgentRuntime::toAgentDescriptor)
-                .toList();
+        return runtimeRegistry.descriptors();
     }
 
     @Override
     /** 根据 Agent ID 返回其已编译的 Application 名称。 */
     public String appName(String agentId) {
-        return requireRuntime(agentId).appName();
+        try (RuntimeLease lease = acquireRuntime(agentId)) {
+            return lease.runtime().appName();
+        }
     }
 
     @Override
     /** 为用户创建 Session，并使用当前 Runtime 绑定的 SessionService 保存。 */
     public String createSession(String agentId, String userId) {
-        AdkAgentRuntime runtime = requireRuntime(agentId);
-        Session session = runtime.runner().sessionService()
-                .createSession(runtime.appName(), userId)
-                .blockingGet();
-        return session.id();
+        try (RuntimeLease lease = acquireRuntime(agentId)) {
+            AdkAgentRuntime runtime = lease.runtime();
+            Session session = runtime.runner().sessionService()
+                    .createSession(runtime.appName(), userId)
+                    .blockingGet();
+            return session.id();
+        }
     }
 
     @Override
     /** 校验用户是否拥有指定的完整 Session 身份。 */
     public void requireSession(String agentId, String userId, String sessionId) {
-        AdkAgentRuntime runtime = requireRuntime(agentId);
-        Session session = runtime.runner().sessionService()
-                .getSession(runtime.appName(), userId, sessionId, Optional.empty())
-                .blockingGet();
-        if (session == null) {
-            throw new AppException(ResponseCode.SESSION_NOT_FOUND);
+        try (RuntimeLease lease = acquireRuntime(agentId)) {
+            AdkAgentRuntime runtime = lease.runtime();
+            Session session = runtime.runner().sessionService()
+                    .getSession(runtime.appName(), userId, sessionId, Optional.empty())
+                    .blockingGet();
+            if (session == null) {
+                throw new AppException(ResponseCode.SESSION_NOT_FOUND);
+            }
         }
     }
 
     @Override
     /** 为删除或归档等操作取得与 Agent 调用共用的 Session 独占租约。 */
     public SessionLease acquire(String agentId, String userId, String sessionId) {
-        AdkAgentRuntime runtime = requireRuntime(agentId);
-        return compactionCoordinator.acquireSessionOperationLease(runtime, userId, sessionId);
+        RuntimeLease runtimeLease = acquireRuntime(agentId);
+        try {
+            return compactionCoordinator.acquireSessionOperationLease(
+                    runtimeLease, userId, sessionId);
+        } catch (RuntimeException | Error error) {
+            runtimeLease.close();
+            throw error;
+        }
     }
 
     /**
@@ -110,11 +120,13 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         List<ToolConfirmationRequest> confirmations = new ArrayList<>();
         Set<String> emittedConfirmations = new HashSet<>();
 
-        AdkAgentRuntime runtime = requireRuntime(agentId);
+        // 先构造纯输入对象；只有进入 invocation 后才把 Runtime lease 交给 Coordinator 托管。
         Content content = Content.fromParts(Part.fromText(message));
+        RuntimeLease runtimeLease = acquireRuntime(agentId);
+        AdkAgentRuntime runtime = runtimeLease.runtime();
 
         SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
-                runtime, userId, sessionId, content);
+                runtimeLease, userId, sessionId, content);
         try {
             runAsync(runtime, userId, sessionId, content, runtime.runConfig())
                     .blockingForEach(event -> appendFinalResponse(
@@ -130,9 +142,8 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
     /** 创建文本流式调用；真正订阅时才取得 Session 租约并启动 ADK Flowable。 */
     @Override
     public ChatStream runStream(String agentId, String userId, String sessionId, String message) {
-        AdkAgentRuntime runtime = requireRuntime(agentId);
         Content content = Content.fromParts(Part.fromText(message));
-        return runStream(runtime, userId, sessionId, content);
+        return runStream(agentId, userId, sessionId, content);
     }
 
     /** 执行多模态同步调用，附件以 Artifact 名称进入请求并由 LoadArtifactsTool 按需加载。 */
@@ -141,10 +152,12 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         List<String> outputs = new ArrayList<>();
         List<ToolConfirmationRequest> confirmations = new ArrayList<>();
         Set<String> emittedConfirmations = new HashSet<>();
-        AdkAgentRuntime runtime = requireRuntime(agentId);
+        // commandContent 不访问 Runtime，提前执行可保证其异常不会遗留已获取的 generation lease。
         Content content = commandContent(command);
+        RuntimeLease runtimeLease = acquireRuntime(agentId);
+        AdkAgentRuntime runtime = runtimeLease.runtime();
         SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
-                runtime, command.getUserId(), command.getSessionId(), content);
+                runtimeLease, command.getUserId(), command.getSessionId(), content);
         try {
             runAsync(runtime, command.getUserId(), command.getSessionId(), content, runtime.runConfig())
                     .blockingForEach(event -> appendFinalResponse(
@@ -160,8 +173,7 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
     /** 创建多模态流式调用，并复用统一的流式租约、取消和失败恢复路径。 */
     @Override
     public ChatStream runStream(String agentId, ChatCommandEntity command) {
-        AdkAgentRuntime runtime = requireRuntime(agentId);
-        return runStream(runtime, command.getUserId(), command.getSessionId(), commandContent(command));
+        return runStream(agentId, command.getUserId(), command.getSessionId(), commandContent(command));
     }
 
     /**
@@ -171,16 +183,18 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
      * 其中租约本身保证终态操作幂等。</p>
      */
     private ChatStream runStream(
-            AdkAgentRuntime runtime,
+            String agentId,
             String userId,
             String sessionId,
             Content content) {
-        RunConfig runConfig = runtime.runConfig().toBuilder()
-                .streamingMode(RunConfig.StreamingMode.SSE)
-                .build();
         return observer -> {
+            RuntimeLease runtimeLease = acquireRuntime(agentId);
+            AdkAgentRuntime runtime = runtimeLease.runtime();
+            RunConfig runConfig = runtime.runConfig().toBuilder()
+                    .streamingMode(RunConfig.StreamingMode.SSE)
+                    .build();
             SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
-                    runtime, userId, sessionId, content);
+                    runtimeLease, userId, sessionId, content);
             try {
                 Flowable<Event> events = runAsync(runtime, userId, sessionId, content, runConfig);
                 AtomicBoolean partialTextEmitted = new AtomicBoolean(false);
@@ -222,11 +236,12 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         List<ToolConfirmationRequest> confirmations = new ArrayList<>();
         Set<String> emittedConfirmations = new HashSet<>();
 
-        AdkAgentRuntime runtime = requireRuntime(agentId);
+        RuntimeLease runtimeLease = acquireRuntime(agentId);
+        AdkAgentRuntime runtime = runtimeLease.runtime();
         Content content = confirmationContent(confirmationCallId, confirmed);
 
         SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
-                runtime, userId, sessionId, content);
+                runtimeLease, userId, sessionId, content);
         try {
             // 仍使用原 Session 的 InvocationLease，避免恢复与同一会话中的新对话并发写入 Event。
             runAsync(runtime, userId, sessionId, content, runtime.runConfig())
@@ -249,15 +264,16 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
             String confirmationCallId,
             boolean confirmed) {
         // 原 SSE 已在首次请求暂停时结束；这里是独立的 SSE Runner 调用。
-        AdkAgentRuntime runtime = requireRuntime(agentId);
-        RunConfig runConfig = runtime.runConfig().toBuilder()
-                .streamingMode(RunConfig.StreamingMode.SSE)
-                .build();
         Content content = confirmationContent(confirmationCallId, confirmed);
 
         return observer -> {
+            RuntimeLease runtimeLease = acquireRuntime(agentId);
+            AdkAgentRuntime runtime = runtimeLease.runtime();
+            RunConfig runConfig = runtime.runConfig().toBuilder()
+                    .streamingMode(RunConfig.StreamingMode.SSE)
+                    .build();
             SessionInvocationCoordinator.InvocationLease lease = compactionCoordinator.begin(
-                    runtime, userId, sessionId, content);
+                    runtimeLease, userId, sessionId, content);
             try {
                 Flowable<Event> events = runAsync(runtime, userId, sessionId, content, runConfig);
                 AtomicBoolean partialTextEmitted = new AtomicBoolean(false);
@@ -486,11 +502,9 @@ public class AdkAgentRuntimeAdapter implements AgentRuntimePort, SessionOperatio
         return value instanceof String text ? text : null;
     }
 
-    /**
-     * Registry 中不存在时返回稳定错误码，避免把容器或 SDK 查找异常暴露到 HTTP 层。
-     */
-    private AdkAgentRuntime requireRuntime(String agentId) {
-        return runtimeRegistry.find(agentId)
+    /** 获取受 generation 保护的 Runtime；draining Runtime 不再接受新请求。 */
+    private RuntimeLease acquireRuntime(String agentId) {
+        return runtimeRegistry.acquire(agentId)
                 .orElseThrow(() -> new AppException(ResponseCode.AGENT_NOT_FOUND));
     }
 }

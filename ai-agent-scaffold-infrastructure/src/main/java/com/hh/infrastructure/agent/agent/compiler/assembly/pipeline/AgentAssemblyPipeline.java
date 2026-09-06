@@ -18,10 +18,28 @@ public class AgentAssemblyPipeline {
     private RootNode rootNode;
 
     public AdkAgentRuntime compile(AgentDefinition agentDefinition) throws Exception {
-        return rootNode.apply(
-                new AgentAssemblyCommand(agentDefinition),
-                new AgentAssemblyPipelineContext()
-        );
+        AgentAssemblyPipelineContext context = new AgentAssemblyPipelineContext();
+        try {
+            return rootNode.apply(
+                    new AgentAssemblyCommand(agentDefinition),
+                    context
+            );
+        } catch (RuntimeException | Error error) {
+            closeAssemblyResources(context, error);
+            throw error;
+        } catch (Exception error) {
+            closeAssemblyResources(context, error);
+            throw error;
+        }
+    }
+
+    /** 装配失败时回收尚未转移给 Runtime 的 MCP/Plugin 临时资源，不覆盖原始配置异常。 */
+    private void closeAssemblyResources(AgentAssemblyPipelineContext context, Throwable original) {
+        try {
+            context.closeProvisionalResources();
+        } catch (RuntimeException cleanupError) {
+            original.addSuppressed(cleanupError);
+        }
     }
 
 }

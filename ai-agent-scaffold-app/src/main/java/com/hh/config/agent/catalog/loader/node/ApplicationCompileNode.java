@@ -7,6 +7,7 @@ import com.hh.config.agent.catalog.binding.ToolModuleConfig;
 import com.hh.config.agent.catalog.binding.WorkflowModuleConfig;
 import com.hh.config.agent.catalog.loader.support.AgentDefinitionConfigSupport;
 import com.hh.config.agent.catalog.loader.pipeline.AgentDefinitionLoadNode;
+import com.hh.config.agent.catalog.loader.resource.CatalogResourceBinder;
 import com.hh.config.agent.catalog.loader.command.AgentDefinitionLoadCommand;
 import com.hh.config.agent.catalog.loader.context.AgentDefinitionLoadContext;
 import com.hh.config.agent.catalog.loader.context.AgentDefinitionLoadPipelineContext;
@@ -44,10 +45,15 @@ import java.util.stream.Collectors;
 public class ApplicationCompileNode extends AgentDefinitionLoadNode {
 
     private final AgentDefinitionConfigSupport support;
+    private final CatalogResourceBinder resourceBinder;
     private final EndNode endNode;
 
-    public ApplicationCompileNode(AgentDefinitionConfigSupport support, EndNode endNode) {
+    public ApplicationCompileNode(
+            AgentDefinitionConfigSupport support,
+            CatalogResourceBinder resourceBinder,
+            EndNode endNode) {
         this.support = support;
+        this.resourceBinder = resourceBinder;
         this.endNode = endNode;
     }
 
@@ -60,7 +66,7 @@ public class ApplicationCompileNode extends AgentDefinitionLoadNode {
 
         // 每个 application 都是一个独立编译单元；任一入口失败都会阻止整批候选 Definition 发布。
         List<AgentDefinition> definitions = context.getApplications().stream()
-                .map(application -> compileApplication(application, context))
+                .map(application -> compileApplication(application, context, pipelineContext.getCatalogPath()))
                 .toList();
 
         // 用不可变列表保存候选结果，防止末节点或启动层意外修改本次编译快照。
@@ -72,7 +78,8 @@ public class ApplicationCompileNode extends AgentDefinitionLoadNode {
 
     private AgentDefinition compileApplication(
             AgentDefinitionLoadContext.LocatedApplication located,
-            AgentDefinitionLoadContext context) {
+            AgentDefinitionLoadContext context,
+            String catalogPath) {
         AgentCatalogProperties.ApplicationDefinition application = located.definition();
         String path = located.sourcePath();
 
@@ -114,7 +121,7 @@ public class ApplicationCompileNode extends AgentDefinitionLoadNode {
         // 按稳定 Agent ID 顺序把配置 DTO 转换为领域 Agent Definition。
         List<LlmAgentDefinition> agents = agentIds.stream()
                 .map(context.getAgents()::get)
-                .map(agent -> compileAgent(agent, context.getTools(), context.getSkills()))
+                .map(agent -> compileAgent(agent, context.getTools(), context.getSkills(), catalogPath))
                 .toList();
 
         // 按图节点生成的后序顺序筛选当前 application 可达的 Workflow，保证子工作流先出现。
@@ -153,7 +160,8 @@ public class ApplicationCompileNode extends AgentDefinitionLoadNode {
 
     private LlmAgentDefinition compileAgent(AgentModuleConfig agent,
                                             Map<String, ToolModuleConfig> tools,
-                                            Map<String, SkillModuleConfig> skills) {
+                                            Map<String, SkillModuleConfig> skills,
+                                            String catalogPath) {
         // 先复制 Agent 自身的领域字段，工具和 Skill 在下面分别转成领域对象。
         LlmAgentDefinition result = new LlmAgentDefinition();
         result.setName(agent.getName());
@@ -183,7 +191,9 @@ public class ApplicationCompileNode extends AgentDefinitionLoadNode {
                         "current ADK assembly supports one skill toolset per agent");
             }
             // Skill 目录也支持环境变量占位符，解析后写入领域 Definition。
-            skillsDirectory = support.resolveRequired(skill.getDirectory(), skill.getSourcePath() + ".directory");
+            skillsDirectory = resourceBinder.resolveLocation(
+                    support.resolveRequired(skill.getDirectory(), skill.getSourcePath() + ".directory"),
+                    catalogPath);
         }
 
         // 工具和 Skill 转换完成后一次性写入 Agent，保持领域对象不依赖配置绑定 DTO。

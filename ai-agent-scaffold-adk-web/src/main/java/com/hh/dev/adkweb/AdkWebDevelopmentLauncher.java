@@ -31,21 +31,20 @@ public final class AdkWebDevelopmentLauncher {
     public static void main(String[] args) {
         ConfigurableApplicationContext scaffoldContext = null;
         ConfigurableApplicationContext adkWebContext = null;
+        ScaffoldAgentLoader agentLoader = null;
         try {
             scaffoldContext = startScaffoldContext(args);
-            ScaffoldAgentLoader agentLoader = new ScaffoldAgentLoader(
-                    scaffoldContext.getBean(AdkAgentRuntimeRegistry.class)
-                            .snapshot()
-                            .values());
+            AdkAgentRuntimeRegistry runtimeRegistry = scaffoldContext.getBean(AdkAgentRuntimeRegistry.class);
+            agentLoader = ScaffoldAgentLoader.fromLeases(runtimeRegistry.acquireAll());
 
             int port = resolvePort(System.getenv(PORT_ENVIRONMENT_VARIABLE));
             adkWebContext = startAdkWebContext(agentLoader, port);
-            registerShutdownHook(adkWebContext, scaffoldContext);
+            registerShutdownHook(adkWebContext, scaffoldContext, agentLoader);
             log.info("ADK Web 开发调试入口已启动 address={}, port={}, agents={}",
                     LOOPBACK_ADDRESS, port, agentLoader.listAgents());
         } catch (RuntimeException | Error exception) {
             // Web Context 启动失败时必须释放已装配的模型、MCP 和数据库连接等父 Context 资源。
-            closeContexts(adkWebContext, scaffoldContext);
+            closeContexts(adkWebContext, scaffoldContext, agentLoader);
             throw exception;
         }
     }
@@ -110,16 +109,21 @@ public final class AdkWebDevelopmentLauncher {
     /** 统一关闭顺序：先停止调试请求，再释放项目装配出的 Agent 资源。 */
     private static void registerShutdownHook(
             ConfigurableApplicationContext adkWebContext,
-            ConfigurableApplicationContext scaffoldContext) {
+            ConfigurableApplicationContext scaffoldContext,
+            ScaffoldAgentLoader agentLoader) {
         Runtime.getRuntime().addShutdownHook(new Thread(
-                () -> closeContexts(adkWebContext, scaffoldContext),
+                () -> closeContexts(adkWebContext, scaffoldContext, agentLoader),
                 "adk-web-development-shutdown"));
     }
 
     private static void closeContexts(
             ConfigurableApplicationContext adkWebContext,
-            ConfigurableApplicationContext scaffoldContext) {
+            ConfigurableApplicationContext scaffoldContext,
+            ScaffoldAgentLoader agentLoader) {
         closeContext(adkWebContext, "ADK Web");
+        if (agentLoader != null) {
+            agentLoader.close();
+        }
         closeContext(scaffoldContext, "scaffold");
     }
 

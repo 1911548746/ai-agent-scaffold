@@ -30,6 +30,12 @@ public class AgentAssemblyPipelineContext {
 
     private AdkAgentRuntime agentRuntime;
 
+    /**
+     * 装配尚未交给 Runtime 的临时资源。Pipeline 中途失败时由入口统一关闭，避免 MCP
+     * Toolset 已创建但 Agent 尚未完成时遗失所有权。
+     */
+    private final List<AutoCloseable> provisionalResources = new ArrayList<>();
+
 
     public List<BaseAgent> queryAgentList(List<String> agentNames) {
 
@@ -42,5 +48,39 @@ public class AgentAssemblyPipelineContext {
             agentList.add(agentGroup.get(agentName));
         }
         return agentList;
+    }
+
+    /** 登记一个仍由装配上下文临时持有的资源。 */
+    public void registerProvisionalResource(AutoCloseable resource) {
+        if (resource != null) {
+            provisionalResources.add(resource);
+        }
+    }
+
+    /** Runtime 接管资源后清空登记表，避免 Pipeline 失败补偿与 Runtime 重复关闭。 */
+    public void disarmProvisionalResources() {
+        provisionalResources.clear();
+    }
+
+    /** 仅在装配失败时关闭仍未转移的临时资源。 */
+    public void closeProvisionalResources() {
+        List<AutoCloseable> resources = new ArrayList<>(provisionalResources);
+        provisionalResources.clear();
+        Collections.reverse(resources);
+        RuntimeException firstFailure = null;
+        for (AutoCloseable resource : resources) {
+            try {
+                resource.close();
+            } catch (Exception error) {
+                if (firstFailure == null) {
+                    firstFailure = new IllegalStateException("failed to close assembly resource", error);
+                } else {
+                    firstFailure.addSuppressed(error);
+                }
+            }
+        }
+        if (firstFailure != null) {
+            throw firstFailure;
+        }
     }
 }

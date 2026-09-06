@@ -17,8 +17,10 @@ import com.hh.infrastructure.agent.agent.compiler.assembly.command.AgentAssembly
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.definition.RunnerDefinition;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
+import com.hh.infrastructure.agent.agent.runtime.RuntimeResourceScope;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlanFactory;
+import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPlugin;
 import com.hh.infrastructure.agent.agent.runtime.observability.plugin.AgentObservabilityPluginFactory;
 import com.hh.infrastructure.agent.agent.compiler.assembly.pipeline.AgentAssemblyNode;
 import jakarta.annotation.Resource;
@@ -76,21 +78,32 @@ public class RunnerNode extends AgentAssemblyNode {
 
         // App 只负责 ADK Agent、Plugin 等基础装配；Event 压缩由 Runtime 协调器显式调度，
         // 这样后置摘要失败不会反向终止已经成功的主回复。
-        App app = createApp(agentDefinition, context);
+        AppAssembly appAssembly = createApp(agentDefinition, context);
 
         // Runner 持有 Session、Artifact、Memory 等本次 Runtime 独占的 ADK 服务实例。
-        Runner runner = createRunner(agentDefinition, app);
+        Runner runner = createRunner(agentDefinition, appAssembly.app());
+        RuntimeResourceScope resourceScope = RuntimeResourceScope.of(
+                runner, List.of(appAssembly.observabilityPlugin()));
+        // Agent 树和观测 Plugin 已由 Runtime 作用域接管，失败补偿不能再次关闭它们。
+        context.disarmProvisionalResources();
 
-        // 压缩计划在运行时装配阶段固定下来；发布前它仍只是私有候选对象。
-        RunConfig runConfig = createRunConfig(agentDefinition.getRunner());
-        RuntimeCompactionPlan compactionPlan = runtimeCompactionPlanFactory.create(
-                context.getLlmModel(), agentDefinition.getRunner().getContextCompress());
-        AdkAgentRuntime runtime = new AdkAgentRuntime(
-                appName, agentId, agentName, agentDesc, runner, runConfig, compactionPlan);
+        try {
+            // 压缩计划在运行时装配阶段固定下来；发布前它仍只是私有候选对象。
+            RunConfig runConfig = createRunConfig(agentDefinition.getRunner());
+            RuntimeCompactionPlan compactionPlan = runtimeCompactionPlanFactory.create(
+                    context.getLlmModel(), agentDefinition.getRunner().getContextCompress());
+            AdkAgentRuntime runtime = new AdkAgentRuntime(
+                    appName, agentId, agentName, agentDesc, runner, runConfig, compactionPlan,
+                    resourceScope);
 
-        context.setAgentRuntime(runtime);
+            context.setAgentRuntime(runtime);
 
-        return router(requestParameter, context);
+            return router(requestParameter, context);
+        } catch (RuntimeException | Error error) {
+            // Runner 已创建但候选 Runtime 尚未返回时，由本节点回收其自有资源。
+            resourceScope.close();
+            throw error;
+        }
     }
 
     /** 装配链已经完成，本节点始终把结果路由到结束节点。 */
@@ -100,7 +113,7 @@ public class RunnerNode extends AgentAssemblyNode {
     }
 
     /** 创建 ADK App，并装配根 Agent 与插件。 */
-    private App createApp(AgentDefinition definition, AgentAssemblyPipelineContext context) {
+    private AppAssembly createApp(AgentDefinition definition, AgentAssemblyPipelineContext context) {
 
         String appName = definition.getAppName();
         RunnerDefinition runnerConfig = definition.getRunner();
@@ -115,10 +128,12 @@ public class RunnerNode extends AgentAssemblyNode {
         Set<String> pluginNames = new HashSet<>();
 
         // 系统观测能力属于运行时基础设施，不允许因业务 YAML 漏配而失效。
-        Plugin observabilityPlugin = agentObservabilityPluginFactory.create(
+        AgentObservabilityPlugin observabilityPlugin = agentObservabilityPluginFactory.create(
                 definition.getAgentDescriptor().getAgentId());
         plugins.add(observabilityPlugin);
         pluginNames.add(observabilityPlugin.getName());
+        // 在 App/Runner 创建失败前，观测 Plugin 仍由装配上下文临时托管。
+        context.registerProvisionalResource(() -> observabilityPlugin.close().blockingAwait());
 
         for (String pluginName : pluginNameList) {
             Plugin plugin = getBean(pluginName);
@@ -132,11 +147,12 @@ public class RunnerNode extends AgentAssemblyNode {
             }
         }
 
-        return App.builder()
+        App app = App.builder()
                 .name(appName)
                 .rootAgent(baseAgent)
                 .plugins(plugins)
                 .build();
+        return new AppAssembly(app, observabilityPlugin);
     }
 
     /** 创建当前 Runtime 使用的 Session、Artifact 和 Memory 服务，并绑定到 ADK Runner。 */
@@ -184,6 +200,9 @@ public class RunnerNode extends AgentAssemblyNode {
     private void enableGroupedFunctionHistoryCompatibility(RunConfig.Builder builder) {
         // ADK 1.7 已将该覆盖标记为特定端点兼容 API，集中隔离便于上游移除后统一迁移。
         builder.groupFunctionResponsesInHistoryOverride(Optional.of(true));
+    }
+
+    private record AppAssembly(App app, AgentObservabilityPlugin observabilityPlugin) {
     }
 
 }

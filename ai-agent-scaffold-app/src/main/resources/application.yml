@@ -3,6 +3,7 @@ spring:
     name: ai-agent-scaffold-app
   config:
     name: ai-agent-scaffold-app
+    import: ${AI_AGENT_CATALOG_PATH:classpath:agent/catalog/default-catalog.yml}
   profiles:
     active: dev
   lifecycle:
@@ -73,6 +74,12 @@ ai:
     jwt-issuer: ${JWT_ISSUER:ai-agent-scaffold}
     access-token-ttl-seconds: ${JWT_EXPIRATION_SECONDS:72000}
   agent:
+    # 实际 import 入口；与 catalog 内容分离，避免外部快照中的 catalog-path 干扰相对资源定位。
+    # 支持 classpath: 和 file:
+    # classpath:agent/catalog/default-catalog.yml
+    # file:///<absolute-path> 例如 file:///D:/agent/catalog/default-catalog.yml
+    catalog:
+      path: ${AI_AGENT_CATALOG_PATH:classpath:agent/catalog/default-catalog.yml}
     artifact-storage:
       minio:
         # 只有 Application 选择 minio 时才校验参数、创建客户端并访问 Bucket。

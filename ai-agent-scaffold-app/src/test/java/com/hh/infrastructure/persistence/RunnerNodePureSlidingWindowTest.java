@@ -72,7 +72,10 @@ class RunnerNodePureSlidingWindowTest {
         Method createApp = RunnerNode.class.getDeclaredMethod(
                 "createApp", AgentDefinition.class, AgentAssemblyPipelineContext.class);
         createApp.setAccessible(true);
-        App app = (App) createApp.invoke(node, definition, context);
+        Object appAssembly = createApp.invoke(node, definition, context);
+        Method appAccessor = appAssembly.getClass().getDeclaredMethod("app");
+        appAccessor.setAccessible(true);
+        App app = (App) appAccessor.invoke(appAssembly);
 
         assertThat(app.eventsCompactionConfig()).isNull();
         assertThat(app.plugins())

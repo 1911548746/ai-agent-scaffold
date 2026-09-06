@@ -60,7 +60,8 @@ public class ApplicationBindingNode extends AgentDefinitionLoadNode {
         }
 
         // 自动发现 application 文件追加在内联配置之后，保持既有加载优先级和输出顺序。
-        for (CatalogResourceBinder.LocatedResource resource : resourceBinder.resolve(catalog.getApplicationResources())) {
+        for (CatalogResourceBinder.LocatedResource resource : resourceBinder.resolve(
+                catalog.getApplicationResources(), pipelineContext.getCatalogPath())) {
             // 每个 application 文件使用独立前缀绑定，并由 Binder 完成字段级校验。
             AgentCatalogProperties.ApplicationDefinition application = resourceBinder.bind(
                     resource, "ai.agent.application", AgentCatalogProperties.ApplicationDefinition.class);

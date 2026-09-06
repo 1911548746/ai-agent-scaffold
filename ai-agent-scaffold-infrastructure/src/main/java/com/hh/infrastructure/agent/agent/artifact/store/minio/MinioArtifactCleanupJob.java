@@ -1,6 +1,7 @@
 package com.hh.infrastructure.agent.agent.artifact.store.minio;
 
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
+import com.hh.infrastructure.agent.agent.runtime.RuntimeLease;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -20,10 +21,13 @@ public class MinioArtifactCleanupJob {
     public void cleanupExpiredArtifacts() {
         int deleted = 0;
         try {
-            for (var runtime : runtimeRegistry.snapshot().values()) {
-                if (runtime.runner().artifactService() instanceof MinioArtifactService service
-                        && service.ttl() != null) {
-                    deleted += service.cleanupExpired(CLEANUP_BATCH_SIZE);
+            for (RuntimeLease lease : runtimeRegistry.acquireAll()) {
+                try (lease) {
+                    var runtime = lease.runtime();
+                    if (runtime.runner().artifactService() instanceof MinioArtifactService service
+                            && service.ttl() != null) {
+                        deleted += service.cleanupExpired(CLEANUP_BATCH_SIZE);
+                    }
                 }
             }
             if (deleted > 0) {

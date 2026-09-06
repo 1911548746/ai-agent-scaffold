@@ -14,9 +14,6 @@ thread:
 
 # 数据库配置；启动时配置数据库资源信息
 spring:
-  config:
-    import:
-      - classpath:agent/catalog/default-catalog.yml
   datasource:
     username: root
     password: root

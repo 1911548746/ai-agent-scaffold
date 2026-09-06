@@ -66,7 +66,12 @@ public class LlmAgentNode extends AgentAssemblyNode {
                 // 构建mcp服务
                 for (McpToolDefinition mcpToolConfig : agentDefinition.getMcpToolList()) {
                     McpToolCreateService mcpToolCreateService = mcpClientFactory.getMcpToolCreateService(mcpToolConfig);
-                    toolsets.add(mcpToolCreateService.buildMcpToolset(mcpToolConfig));
+                    Object toolset = mcpToolCreateService.buildMcpToolset(mcpToolConfig);
+                    toolsets.add(toolset);
+                    if (toolset instanceof AutoCloseable closeable) {
+                        // LlmAgent 构建失败时还没有 Runner 可负责关闭，先交给装配上下文托管。
+                        context.registerProvisionalResource(closeable);
+                    }
                 }
             }
 

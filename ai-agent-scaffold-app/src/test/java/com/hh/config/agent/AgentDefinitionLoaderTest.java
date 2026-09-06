@@ -7,15 +7,21 @@ import com.hh.config.agent.catalog.loader.pipeline.AgentDefinitionLoadPipeline;
 import com.hh.config.agent.catalog.loader.resource.CatalogResourceBinder;
 import com.hh.config.agent.catalog.loader.node.*;
 import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
+import com.hh.config.agent.catalog.properties.AgentCatalogLocationProperties;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.domain.agent.model.enums.ArtifactStorageType;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.DefaultResourceLoader;
@@ -23,6 +29,8 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.mock.env.MockEnvironment;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.time.Duration;
 import java.util.function.Consumer;
@@ -43,6 +51,9 @@ class AgentDefinitionLoaderTest {
 
     private AgentDefinitionLoader loader;
 
+    @TempDir
+    private Path temporaryDirectory;
+
     @BeforeEach
     void setUp() {
         // 用非真实值验证占位符解析路径，测试中绝不需要供应商凭据。
@@ -53,14 +64,15 @@ class AgentDefinitionLoaderTest {
         AgentDefinitionConfigSupport support = new AgentDefinitionConfigSupport(validator, environment);
         CatalogResourceBinder resourceBinder = new CatalogResourceBinder(new PathMatchingResourcePatternResolver(new DefaultResourceLoader()), support);
         EndNode end = new EndNode();
-        ApplicationCompileNode application = new ApplicationCompileNode(support, end);
+        ApplicationCompileNode application = new ApplicationCompileNode(support, resourceBinder, end);
         ApplicationBindingNode applicationBinding = new ApplicationBindingNode(resourceBinder, support, application);
         WorkflowGraphNode workflow = new WorkflowGraphNode(support, applicationBinding);
         ModuleValidationNode validation = new ModuleValidationNode(support, workflow);
         ModuleBindingNode binding = new ModuleBindingNode(resourceBinder, support, validation);
         CatalogValidationNode catalogValidation = new CatalogValidationNode(support, binding);
 
-        loader = new AgentDefinitionLoader(new AgentDefinitionLoadPipeline(new RootNode(catalogValidation)));
+        loader = new AgentDefinitionLoader(
+                new AgentDefinitionLoadPipeline(new RootNode(catalogValidation)), resourceBinder);
 
     }
 
@@ -332,9 +344,155 @@ class AgentDefinitionLoaderTest {
                 .hasMessageContaining("bean-name and method-name");
     }
 
+    @Test
+    void loadsExternalCatalogAndResolvesRelativeModuleLocations() throws IOException {
+        Path catalog = writeExternalCatalog("ExternalAgent", "external-runtime", "../models/*.yml");
+
+        List<AgentDefinition> definitions = loader.load(catalog.toUri().toString());
+
+        assertThat(definitions).singleElement().satisfies(definition -> {
+            assertThat(definition.getId()).isEqualTo("external-app");
+            assertThat(definition.getAppName()).isEqualTo("ExternalApp");
+            assertThat(definition.getAgentDescriptor().getAgentName()).isEqualTo("ExternalAgent");
+            assertThat(definition.getChatModel().getModelName()).isEqualTo("external-model-name");
+        });
+    }
+
+    @Test
+    void repeatedExternalLoadsUseFreshConfigurationAndKeepPreviousResultIndependent() throws IOException {
+        Path catalog = writeExternalCatalog("FirstAgent", "external-runtime", "../models/*.yml");
+
+        List<AgentDefinition> first = loader.load(catalog.toUri().toString());
+        Files.writeString(
+                temporaryDirectory.resolve("applications/external.yml"),
+                externalApplication("SecondAgent", "external-runtime"));
+
+        List<AgentDefinition> second = loader.load(catalog.toUri().toString());
+
+        assertThat(first).singleElement().extracting(definition -> definition.getAgentDescriptor().getAgentName())
+                .isEqualTo("FirstAgent");
+        assertThat(second).singleElement().extracting(definition -> definition.getAgentDescriptor().getAgentName())
+                .isEqualTo("SecondAgent");
+    }
+
+    @Test
+    void rejectsExternalRelativeResourceThatEscapesCatalogDirectory() throws IOException {
+        Path catalog = writeExternalCatalog("ExternalAgent", "external-runtime", "../../outside/*.yml");
+
+        assertThatThrownBy(() -> loader.load(catalog.toUri().toString()))
+                .isInstanceOf(AgentConfigurationException.class)
+                .hasMessageContaining("escapes catalog directory");
+    }
+
+    @Test
+    void springImportUsesCatalogFromAiAgentCatalogPath() throws IOException {
+        Path catalog = writeExternalCatalog("ExternalAgent", "external-runtime", "../models/*.yml");
+
+        try (var context = new SpringApplicationBuilder(CatalogBindingConfiguration.class)
+                .web(WebApplicationType.NONE)
+                .run("--AI_AGENT_CATALOG_PATH=" + catalog.toUri())) {
+            AgentCatalogProperties properties = context.getBean(AgentCatalogProperties.class);
+            AgentCatalogLocationProperties locationProperties = context.getBean(AgentCatalogLocationProperties.class);
+
+            // 命令行环境变量替换基础 application.yml 的 import；实际入口由独立部署配置保存，
+            // 因而不受外部 catalog 内遗留 catalog-path 字段影响。
+            assertThat(locationProperties.getPath()).isEqualTo(catalog.toUri().toString());
+            assertThat(properties.getModelResources()).containsExactly("../models/*.yml");
+            assertThat(properties.getApplicationResources()).containsExactly("../applications/**/*.yml");
+        }
+    }
+
     /** 测试自行完成 YAML 到 catalog 属性的绑定，生产 Loader 只保留正式的属性入口。 */
     private List<AgentDefinition> load(String catalogLocation) {
         return loader.load(bindCatalog(catalogLocation));
+    }
+
+    private Path writeExternalCatalog(String agentName, String agentId, String modelLocation) throws IOException {
+        Path catalogDirectory = Files.createDirectories(temporaryDirectory.resolve("catalog"));
+        Files.createDirectories(temporaryDirectory.resolve("models"));
+        Files.createDirectories(temporaryDirectory.resolve("agents"));
+        Files.createDirectories(temporaryDirectory.resolve("applications"));
+
+        Files.writeString(catalogDirectory.resolve("default-catalog.yml"), externalCatalog(modelLocation));
+        Files.writeString(temporaryDirectory.resolve("models/external.yml"), externalModel());
+        Files.writeString(temporaryDirectory.resolve("agents/external.yml"), externalAgent());
+        Files.writeString(
+                temporaryDirectory.resolve("applications/external.yml"),
+                externalApplication(agentName, agentId));
+        return catalogDirectory.resolve("default-catalog.yml");
+    }
+
+    private String externalCatalog(String modelLocation) {
+        return """
+                ai:
+                  agent:
+                    config:
+                      enabled: true
+                      schema-version: 1
+                      # 外部快照可能从内置 catalog 复制而来；实际入口必须由 AI_AGENT_CATALOG_PATH 覆盖。
+                      catalog-path: classpath:agent/catalog/default-catalog.yml
+                      model-resources:
+                        - %s
+                      tool-resources: []
+                      skill-resources: []
+                      agent-resources:
+                        - ../agents/**/*.yml
+                      workflow-resources: []
+                      application-resources:
+                        - ../applications/**/*.yml
+                """.formatted(modelLocation);
+    }
+
+    private String externalModel() {
+        return """
+                ai:
+                  agent:
+                    model:
+                      schema-version: 1
+                      id: external-model
+                      base-url: https://example.invalid
+                      api-key: ${MODEL_API_KEY}
+                      model-name: external-model-name
+                      timeout: 30
+                      max-retries: 0
+                      streaming-first-response-timeout: 30
+                      streaming-max-retries: 0
+                """;
+    }
+
+    private String externalAgent() {
+        return """
+                ai:
+                  agent:
+                    agent:
+                      schema-version: 1
+                      id: external-agent
+                      name: ExternalAgent
+                      description: external agent
+                      instruction: respond from external configuration
+                      model-ref: external-model
+                      tool-refs: []
+                      skill-refs: []
+                """;
+    }
+
+    private String externalApplication(String agentName, String agentId) {
+        return """
+                ai:
+                  agent:
+                    application:
+                      id: external-app
+                      enabled: true
+                      app-name: ExternalApp
+                      agent-id: %s
+                      agent-name: %s
+                      agent-desc: external application
+                      agent-ref: external-agent
+                      runner:
+                        session-storage: false
+                        artifact-storage:
+                          type: memory
+                """.formatted(agentId, agentName);
     }
 
     private List<AgentDefinition> loadInline(Consumer<AgentCatalogProperties.ApplicationDefinition> customizer) {
@@ -384,5 +542,11 @@ class AgentDefinitionLoaderTest {
                 .filter(definition -> definition.getId().equals(id))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    /** 仅加载配置绑定基础设施，避免 Spring import 回归测试装配数据库或 Agent Runtime。 */
+    @Configuration(proxyBeanMethods = false)
+    @EnableConfigurationProperties({AgentCatalogProperties.class, AgentCatalogLocationProperties.class})
+    static class CatalogBindingConfiguration {
     }
 }

@@ -29,9 +29,13 @@ public class CatalogValidationNode extends AgentDefinitionLoadNode {
 
     @Override
     protected List<AgentDefinition> doApply(AgentDefinitionLoadCommand command, AgentDefinitionLoadPipelineContext context) throws Exception {
-        // catalogPath 可能未显式配置；使用固定路径保证后续错误信息始终有可读的根路径。
-        String path = command.getCatalog().getCatalogPath() == null || command.getCatalog().getCatalogPath().isBlank()
-                ? "ai.agent.config" : command.getCatalog().getCatalogPath();
+        // 调用方传入的实际入口优先于 catalog 内容中的兼容诊断字段，保证外部快照复制后
+        // 相对资源仍以本次加载位置为基准。未传入时继续兼容旧的 catalog-path 行为。
+        String path = context.getCatalogPath();
+        if (path == null || path.isBlank()) {
+            path = command.getCatalog().getCatalogPath() == null || command.getCatalog().getCatalogPath().isBlank()
+                    ? "ai.agent.config" : command.getCatalog().getCatalogPath();
+        }
 
         // 保存输入和路径，后续节点只从上下文读取，避免重复依赖外部绑定对象的定位信息。
         context.setCatalog(command.getCatalog());

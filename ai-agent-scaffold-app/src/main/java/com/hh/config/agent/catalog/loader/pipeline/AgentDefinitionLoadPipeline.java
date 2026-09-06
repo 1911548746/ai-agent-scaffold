@@ -20,9 +20,21 @@ public class AgentDefinitionLoadPipeline {
     }
 
     public List<AgentDefinition> load(AgentCatalogProperties catalog) throws Exception {
+        return load(catalog, null);
+    }
+
+    /**
+     * 使用指定 catalog 入口执行一次加载。
+     *
+     * <p>catalog 对象仍由 Spring import 完成绑定；入口位置只覆盖相对资源的解析基准，
+     * 不回写或修改 Spring 持有的配置对象。</p>
+     */
+    public List<AgentDefinition> load(AgentCatalogProperties catalog, String catalogLocation) throws Exception {
+        AgentDefinitionLoadPipelineContext context = new AgentDefinitionLoadPipelineContext();
+        context.setCatalogPath(catalogLocation);
         return rootNode.apply(
                 new AgentDefinitionLoadCommand(catalog),
-                new AgentDefinitionLoadPipelineContext());
+                context);
     }
 
 }

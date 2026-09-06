@@ -1,6 +1,7 @@
 package com.hh.config.agent.bootstrap;
 
 import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
+import com.hh.config.agent.catalog.properties.AgentCatalogLocationProperties;
 import com.hh.config.agent.catalog.loader.AgentDefinitionLoader;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.application.agent.port.AgentRuntimeCompiler;
@@ -16,20 +17,23 @@ import java.util.List;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties(AgentCatalogProperties.class)
+@EnableConfigurationProperties({AgentCatalogProperties.class, AgentCatalogLocationProperties.class})
 public class AiAgentAutoConfig implements SmartInitializingSingleton {
 
     private final AgentCatalogProperties properties;
+    private final AgentCatalogLocationProperties catalogLocationProperties;
     private final AgentDefinitionLoader definitionLoader;
     private final AgentCompiler agentCompiler;
     private final AgentRuntimeCompiler runtimeCompiler;
 
     public AiAgentAutoConfig(
             AgentCatalogProperties properties,
+            AgentCatalogLocationProperties catalogLocationProperties,
             AgentDefinitionLoader definitionLoader,
             AgentCompiler agentCompiler,
             AgentRuntimeCompiler runtimeCompiler) {
         this.properties = properties;
+        this.catalogLocationProperties = catalogLocationProperties;
         this.definitionLoader = definitionLoader;
         this.agentCompiler = agentCompiler;
         this.runtimeCompiler = runtimeCompiler;
@@ -45,7 +49,7 @@ public class AiAgentAutoConfig implements SmartInitializingSingleton {
         }
 
         // 先完成所有资源的静态校验和引用解析；配置不合法时不能进入 ADK 对象创建阶段。
-        List<AgentDefinition> definitions = definitionLoader.load(properties);
+        List<AgentDefinition> definitions = definitionLoader.load(properties, catalogLocationProperties.getPath());
         // catalog 可保留禁用示例供校验，但只有启用项才保持旧 API 中“可查询、可运行”的语义。
         List<AgentDefinition> enabledDefinitions = definitions.stream()
                 .filter(AgentDefinition::isEnabled)

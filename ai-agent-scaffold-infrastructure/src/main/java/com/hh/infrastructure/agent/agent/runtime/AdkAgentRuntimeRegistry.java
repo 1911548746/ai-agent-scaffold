@@ -1,80 +1,83 @@
 package com.hh.infrastructure.agent.agent.runtime;
 
+import com.hh.domain.agent.model.runtime.AgentDescriptor;
+import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 保存 ADK 运行时的不可变发布快照。
  *
- * <p>候选对象必须在 Registry 外完成全部装配；本类仅负责重复 ID 校验和一次性替换，
- * 因而读取方永远只会看到旧快照或完整新快照。</p>
+ * <p>候选 Runtime 在 Registry 外完成全部装配；发布时只替换一个不可变 generation。旧 generation
+ * 立即停止接受新租约，待既有租约归零后异步关闭，保证切换期间不会访问已关闭的 Runner。</p>
  */
 @Component
 public class AdkAgentRuntimeRegistry {
 
-    private final AtomicReference<RuntimeSnapshot> snapshot = new AtomicReference<>(RuntimeSnapshot.empty());
+    private final AtomicReference<RuntimeGeneration> current =
+            new AtomicReference<>(RuntimeGeneration.empty(0));
+    private final AtomicLong nextGeneration = new AtomicLong(1);
 
     /**
      * 发布一批完整运行时。重复 ID 在替换前失败，因此不会破坏当前已发布快照。
      */
-    public void publish(Collection<AdkAgentRuntime> runtimes) {
-        Map<String, AdkAgentRuntime> candidate = new LinkedHashMap<>();
-        Map<String, AdkAgentRuntime> candidateByAppName = new LinkedHashMap<>();
-        for (AdkAgentRuntime runtime : runtimes) {
-            AdkAgentRuntime nonNullRuntime = Objects.requireNonNull(runtime, "runtime must not be null");
-            if (nonNullRuntime.agentId().isBlank()) {
-                throw new IllegalArgumentException("agentId must not be blank");
-            }
-            if (candidate.putIfAbsent(nonNullRuntime.agentId(), nonNullRuntime) != null) {
-                throw new IllegalArgumentException("duplicate agentId: " + nonNullRuntime.agentId());
-            }
-            if (nonNullRuntime.appName().isBlank()) {
-                throw new IllegalArgumentException("appName must not be blank");
-            }
-            if (candidateByAppName.putIfAbsent(nonNullRuntime.appName(), nonNullRuntime) != null) {
-                throw new IllegalArgumentException("duplicate appName: " + nonNullRuntime.appName());
-            }
-        }
-        // 两个索引作为一个对象原子替换，读取方不会观察到 agentId/appName 跨版本混用。
-        snapshot.set(new RuntimeSnapshot(immutable(candidate), immutable(candidateByAppName)));
+    public synchronized void publish(Collection<AdkAgentRuntime> runtimes) {
+        RuntimeGeneration candidate = new RuntimeGeneration(
+                nextGeneration.getAndIncrement(), runtimes);
+        RuntimeGeneration previous = current.getAndSet(candidate);
+        // 原子切换已经完成；旧 generation 只允许现有租约继续使用。
+        previous.beginDraining();
     }
 
-    /**
-     * 请求处理只通过该方法查找运行时，禁止退回 ApplicationContext 的动态 Bean 查询。
-     */
-    public Optional<AdkAgentRuntime> find(String agentId) {
-        return Optional.ofNullable(snapshot.get().byAgentId().get(agentId));
+    /** 切换为空快照；当前调用继续排空，新调用将得到 Agent 不存在错误。 */
+    public synchronized void clear() {
+        RuntimeGeneration empty = RuntimeGeneration.empty(nextGeneration.getAndIncrement());
+        RuntimeGeneration previous = current.getAndSet(empty);
+        previous.beginDraining();
     }
 
-    /** 附件路由按 ADK appName 找到与 Runner 绑定的服务实例。 */
-    public Optional<AdkAgentRuntime> findByAppName(String appName) {
-        return Optional.ofNullable(snapshot.get().byAppName().get(appName));
+    public Optional<RuntimeLease> acquire(String agentId) {
+        return current.get().acquireByAgentId(agentId);
     }
 
-    /**
-     * 返回当前不可变快照，用于健康检查和只读 Agent 列表查询。
-     */
+    public Optional<RuntimeLease> acquireByAppName(String appName) {
+        return current.get().acquireByAppName(appName);
+    }
+
+    /** 为需要长时间持有根 Agent 的 ADK Web 开发 Loader 获取整代租约。 */
+    public List<RuntimeLease> acquireAll() {
+        return current.get().acquireAll();
+    }
+
+    /** 只读展示使用；资源调用不得从此 Map 中直接取得 Runner。 */
     public Map<String, AdkAgentRuntime> snapshot() {
-        return snapshot.get().byAgentId();
+        return current.get().snapshot();
     }
 
-    private Map<String, AdkAgentRuntime> immutable(Map<String, AdkAgentRuntime> runtimes) {
-        return Collections.unmodifiableMap(new LinkedHashMap<>(runtimes));
+    public int size() {
+        return current.get().size();
     }
 
-    private record RuntimeSnapshot(
-            Map<String, AdkAgentRuntime> byAgentId,
-            Map<String, AdkAgentRuntime> byAppName) {
+    public List<AgentDescriptor> descriptors() {
+        return current.get().snapshot().values().stream()
+                .map(AdkAgentRuntime::toAgentDescriptor)
+                .toList();
+    }
 
-        private static RuntimeSnapshot empty() {
-            return new RuntimeSnapshot(Map.of(), Map.of());
-        }
+    /**
+     * Spring Context 关闭时先切空快照，再按正常 generation 规则等待请求排空。
+     *
+     * <p>这里不直接逐个关闭 Runtime，避免绕过在途调用的 lease；关闭线程是否能在进程退出前
+     * 完成由宿主的优雅停机窗口决定。</p>
+     */
+    @PreDestroy
+    void shutdown() {
+        clear();
     }
 }

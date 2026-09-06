@@ -55,15 +55,15 @@ public class ModuleBindingNode extends AgentDefinitionLoadNode {
         var catalog = command.getCatalog();
 
         // 按固定顺序绑定资源，顺序同时决定可预测的错误顺序和后续 Definition 的稳定顺序。
-        context.setModels(load(catalog.getModelResources(), "ai.agent.model", ModelModuleConfig.class,
+        context.setModels(load(catalog.getModelResources(), pipelineContext.getCatalogPath(), "ai.agent.model", ModelModuleConfig.class,
                 ModelModuleConfig::getId, ModelModuleConfig::getSourcePath, "model"));
-        context.setTools(load(catalog.getToolResources(), "ai.agent.tool", ToolModuleConfig.class,
+        context.setTools(load(catalog.getToolResources(), pipelineContext.getCatalogPath(), "ai.agent.tool", ToolModuleConfig.class,
                 ToolModuleConfig::getId, ToolModuleConfig::getSourcePath, "tool"));
-        context.setSkills(load(catalog.getSkillResources(), "ai.agent.skill", SkillModuleConfig.class,
+        context.setSkills(load(catalog.getSkillResources(), pipelineContext.getCatalogPath(), "ai.agent.skill", SkillModuleConfig.class,
                 SkillModuleConfig::getId, SkillModuleConfig::getSourcePath, "skill"));
-        context.setAgents(load(catalog.getAgentResources(), "ai.agent.agent", AgentModuleConfig.class,
+        context.setAgents(load(catalog.getAgentResources(), pipelineContext.getCatalogPath(), "ai.agent.agent", AgentModuleConfig.class,
                 AgentModuleConfig::getId, AgentModuleConfig::getSourcePath, "agent"));
-        context.setWorkflows(load(catalog.getWorkflowResources(), "ai.agent.workflow", WorkflowModuleConfig.class,
+        context.setWorkflows(load(catalog.getWorkflowResources(), pipelineContext.getCatalogPath(), "ai.agent.workflow", WorkflowModuleConfig.class,
                 WorkflowModuleConfig::getId, WorkflowModuleConfig::getSourcePath, "workflow"));
 
         // 五类资源全部成功绑定后，才把控制权交给引用和语义校验阶段。
@@ -72,6 +72,7 @@ public class ModuleBindingNode extends AgentDefinitionLoadNode {
 
     private <T> Map<String, T> load(
             List<String> locations,
+            String baseLocation,
             String prefix,
             Class<T> type,
             Function<T, String> idExtractor,
@@ -80,7 +81,7 @@ public class ModuleBindingNode extends AgentDefinitionLoadNode {
         // LinkedHashMap 保留资源扫描顺序，同时提供按稳定 ID 查找模块的能力。
         Map<String, T> indexed = new LinkedHashMap<>();
 
-        for (CatalogResourceBinder.LocatedResource resource : resourceBinder.resolve(locations)) {
+        for (CatalogResourceBinder.LocatedResource resource : resourceBinder.resolve(locations, baseLocation)) {
             // 每个资源使用独立绑定过程，避免不同 YAML 文件的同名字段互相污染。
             T value = resourceBinder.bind(resource, prefix, type);
 

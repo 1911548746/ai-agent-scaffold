@@ -5,6 +5,7 @@ import com.google.adk.web.AgentLoader;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
+import com.hh.infrastructure.agent.agent.runtime.RuntimeLease;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
@@ -12,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.List;
 
 /**
  * 将项目已经发布的 ADK Runtime 快照转换为 ADK Web 可读取的 Agent 列表。
@@ -22,8 +24,14 @@ import java.util.Objects;
 public final class ScaffoldAgentLoader implements AgentLoader {
 
     private final ImmutableMap<String, BaseAgent> agentsByAppName;
+    private final List<RuntimeLease> runtimeLeases;
 
     public ScaffoldAgentLoader(Collection<AdkAgentRuntime> runtimes) {
+        this(runtimes, List.of());
+    }
+
+    private ScaffoldAgentLoader(
+            Collection<AdkAgentRuntime> runtimes, Collection<RuntimeLease> runtimeLeases) {
         Objects.requireNonNull(runtimes, "runtimes must not be null");
 
         Map<String, BaseAgent> agents = new LinkedHashMap<>();
@@ -47,6 +55,23 @@ public final class ScaffoldAgentLoader implements AgentLoader {
                     "ADK Web cannot start: Agent Runtime Registry is empty");
         }
         this.agentsByAppName = ImmutableMap.copyOf(agents);
+        this.runtimeLeases = List.copyOf(runtimeLeases);
+    }
+
+    /** 从 Registry 获取的 generation 租约创建 Loader，并在构造失败时归还全部租约。 */
+    public static ScaffoldAgentLoader fromLeases(Collection<RuntimeLease> runtimeLeases) {
+        Objects.requireNonNull(runtimeLeases, "runtimeLeases must not be null");
+        try {
+            List<RuntimeLease> leases = List.copyOf(runtimeLeases);
+            return new ScaffoldAgentLoader(
+                    leases.stream().map(RuntimeLease::runtime).toList(), leases);
+        } catch (RuntimeException | Error error) {
+            // 只关闭已经成功复制并校验的租约；输入集合可能包含 null，不能在补偿时再次掩盖原异常。
+            runtimeLeases.stream()
+                    .filter(java.util.Objects::nonNull)
+                    .forEach(RuntimeLease::close);
+            throw error;
+        }
     }
 
     /** 返回本次启动时固定的应用名称，避免运行期间列表发生漂移。 */
@@ -67,5 +92,10 @@ public final class ScaffoldAgentLoader implements AgentLoader {
             throw new NoSuchElementException("Agent appName not found: " + name);
         }
         return agent;
+    }
+
+    /** ADK Web 退出后归还整代 Runtime 租约，允许旧 generation 继续排空并关闭。 */
+    public void close() {
+        runtimeLeases.forEach(RuntimeLease::close);
     }
 }
