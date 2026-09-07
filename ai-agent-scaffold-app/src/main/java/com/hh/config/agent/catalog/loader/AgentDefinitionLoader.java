@@ -21,13 +21,16 @@ public class AgentDefinitionLoader {
 
     private final AgentDefinitionLoadPipeline pipeline;
     private final CatalogResourceBinder resourceBinder;
+    private final ConfigSnapshotDigest snapshotDigest;
 
     @Autowired
     public AgentDefinitionLoader(
             AgentDefinitionLoadPipeline pipeline,
-            CatalogResourceBinder resourceBinder) {
+            CatalogResourceBinder resourceBinder,
+            ConfigSnapshotDigest snapshotDigest) {
         this.pipeline = pipeline;
         this.resourceBinder = resourceBinder;
+        this.snapshotDigest = snapshotDigest;
     }
 
     /** 使用已绑定的 catalog 执行一次独立编译。 */
@@ -57,8 +60,37 @@ public class AgentDefinitionLoader {
      * <p>该入口供后续热更新触发器复用；本批不负责触发调用方，也不发布 Runtime。</p>
      */
     public List<AgentDefinition> load(String catalogLocation) {
+        return loadResult(catalogLocation).definitions();
+    }
+
+    /**
+     * 加载已绑定 catalog，并返回本次资源快照的稳定摘要。
+     *
+     * <p>摘要计算只读取本次 catalog 声明并实际解析的 YAML 资源；资源路径和内容均使用明确
+     * 的长度边界写入哈希，避免不同路径或内容组合产生歧义。</p>
+     */
+    public AgentCatalogLoadResult loadResult(AgentCatalogProperties catalog, String catalogLocation) {
         try {
-            return pipeline.load(resourceBinder.bindCatalog(catalogLocation), catalogLocation);
+            List<AgentDefinition> definitions = pipeline.load(catalog, catalogLocation);
+            return new AgentCatalogLoadResult(
+                    definitions,
+                    snapshotDigest.calculate(catalog, catalogLocation, null));
+        } catch (AgentConfigurationException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new AgentConfigurationException("agent definition loading failed");
+        }
+    }
+
+    /** 从指定入口加载完整 catalog，并同时计算实际资源快照摘要。 */
+    public AgentCatalogLoadResult loadResult(String catalogLocation) {
+        try {
+            CatalogResourceBinder.LocatedCatalog locatedCatalog = resourceBinder.bindCatalogResource(catalogLocation);
+            AgentCatalogProperties catalog = locatedCatalog.catalog();
+            List<AgentDefinition> definitions = pipeline.load(catalog, catalogLocation);
+            return new AgentCatalogLoadResult(
+                    definitions,
+                    snapshotDigest.calculate(catalog, catalogLocation, locatedCatalog.resource()));
         } catch (AgentConfigurationException exception) {
             throw exception;
         } catch (Exception exception) {

@@ -8,6 +8,7 @@ import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.types.enums.ContextCompressTypeEnum;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -65,7 +66,7 @@ class ScaffoldAgentLoaderTest {
     @Test
     void shouldKeepStartupSnapshotWhenRegistryIsReplaced() {
         BaseAgent originalAgent = mock(BaseAgent.class);
-        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
+        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry(new SimpleMeterRegistry());
         registry.publish(List.of(runtime("original-app", "agent-1", originalAgent)));
         ScaffoldAgentLoader loader = new ScaffoldAgentLoader(registry.snapshot().values());
 

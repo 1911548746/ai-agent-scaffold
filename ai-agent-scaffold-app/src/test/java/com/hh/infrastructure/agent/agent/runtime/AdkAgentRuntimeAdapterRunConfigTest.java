@@ -22,6 +22,7 @@ import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPla
 import com.hh.infrastructure.agent.agent.runtime.invocation.InvocationFailureRecovery;
 import com.hh.infrastructure.agent.agent.runtime.invocation.SessionInvocationCoordinator;
 import com.hh.types.enums.ContextCompressTypeEnum;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Maybe;
 import dev.langchain4j.exception.TimeoutException;
@@ -59,7 +60,7 @@ class AdkAgentRuntimeAdapterRunConfigTest {
         RunConfig baseRunConfig = RunConfig.builder()
                 .groupFunctionResponsesInHistoryOverride(Optional.of(true))
                 .build();
-        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
+        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry(new SimpleMeterRegistry());
         registry.publish(List.of(new AdkAgentRuntime(
                 "app-a", "agent-a", "Agent A", "test", runner, baseRunConfig,
                 new RuntimeCompactionPlan(ContextCompressTypeEnum.FIXED_SIZE, mock(EventCompactor.class), Integer.MAX_VALUE))));
@@ -445,7 +446,7 @@ class AdkAgentRuntimeAdapterRunConfigTest {
     }
 
     private AdkAgentRuntimeAdapter adapter(Runner runner) {
-        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
+        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry(new SimpleMeterRegistry());
         registry.publish(List.of(new AdkAgentRuntime(
                 "app-a", "agent-a", "Agent A", "test", runner, RunConfig.builder().build(),
                 new RuntimeCompactionPlan(ContextCompressTypeEnum.FIXED_SIZE, mock(EventCompactor.class), Integer.MAX_VALUE))));
@@ -454,7 +455,7 @@ class AdkAgentRuntimeAdapterRunConfigTest {
     }
 
     private AdkAgentRuntimeAdapter adapterWithCleanup(Runner runner) {
-        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
+        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry(new SimpleMeterRegistry());
         registry.publish(List.of(new AdkAgentRuntime(
                 "app-a",
                 "agent-a",

@@ -89,6 +89,46 @@ public class CatalogResourceBinder {
         return List.copyOf(resourcesByIdentity.values());
     }
 
+    /**
+     * 展开 Skill 目录中的所有文件。
+     *
+     * <p>Skill YAML 只保存目录入口，ADK 实际读取的是目录下的 SKILL.md 和引用文件，
+     * 因此摘要和资源校验都必须看到这些文件。通配展开仍复用同一套受控资源解析和物理去重规则。</p>
+     */
+    public List<LocatedResource> resolveDirectory(String location, String baseLocation) {
+        String resolvedLocation = resolveRelativeLocation(location, baseLocation);
+        if (resolvedLocation == null || resolvedLocation.isBlank()) {
+            throw support.error(String.valueOf(location), "skill directory must not be blank");
+        }
+        if (resolvedLocation.startsWith(ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX)) {
+            throw support.error(resolvedLocation, "classpath*: resource scanning is not supported");
+        }
+        String directory = resolvedLocation.endsWith("/")
+                ? resolvedLocation.substring(0, resolvedLocation.length() - 1)
+                : resolvedLocation;
+        // **/* 同时覆盖目录根下文件和任意深度的引用文件，避免只摘要 SKILL.md。
+        List<LocatedResource> resources = resolve(List.of(directory + "/**/*")).stream()
+                .filter(this::isRegularFile)
+                .toList();
+        if (resources.isEmpty()) {
+            throw support.error(resolvedLocation, "skill directory contains no files");
+        }
+        return resources;
+    }
+
+    /** classpath 的展开结果可能包含目录；目录不是 ADK Skill 的可读资源，必须排除。 */
+    private boolean isRegularFile(LocatedResource resource) {
+        try {
+            // file: 和 exploded classpath: 可以直接判断物理文件类型。
+            if (resource.resource().isFile()) {
+                return resource.resource().getFile().isFile();
+            }
+        } catch (IOException ignored) {
+            // JAR 内资源无法转换为 File；这类资源由通配解析器返回的通常就是文件，继续保留。
+        }
+        return true;
+    }
+
     /** 从单个资源绑定一个前缀对象，并将底层异常转换为不含原始值的配置异常。 */
     public <T> T bind(LocatedResource source, String prefix, Class<T> type) {
         return bind(source, prefix, type, true);
@@ -101,6 +141,11 @@ public class CatalogResourceBinder {
      * 这样同一份配置可以被复制到不同外部目录。绑定完成后仍执行完整 Bean Validation。</p>
      */
     public AgentCatalogProperties bindCatalog(String location) {
+        return bindCatalogResource(location).catalog();
+    }
+
+    /** 绑定 catalog 并保留其物理资源，供 Loader 计算本次完整快照摘要。 */
+    public LocatedCatalog bindCatalogResource(String location) {
         List<LocatedResource> resources = resolve(List.of(location));
         if (resources.size() != 1) {
             throw support.error(location, "catalog location must resolve to exactly one file");
@@ -109,7 +154,7 @@ public class CatalogResourceBinder {
                 AgentCatalogProperties.class, false);
         catalog.setCatalogPath(location);
         support.validate(catalog, location);
-        return catalog;
+        return new LocatedCatalog(catalog, resources.get(0));
     }
 
     private <T> T bind(LocatedResource source, String prefix, Class<T> type, boolean validate) {
@@ -277,6 +322,14 @@ public class CatalogResourceBinder {
         }
     }
 
+    /** 返回资源的物理身份，供摘要计算去除同一文件的重复匹配。 */
+    public String identity(LocatedResource resource) {
+        return resourceIdentity(resource.resource());
+    }
+
     public record LocatedResource(Resource resource, String sourcePath) {
+    }
+
+    public record LocatedCatalog(AgentCatalogProperties catalog, LocatedResource resource) {
     }
 }

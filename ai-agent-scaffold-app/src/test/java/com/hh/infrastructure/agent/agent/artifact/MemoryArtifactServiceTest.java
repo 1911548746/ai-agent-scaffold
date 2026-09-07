@@ -11,6 +11,8 @@ import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.types.enums.ContextCompressTypeEnum;
 import com.hh.types.exception.AppException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -28,7 +30,7 @@ class MemoryArtifactServiceTest {
         MemoryArtifactService service = new MemoryArtifactService("app-a");
         Runner runner = mock(Runner.class);
         when(runner.artifactService()).thenReturn(service);
-        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
+        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry(new SimpleMeterRegistry());
         registry.publish(List.of(new AdkAgentRuntime(
                 "app-a", "agent-a", "Agent A", "test", runner, RunConfig.builder().build(), plan())));
         RuntimeAttachmentStoragePort router = new RuntimeAttachmentStoragePort(registry);
@@ -52,7 +54,7 @@ class MemoryArtifactServiceTest {
 
     @Test
     void rejectsUnknownAndDuplicateAppNames() {
-        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
+        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry(new SimpleMeterRegistry());
         Runner first = mock(Runner.class);
         Runner second = mock(Runner.class);
 

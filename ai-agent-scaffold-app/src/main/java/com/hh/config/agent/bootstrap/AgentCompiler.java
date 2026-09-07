@@ -31,11 +31,24 @@ public class AgentCompiler {
      * 编译并发布全部启用定义。任何异常都会阻止 publish，旧快照保持可用。
      */
     public void compileAndPublish(List<AgentDefinition> definitions) {
+        compileAndPublishInternal(definitions, null);
+    }
+
+    /** 编译并发布带完整 catalog 摘要的快照，供启动和手动 Reload 共用。 */
+    public void compileAndPublish(List<AgentDefinition> definitions, String configDigest) {
+        compileAndPublishInternal(definitions, configDigest);
+    }
+
+    private void compileAndPublishInternal(List<AgentDefinition> definitions, String configDigest) {
         validateRuntimeAgentIds(definitions);
 
         try {
             // 基础设施先完成所有 ADK 资源构建，再由其 Registry 一次性替换快照。
-            runtimeCompiler.compileAndPublish(definitions);
+            if (configDigest == null) {
+                runtimeCompiler.compileAndPublish(definitions);
+            } else {
+                runtimeCompiler.compileAndPublish(definitions, configDigest);
+            }
         } catch (AgentConfigurationException exception) {
             throw exception;
         } catch (Exception exception) {

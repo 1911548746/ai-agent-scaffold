@@ -30,6 +30,11 @@ public class AdkAgentRuntimeCompiler implements AgentRuntimeCompiler {
 
     @Override
     public void compileAndPublish(List<AgentDefinition> definitions) throws Exception {
+        compileAndPublish(definitions, null);
+    }
+
+    @Override
+    public void compileAndPublish(List<AgentDefinition> definitions, String configDigest) throws Exception {
 
         List<AdkAgentRuntime> runtimes = new ArrayList<>();
         boolean published = false;
@@ -43,7 +48,7 @@ public class AdkAgentRuntimeCompiler implements AgentRuntimeCompiler {
             List<AdkAgentRuntime> candidates = List.copyOf(runtimes);
             // Lifecycle 对账属于候选 Runtime 的启动校验；失败时不能替换当前可用快照。
             artifactStorageServiceFactory.reconcileLifecycle(candidates);
-            runtimeRegistry.publish(candidates);
+            runtimeRegistry.publish(candidates, configDigest);
             published = true;
         } finally {
             if (!published) {

@@ -20,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 public final class RuntimeGeneration {
 
     private final long number;  // 版本号
+    private final String configDigest;
     private final Map<String, AdkAgentRuntime> byAgentId;
     private final Map<String, AdkAgentRuntime> byAppName;
 
@@ -28,7 +29,12 @@ public final class RuntimeGeneration {
     private boolean closeStarted;   // 是否开始关闭
 
     RuntimeGeneration(long number, Collection<AdkAgentRuntime> runtimes) {
+        this(number, runtimes, null);
+    }
+
+    RuntimeGeneration(long number, Collection<AdkAgentRuntime> runtimes, String configDigest) {
         this.number = number;
+        this.configDigest = configDigest;
         Map<String, AdkAgentRuntime> agentIndex = new LinkedHashMap<>();
         Map<String, AdkAgentRuntime> appIndex = new LinkedHashMap<>();
         for (AdkAgentRuntime runtime : Objects.requireNonNull(runtimes, "runtimes must not be null")) {
@@ -56,6 +62,10 @@ public final class RuntimeGeneration {
 
     public long number() {
         return number;
+    }
+
+    public String configDigest() {
+        return configDigest;
     }
 
     public int size() {

@@ -18,6 +18,15 @@ public interface AgentRuntimeCompiler {
     void compileAndPublish(List<AgentDefinition> definitions) throws Exception;
 
     /**
+     * 编译并发布带配置摘要的完整快照。
+     *
+     * <p>默认委托旧入口，便于保留现有测试和非 Reload 调用方；正式启动与 Reload 使用本入口。</p>
+     */
+    default void compileAndPublish(List<AgentDefinition> definitions, String configDigest) throws Exception {
+        compileAndPublish(definitions);
+    }
+
+    /**
      * 发布空快照，用于全局 Agent 自动装配被显式关闭的场景。
      */
     void clear();

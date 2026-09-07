@@ -8,6 +8,7 @@ import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntime;
 import com.hh.infrastructure.agent.agent.runtime.AdkAgentRuntimeRegistry;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.types.enums.ContextCompressTypeEnum;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.actuate.health.Status;
 
@@ -26,7 +27,7 @@ class AgentRuntimeHealthIndicatorTest {
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setEnabled(false);
         AgentRuntimeHealthIndicator indicator = new AgentRuntimeHealthIndicator(
-                properties, new AdkAgentRuntimeRegistry());
+                properties, new AdkAgentRuntimeRegistry(new SimpleMeterRegistry()));
 
         var health = indicator.health();
 
@@ -41,7 +42,7 @@ class AgentRuntimeHealthIndicatorTest {
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setEnabled(true);
         AgentRuntimeHealthIndicator indicator = new AgentRuntimeHealthIndicator(
-                properties, new AdkAgentRuntimeRegistry());
+                properties, new AdkAgentRuntimeRegistry(new SimpleMeterRegistry()));
 
         var health = indicator.health();
 
@@ -55,7 +56,7 @@ class AgentRuntimeHealthIndicatorTest {
     void publishedRuntimeMakesEnabledCatalogReadyWithoutExposingAgentDetails() {
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setEnabled(true);
-        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
+        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry(new SimpleMeterRegistry());
         registry.publish(List.of(new AdkAgentRuntime(
                 "app-a", "agent-a", "Agent A", "desc", mock(Runner.class), RunConfig.builder().build(), plan())));
         AgentRuntimeHealthIndicator indicator = new AgentRuntimeHealthIndicator(properties, registry);

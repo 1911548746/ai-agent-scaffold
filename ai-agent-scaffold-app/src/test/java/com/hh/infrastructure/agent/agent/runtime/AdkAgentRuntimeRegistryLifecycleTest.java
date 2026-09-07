@@ -6,6 +6,7 @@ import com.google.adk.runner.Runner;
 import com.google.adk.summarizer.EventCompactor;
 import com.hh.infrastructure.agent.agent.runtime.compaction.RuntimeCompactionPlan;
 import com.hh.types.enums.ContextCompressTypeEnum;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.reactivex.rxjava3.core.Completable;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +28,7 @@ class AdkAgentRuntimeRegistryLifecycleTest {
         Runner oldRunner = mock(Runner.class);
         when(oldRunner.agent()).thenReturn(oldAgent);
 
-        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
+        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry(new SimpleMeterRegistry());
         registry.publish(List.of(runtime("old-app", "old-agent", oldRunner)));
         RuntimeLease oldLease = registry.acquire("old-agent").orElseThrow();
 
@@ -50,7 +51,7 @@ class AdkAgentRuntimeRegistryLifecycleTest {
         Runner runner = mock(Runner.class);
         when(runner.agent()).thenReturn(oldAgent);
 
-        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
+        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry(new SimpleMeterRegistry());
         registry.publish(List.of(runtime("app", "agent", runner)));
         RuntimeLease lease = registry.acquireByAppName("app").orElseThrow();
 
@@ -64,7 +65,7 @@ class AdkAgentRuntimeRegistryLifecycleTest {
 
     @Test
     void rejectsDuplicateAgentAndAppBeforeReplacingCurrentGeneration() {
-        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry();
+        AdkAgentRuntimeRegistry registry = new AdkAgentRuntimeRegistry(new SimpleMeterRegistry());
         Runner currentRunner = mock(Runner.class);
         registry.publish(List.of(runtime("current-app", "current-agent", currentRunner)));
 

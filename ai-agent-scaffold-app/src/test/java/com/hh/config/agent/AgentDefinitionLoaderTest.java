@@ -2,6 +2,8 @@ package com.hh.config.agent;
 
 import com.hh.config.agent.catalog.AgentConfigurationException;
 import com.hh.config.agent.catalog.loader.AgentDefinitionLoader;
+import com.hh.config.agent.catalog.loader.AgentCatalogLoadResult;
+import com.hh.config.agent.catalog.loader.ConfigSnapshotDigest;
 import com.hh.config.agent.catalog.loader.support.AgentDefinitionConfigSupport;
 import com.hh.config.agent.catalog.loader.pipeline.AgentDefinitionLoadPipeline;
 import com.hh.config.agent.catalog.loader.resource.CatalogResourceBinder;
@@ -72,7 +74,8 @@ class AgentDefinitionLoaderTest {
         CatalogValidationNode catalogValidation = new CatalogValidationNode(support, binding);
 
         loader = new AgentDefinitionLoader(
-                new AgentDefinitionLoadPipeline(new RootNode(catalogValidation)), resourceBinder);
+                new AgentDefinitionLoadPipeline(new RootNode(catalogValidation)), resourceBinder,
+                new ConfigSnapshotDigest(resourceBinder, support));
 
     }
 
@@ -373,6 +376,32 @@ class AgentDefinitionLoaderTest {
                 .isEqualTo("FirstAgent");
         assertThat(second).singleElement().extracting(definition -> definition.getAgentDescriptor().getAgentName())
                 .isEqualTo("SecondAgent");
+    }
+
+    @Test
+    void digestIsStableAndChangesWhenAReferencedResourceChanges() throws IOException {
+        Path catalog = writeExternalCatalog("ExternalAgent", "external-runtime", "../models/*.yml");
+        String location = catalog.toUri().toString();
+
+        AgentCatalogLoadResult first = loader.loadResult(location);
+        AgentCatalogLoadResult same = loader.loadResult(location);
+        assertThat(first.configDigest()).isNotBlank().isEqualTo(same.configDigest());
+        assertThat(first.configDigest()).doesNotContain("external-model-name", "MODEL_API_KEY");
+
+        Files.writeString(
+                temporaryDirectory.resolve("models/external.yml"),
+                externalModel().replace("external-model-name", "changed-model-name"));
+        AgentCatalogLoadResult changed = loader.loadResult(location);
+
+        assertThat(changed.configDigest()).isNotEqualTo(first.configDigest());
+    }
+
+    @Test
+    void digestIncludesClasspathSkillFiles() {
+        AgentCatalogLoadResult result = loader.loadResult("classpath:agent/catalog/default-catalog.yml");
+
+        // Skill YAML 只是入口，SKILL.md 和 references 也必须参与完整配置快照摘要。
+        assertThat(result.configDigest()).hasSize(64);
     }
 
     @Test
