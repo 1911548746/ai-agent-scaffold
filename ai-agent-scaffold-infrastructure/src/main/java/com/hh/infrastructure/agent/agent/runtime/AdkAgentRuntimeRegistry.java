@@ -115,6 +115,11 @@ public class AdkAgentRuntimeRegistry implements RuntimeStatusPort {
         status.updateAndGet(value -> value.reloadFailed(summarize(error), safeDuration.toMillis()));
     }
 
+    @Override
+    public synchronized void recordStartupFailure(Throwable error) {
+        status.updateAndGet(value -> value.startupFailed(summarize(error)));
+    }
+
     /** 只保留异常类型和脱敏后的第一行消息，避免状态端点暴露堆栈或凭据。 */
     private String summarize(Throwable error) {
         if (error == null) {

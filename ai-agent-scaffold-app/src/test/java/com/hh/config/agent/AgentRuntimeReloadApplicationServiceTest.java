@@ -2,8 +2,9 @@ package com.hh.config.agent;
 
 import com.hh.application.agent.model.RuntimeStatus;
 import com.hh.application.agent.port.RuntimeStatusPort;
-import com.hh.config.agent.bootstrap.AgentCompiler;
-import com.hh.config.agent.bootstrap.AgentRuntimeReloadApplicationService;
+import com.hh.application.agent.port.RuntimePublicationHistoryPort;
+import com.hh.config.agent.runtime.complier.AgentCompiler;
+import com.hh.config.agent.runtime.reload.AgentRuntimeReloadApplicationService;
 import com.hh.config.agent.catalog.loader.AgentCatalogLoadResult;
 import com.hh.config.agent.catalog.loader.AgentDefinitionLoader;
 import com.hh.config.agent.catalog.properties.AgentCatalogLocationProperties;
@@ -19,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /** 验证手动 Reload 只在完整编译成功后计数，并且失败时保留旧状态。 */
@@ -31,6 +33,8 @@ class AgentRuntimeReloadApplicationServiceTest {
     private AgentCompiler agentCompiler;
     @Mock
     private RuntimeStatusPort runtimeStatusPort;
+    @Mock
+    private RuntimePublicationHistoryPort publicationHistory;
 
     @Test
     void successfulReloadPublishesDigestAndRecordsSuccess() {
@@ -41,7 +45,7 @@ class AgentRuntimeReloadApplicationServiceTest {
         when(runtimeStatusPort.current()).thenReturn(status);
 
         AgentRuntimeReloadApplicationService service = new AgentRuntimeReloadApplicationService(
-                location, definitionLoader, agentCompiler, runtimeStatusPort);
+                location, definitionLoader, agentCompiler, runtimeStatusPort, publicationHistory);
 
         AgentRuntimeReloadApplicationService.ReloadResult result = service.reload();
 
@@ -64,7 +68,7 @@ class AgentRuntimeReloadApplicationServiceTest {
         when(runtimeStatusPort.current()).thenReturn(oldStatus);
 
         AgentRuntimeReloadApplicationService service = new AgentRuntimeReloadApplicationService(
-                location, definitionLoader, agentCompiler, runtimeStatusPort);
+                location, definitionLoader, agentCompiler, runtimeStatusPort, publicationHistory);
 
         AgentRuntimeReloadApplicationService.ReloadResult result = service.reload();
 
@@ -72,5 +76,41 @@ class AgentRuntimeReloadApplicationServiceTest {
         assertThat(result.generation()).isEqualTo(3);
         assertThat(result.configDigest()).isEqualTo("old-digest");
         verify(runtimeStatusPort).recordReloadFailure(any(), eq(failure));
+    }
+
+    @Test
+    void automaticReloadSkipsCompilationWhenDigestIsUnchanged() {
+        AgentCatalogLocationProperties location = new AgentCatalogLocationProperties();
+        RuntimeStatus current = new RuntimeStatus(4, "same-digest", 2, null, 3, 1, 18L, null);
+        when(definitionLoader.loadResult(location.getPath()))
+                .thenReturn(new AgentCatalogLoadResult(List.of(), "same-digest"));
+        when(runtimeStatusPort.current()).thenReturn(current);
+
+        AgentRuntimeReloadApplicationService service = new AgentRuntimeReloadApplicationService(
+                location, definitionLoader, agentCompiler, runtimeStatusPort, publicationHistory);
+
+        AgentRuntimeReloadApplicationService.ReloadResult result = service.reloadAutomatically();
+
+        assertThat(result.status()).isEqualTo("unchanged");
+        assertThat(result.generation()).isEqualTo(4);
+        verifyNoInteractions(agentCompiler, publicationHistory);
+    }
+
+    @Test
+    void manualReloadCompilesEvenWhenDigestIsUnchanged() {
+        AgentCatalogLocationProperties location = new AgentCatalogLocationProperties();
+        RuntimeStatus current = new RuntimeStatus(4, "same-digest", 2, null, 3, 1, 18L, null);
+        when(definitionLoader.loadResult(location.getPath()))
+                .thenReturn(new AgentCatalogLoadResult(List.of(), "same-digest"));
+        when(runtimeStatusPort.current()).thenReturn(current);
+
+        AgentRuntimeReloadApplicationService service = new AgentRuntimeReloadApplicationService(
+                location, definitionLoader, agentCompiler, runtimeStatusPort, publicationHistory);
+
+        AgentRuntimeReloadApplicationService.ReloadResult result = service.reload();
+
+        assertThat(result.status()).isEqualTo("success");
+        verify(agentCompiler).compileAndPublish(List.of(), "same-digest");
+        verify(runtimeStatusPort).recordReloadSuccess();
     }
 }

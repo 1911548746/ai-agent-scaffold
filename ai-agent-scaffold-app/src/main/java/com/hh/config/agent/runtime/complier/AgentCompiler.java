@@ -1,4 +1,4 @@
-package com.hh.config.agent.bootstrap;
+package com.hh.config.agent.runtime.complier;
 
 import com.hh.application.agent.port.AgentRuntimeCompiler;
 import com.hh.config.agent.catalog.AgentConfigurationException;

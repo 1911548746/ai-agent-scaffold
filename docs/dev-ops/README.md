@@ -87,6 +87,20 @@ Reload 会先重新读取并编译完整外部 catalog，成功后原子切换 R
 `/actuator/info` 只返回当前 generation、配置摘要、Runtime 数量、Reload 计数、耗时和脱敏失败摘要，
 不会返回模型密钥、MCP 参数或完整配置。配置摘要由 catalog 及其实际加载的模块资源内容计算得到，
 可用于确认当前运行版本。
+
+`GET /actuator/agentRuntime` 还会返回当前 Runtime 状态以及最近的发布尝试历史。历史记录只保存在
+当前 JVM 内存中，默认最多保留 10 条，可通过 `AI_AGENT_RUNTIME_RELOAD_HISTORY_SIZE` 调整，应用重启后清空。
+每条记录包含 generation、configDigest、触发来源、发生时间、耗时、结果和脱敏后的失败摘要；触发来源包括
+`STARTUP`、`MANUAL`、`FILE_WATCH` 和 `FILE_WATCH_RETRY`。文件监听发现配置摘要未变化时会跳过编译，
+该次跳过不会增加计数或写入发布历史；手动 Reload 即使摘要未变化也会强制重新编译并记录一次实际尝试。
+发布历史不保存 YAML 原文、模型配置、凭据、Prompt、ADK 对象或异常堆栈。
+
+示例：
+
+```sh
+curl http://127.0.0.1:8081/actuator/agentRuntime
+```
+
 为保持既有 catalog 校验，外部 catalog 仍需保留 `ai.agent.config.catalog-path` 字段；该字段仅用于
 兼容诊断，实际加载入口与相对资源基准始终以 `AI_AGENT_CATALOG_PATH` 为准。
 

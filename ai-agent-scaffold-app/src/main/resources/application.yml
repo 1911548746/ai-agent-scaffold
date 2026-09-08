@@ -80,6 +80,16 @@ ai:
     # file:///<absolute-path> 例如 file:///D:/agent/catalog/default-catalog.yml
     catalog:
       path: ${AI_AGENT_CATALOG_PATH:classpath:agent/catalog/default-catalog.yml}
+    runtime:
+      reload:
+        # 外部 file: catalog 才支持监听；生产环境必须显式开启。
+        watch:
+          enabled: ${AI_AGENT_RUNTIME_RELOAD_WATCH_ENABLED:false}
+          debounce: ${AI_AGENT_RUNTIME_RELOAD_DEBOUNCE:10s}    # 防抖窗口
+        retry:
+          max-attempts: ${AI_AGENT_RUNTIME_RELOAD_MAX_ATTEMPTS:3}
+          initial-delay: ${AI_AGENT_RUNTIME_RELOAD_INITIAL_DELAY:1s}
+        history-size: ${AI_AGENT_RUNTIME_RELOAD_HISTORY_SIZE:10}
     artifact-storage:
       minio:
         # 只有 Application 选择 minio 时才校验参数、创建客户端并访问 Bucket。

@@ -3,9 +3,14 @@ package com.hh.config.agent.bootstrap;
 import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
 import com.hh.config.agent.catalog.properties.AgentCatalogLocationProperties;
 import com.hh.config.agent.catalog.loader.AgentDefinitionLoader;
+import com.hh.config.agent.runtime.complier.AgentCompiler;
+import com.hh.config.agent.runtime.reload.AgentRuntimeReloadProperties;
 import com.hh.domain.agent.model.definition.AgentDefinition;
 import com.hh.application.agent.port.AgentRuntimeCompiler;
+import com.hh.application.agent.port.RuntimePublicationHistoryPort;
 import com.hh.application.agent.port.RuntimeStatusPort;
+import com.hh.application.agent.model.RuntimeReloadTrigger;
+import com.hh.application.agent.model.RuntimeStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.beans.factory.SmartInitializingSingleton;
@@ -19,7 +24,11 @@ import java.time.Duration;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties({AgentCatalogProperties.class, AgentCatalogLocationProperties.class})
+@EnableConfigurationProperties({
+        AgentCatalogProperties.class,
+        AgentCatalogLocationProperties.class,
+        AgentRuntimeReloadProperties.class
+})
 public class AiAgentAutoConfig implements SmartInitializingSingleton {
 
     private final AgentCatalogProperties properties;
@@ -28,6 +37,7 @@ public class AiAgentAutoConfig implements SmartInitializingSingleton {
     private final AgentCompiler agentCompiler;
     private final AgentRuntimeCompiler runtimeCompiler;
     private final RuntimeStatusPort runtimeStatusPort;
+    private final RuntimePublicationHistoryPort publicationHistory;
 
     public AiAgentAutoConfig(
             AgentCatalogProperties properties,
@@ -35,13 +45,15 @@ public class AiAgentAutoConfig implements SmartInitializingSingleton {
             AgentDefinitionLoader definitionLoader,
             AgentCompiler agentCompiler,
             AgentRuntimeCompiler runtimeCompiler,
-            RuntimeStatusPort runtimeStatusPort) {
+            RuntimeStatusPort runtimeStatusPort,
+            RuntimePublicationHistoryPort publicationHistory) {
         this.properties = properties;
         this.catalogLocationProperties = catalogLocationProperties;
         this.definitionLoader = definitionLoader;
         this.agentCompiler = agentCompiler;
         this.runtimeCompiler = runtimeCompiler;
         this.runtimeStatusPort = runtimeStatusPort;
+        this.publicationHistory = publicationHistory;
     }
 
     @Override
@@ -54,6 +66,7 @@ public class AiAgentAutoConfig implements SmartInitializingSingleton {
         }
 
         long startedAt = System.nanoTime();
+        RuntimeException failure = null;
         try {
             // 先完成所有资源的静态校验和引用解析；配置不合法时不能进入 ADK 对象创建阶段。
             var loadResult = definitionLoader.loadResult(properties, catalogLocationProperties.getPath());
@@ -72,9 +85,28 @@ public class AiAgentAutoConfig implements SmartInitializingSingleton {
 
             // AgentCompiler 在临时上下文完成全部 ADK 装配，最后单次替换 Registry 快照。
             agentCompiler.compileAndPublish(enabledDefinitions, loadResult.configDigest());
+        } catch (RuntimeException exception) {
+            failure = exception;
+            throw exception;
         } finally {
-            runtimeStatusPort.recordCompile(Duration.ofNanos(System.nanoTime() - startedAt));
+            Duration duration = Duration.ofNanos(System.nanoTime() - startedAt);
+            runtimeStatusPort.recordCompile(duration);
+            if (failure == null) {
+                RuntimeStatus status = statusOrInitial();
+                publicationHistory.record(RuntimeReloadTrigger.STARTUP, status.configDigest(), status,
+                        duration, "success", null);
+            } else {
+                runtimeStatusPort.recordStartupFailure(failure);
+                RuntimeStatus status = statusOrInitial();
+                publicationHistory.record(RuntimeReloadTrigger.STARTUP, null, status,
+                        duration, "failure", status.lastFailureSummary());
+            }
         }
+    }
+
+    private RuntimeStatus statusOrInitial() {
+        RuntimeStatus status = runtimeStatusPort.current();
+        return status == null ? RuntimeStatus.initial() : status;
     }
 
 }

@@ -17,9 +17,12 @@ public interface RuntimeStatusPort {
     /** 记录一次编译耗时；启动编译和 Reload 编译都应调用。 */
     void recordCompile(Duration duration);
 
-    /** 记录一次成功的手动 Reload。 */
+    /** 记录一次实际编译并发布成功的 Reload，不区分触发来源。 */
     void recordReloadSuccess();
 
-    /** 记录一次失败的手动 Reload，同时保留旧 Runtime。 */
+    /** 记录一次 Reload 失败，同时保留旧 Runtime。 */
     void recordReloadFailure(Duration duration, Throwable error);
+
+    /** 记录启动编译失败，但不增加 Reload 失败计数。 */
+    void recordStartupFailure(Throwable error);
 }

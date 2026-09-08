@@ -45,4 +45,9 @@ public record RuntimeStatus(
         return new RuntimeStatus(generation, configDigest, runtimeCount, publishedAt,
                 reloadSuccessCount, reloadFailureCount + 1, durationMs, summary);
     }
+
+    public RuntimeStatus startupFailed(String summary) {
+        return new RuntimeStatus(generation, configDigest, runtimeCount, publishedAt,
+                reloadSuccessCount, reloadFailureCount, lastCompileDurationMs, summary);
+    }
 }

@@ -1,6 +1,8 @@
 package com.hh.observability;
 
-import com.hh.config.agent.bootstrap.AgentRuntimeReloadApplicationService;
+import com.hh.config.agent.runtime.reload.AgentRuntimeReloadApplicationService;
+import com.hh.application.agent.port.RuntimePublicationHistoryPort;
+import com.hh.application.agent.port.RuntimeStatusPort;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.actuate.endpoint.EndpointId;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
@@ -27,9 +29,12 @@ class AgentRuntimeReloadEndpointTest {
     void delegatesWriteOperationWithoutRequestPayload() {
         AgentRuntimeReloadApplicationService service =
                 mock(AgentRuntimeReloadApplicationService.class);
+        RuntimeStatusPort runtimeStatusPort = mock(RuntimeStatusPort.class);
+        RuntimePublicationHistoryPort publicationHistory = mock(RuntimePublicationHistoryPort.class);
         when(service.reload()).thenReturn(new AgentRuntimeReloadApplicationService.ReloadResult(
                 "success", 2, "digest", 1, 20, null));
-        AgentRuntimeReloadEndpoint endpoint = new AgentRuntimeReloadEndpoint(service);
+        AgentRuntimeReloadEndpoint endpoint = new AgentRuntimeReloadEndpoint(
+                service, runtimeStatusPort, publicationHistory);
 
         assertThat(endpoint.reload().status()).isEqualTo("success");
         verify(service).reload();

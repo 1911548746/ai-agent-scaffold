@@ -7,8 +7,9 @@ import com.hh.config.agent.catalog.properties.AgentCatalogProperties;
 import com.hh.config.agent.catalog.properties.AgentCatalogLocationProperties;
 import com.hh.application.agent.port.AgentRuntimeCompiler;
 import com.hh.application.agent.port.RuntimeStatusPort;
+import com.hh.application.agent.port.RuntimePublicationHistoryPort;
 import com.hh.domain.agent.model.definition.AgentDefinition;
-import com.hh.config.agent.bootstrap.AgentCompiler;
+import com.hh.config.agent.runtime.complier.AgentCompiler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -36,6 +37,8 @@ class AiAgentAutoConfigUnitTest {
     private AgentRuntimeCompiler runtimeCompiler;
     @Mock
     private RuntimeStatusPort runtimeStatusPort;
+    @Mock
+    private RuntimePublicationHistoryPort publicationHistory;
 
     private final AgentCatalogLocationProperties catalogLocationProperties = new AgentCatalogLocationProperties();
 
@@ -46,7 +49,7 @@ class AiAgentAutoConfigUnitTest {
 
         // enabled=false 必须在读取任意模块资源前返回，避免禁用配置仍创建外部工具。
         new AiAgentAutoConfig(properties, catalogLocationProperties, definitionLoader, agentCompiler, runtimeCompiler,
-                runtimeStatusPort)
+                runtimeStatusPort, publicationHistory)
                 .afterSingletonsInstantiated();
 
         verify(runtimeCompiler).clear();
@@ -64,7 +67,7 @@ class AiAgentAutoConfigUnitTest {
                 .thenReturn(new AgentCatalogLoadResult(List.of(enabled, disabled), "test-digest"));
 
         new AiAgentAutoConfig(properties, catalogLocationProperties, definitionLoader, agentCompiler, runtimeCompiler,
-                runtimeStatusPort)
+                runtimeStatusPort, publicationHistory)
                 .afterSingletonsInstantiated();
 
         verify(agentCompiler).compileAndPublish(argThat(definitions ->
@@ -83,7 +86,7 @@ class AiAgentAutoConfigUnitTest {
 
         assertThatThrownBy(() -> new AiAgentAutoConfig(
                 properties, catalogLocationProperties, definitionLoader, agentCompiler, runtimeCompiler,
-                runtimeStatusPort).afterSingletonsInstantiated())
+                runtimeStatusPort, publicationHistory).afterSingletonsInstantiated())
                 .isSameAs(failure);
 
         // 读取失败也属于启动编译链路，耗时不能因尚未进入 AgentCompiler 而丢失。
