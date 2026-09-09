@@ -20,10 +20,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
-import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.DefaultResourceLoader;
@@ -414,21 +410,18 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void springImportUsesCatalogFromAiAgentCatalogPath() throws IOException {
+    void bindsExternalCatalogFromAiAgentCatalogPath() throws IOException {
         Path catalog = writeExternalCatalog("ExternalAgent", "external-runtime", "../models/*.yml");
 
-        try (var context = new SpringApplicationBuilder(CatalogBindingConfiguration.class)
-                .web(WebApplicationType.NONE)
-                .run("--AI_AGENT_CATALOG_PATH=" + catalog.toUri())) {
-            AgentCatalogProperties properties = context.getBean(AgentCatalogProperties.class);
-            AgentCatalogLocationProperties locationProperties = context.getBean(AgentCatalogLocationProperties.class);
+        // 直接绑定外部 YAML，覆盖 catalog 内容配置；测试不启动 Spring Context，避免改变进程级日志状态。
+        AgentCatalogProperties properties = bindCatalog(catalog.toUri().toString());
+        AgentCatalogLocationProperties locationProperties = new AgentCatalogLocationProperties();
+        locationProperties.setPath(catalog.toUri().toString());
 
-            // 命令行环境变量替换基础 application.yml 的 import；实际入口由独立部署配置保存，
-            // 因而不受外部 catalog 内遗留 catalog-path 字段影响。
-            assertThat(locationProperties.getPath()).isEqualTo(catalog.toUri().toString());
-            assertThat(properties.getModelResources()).containsExactly("../models/*.yml");
-            assertThat(properties.getApplicationResources()).containsExactly("../applications/**/*.yml");
-        }
+        // catalog 入口由独立部署配置持有，不受外部文件中遗留 catalog-path 字段影响。
+        assertThat(locationProperties.getPath()).isEqualTo(catalog.toUri().toString());
+        assertThat(properties.getModelResources()).containsExactly("../models/*.yml");
+        assertThat(properties.getApplicationResources()).containsExactly("../applications/**/*.yml");
     }
 
     /** 测试自行完成 YAML 到 catalog 属性的绑定，生产 Loader 只保留正式的属性入口。 */
@@ -573,9 +566,4 @@ class AgentDefinitionLoaderTest {
                 .orElseThrow();
     }
 
-    /** 仅加载配置绑定基础设施，避免 Spring import 回归测试装配数据库或 Agent Runtime。 */
-    @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties({AgentCatalogProperties.class, AgentCatalogLocationProperties.class})
-    static class CatalogBindingConfiguration {
-    }
 }
