@@ -2,10 +2,10 @@ ai:
   agent:
     model:
       schema-version: 1
-      id: Nex-N2-Pro
+      id: Qwen3.5-4B
       base-url: https://api.siliconflow.cn
       api-key: ${MODEL_API_KEY}
-      model-name: nex-agi/Nex-N2-Pro
+      model-name: Qwen/Qwen3.5-4B
       timeout: 30
       max-retries: 4
       streaming-first-response-timeout: 30
