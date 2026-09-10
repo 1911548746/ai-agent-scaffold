@@ -1,0 +1,29 @@
+# Catalog 模板：复制后改名为正式的 *.yml 文件，再按实际目录调整资源路径。
+# Loader 只会加载正式的 *.yml 文件，不会加载本模板。
+ai:
+  agent:
+    config:
+      # 是否启用本份 catalog。启用时必须至少提供模型、Agent 和 Application。
+      enabled: true
+      # 当前配置结构版本；models、tools、skills、agents、workflows 模块也需要声明兼容版本。
+      schema-version: 1
+      # 应与复制后的 catalog 文件实际位置一致。
+      catalog-path: classpath:agent/catalog/my-catalog.yml
+
+      # 下面的路径可以是精确文件，也可以使用 **/*.yml 递归发现正式配置。
+      # 外部 file: catalog 建议改为相对于 catalog 所在目录的路径，例如 ../models/**/*.yml。
+      model-resources:
+        - classpath:agent/models/**/*.yml
+      tool-resources:
+        - classpath:agent/tools/**/*.yml
+      skill-resources:
+        - classpath:agent/skills/**/*.yml
+      agent-resources:
+        - classpath:agent/agents/**/*.yml
+      workflow-resources:
+        - classpath:agent/workflows/**/*.yml
+      application-resources:
+        - classpath:agent/applications/**/*.yml
+
+      # 也可以直接在此处填写 applications 列表；通常建议使用 applications/*.yml 分文件管理。
+      # applications: []

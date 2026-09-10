@@ -1,0 +1,17 @@
+# Model 模板：请通过环境变量注入 api-key，不要把真实密钥提交到仓库。
+ai:
+  agent:
+    model:
+      schema-version: 1
+      # 在所有 Agent 的 model-ref 中使用这个唯一 ID。
+      id: my-model
+      # 按实际 OpenAI-compatible 服务填写基础地址。
+      base-url: https://api.example.com/v1
+      api-key: ${MODEL_API_KEY}
+      model-name: provider/model-name
+      # 以下超时和重试时间单位均为秒。
+      timeout: 30
+      max-retries: 4
+      # 流式请求尚未收到首个响应时的等待时间和最大重试次数。
+      streaming-first-response-timeout: 30
+      streaming-max-retries: 2

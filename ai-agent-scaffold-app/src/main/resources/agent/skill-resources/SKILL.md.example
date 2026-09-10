@@ -1,0 +1,15 @@
+---
+name: my-skill
+description: 用一句话说明这个 Skill 解决的问题和适用场景。
+license: internal
+compatibility: ADK Java 1.7.0
+allowed-tools: none
+metadata:
+  domain: example
+---
+
+# Skill 指令模板
+
+在这里编写 Skill 的工作规则、输出要求和边界条件。
+
+如果需要引用本目录下的资料，请使用相对路径，例如 `references/example.md`。

@@ -1,0 +1,37 @@
+# Application 模板：将一个 Agent 或 Workflow 发布为可调用的 Runtime。
+ai:
+  agent:
+    application:
+      id: my-application
+      enabled: true
+      # app-name 是对外调用和 Runtime 路由使用的稳定名称，必须唯一且符合安全路径格式。
+      app-name: MyApplication
+      agent-id: 100001
+      agent-name: 我的智能体
+      agent-desc: 用一句话说明对外能力。
+      # agent-ref 与 workflow-ref 二选一。
+      agent-ref: my-agent
+      # workflow-ref: my-workflow
+      runner:
+        # true 表示 Session 持久化到数据库；false 使用内存 Session。
+        session-storage: true
+        # Artifact 默认使用 local；也可以选择 memory 或 minio。
+        artifact-storage:
+          type: local
+          # ttl 和 lifecycle-enabled 仅对 minio 生效。
+          # type: minio
+          # ttl: 24h
+          # lifecycle-enabled: false
+        # 仅在兼容模型端点需要特定 Function Response 历史格式时开启。
+        group-function-responses-in-history: false
+        context-compress:
+          # 可选：slidingWindow、pureSlidingWindow、fixedSize。
+          type: slidingWindow
+          compaction-interval: 12
+          overlap-size: 2
+          # pureSlidingWindow 使用 invocation-retention-size；fixedSize 使用下面两个参数。
+          # invocation-retention-size: 12
+          # token-threshold: 12000
+          # event-retention-size: 30
+        # 填写 Spring 容器中已注册的 Plugin 名称。
+        plugin-name-list: []

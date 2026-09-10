@@ -1,0 +1,29 @@
+# Tool 模板：以下示例注册一个 Spring Bean 方法作为 Local Tool。
+# MCP 示例见文件底部，Local Tool 与 MCP Tool 只能选择一种配置方式。
+ai:
+  agent:
+    tool:
+      schema-version: 1
+      id: my-tool
+      type: local
+      # bean-name 是 Spring 容器中的 Bean 名称，method-name 是要暴露的方法名。
+      bean-name: myTool
+      method-name: execute
+
+# MCP Tool 配置示意：将上面的 type、bean-name 和 method-name 替换为以下内容。
+# mcp 下的 sse、http、stdio 必须且只能配置一种 transport。
+# ai:
+#   agent:
+#     tool:
+#       schema-version: 1
+#       id: my-mcp-tool
+#       type: mcp
+#       mcp:
+#         stdio:
+#           name: my-mcp-server
+#           command: your-command
+#           args: []
+#           env: {}
+#
+# HTTP MCP 使用 url、headers、timeout、request-timeout；
+# SSE MCP 使用 url、sse-endpoint、timeout、request-timeout。

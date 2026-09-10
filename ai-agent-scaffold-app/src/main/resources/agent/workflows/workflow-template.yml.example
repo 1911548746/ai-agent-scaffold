@@ -1,0 +1,17 @@
+# Workflow 模板：通过稳定 ID 引用已经定义的 Agent 或子 Workflow。
+ai:
+  agent:
+    workflow:
+      schema-version: 1
+      id: my-workflow
+      # 可选值：sequential、parallel、loop、baseLlm。
+      type: sequential
+      name: MyWorkflow
+      description: 用一句话说明工作流的目标。
+      instruction: |
+        需要工作流级指令时写在这里；不需要时可以删除该字段。
+      sub-agent-refs:
+        - my-agent
+      sub-workflow-refs: []
+      # loop 工作流使用该值限制循环次数，其他类型保留默认值即可。
+      max-iterations: 3

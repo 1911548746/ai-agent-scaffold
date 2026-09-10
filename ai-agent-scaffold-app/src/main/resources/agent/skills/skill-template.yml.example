@@ -1,0 +1,11 @@
+# Skill 模板：这是 Skill Toolset 的配置入口，不是 Skill 正文。
+# directory 必须指向包含 SKILL.md 的目录；正文和 references 放在 skill-resources 下。
+ai:
+  agent:
+    skill:
+      schema-version: 1
+      id: my-skill-toolset
+      directory: classpath:agent/skill-resources/my-skill
+
+# 外部 catalog 中可改为 file:/absolute/path/to/skill-resources/my-skill。
+# 创建完成后，在 Agent 配置的 skill-refs 中引用上面的 id。

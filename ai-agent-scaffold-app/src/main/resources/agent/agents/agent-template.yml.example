@@ -1,0 +1,20 @@
+# Agent 模板：一个可被 Application 或 Workflow 引用的 LLM Agent。
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      # id 必须唯一，其他配置通过这个 id 建立引用。
+      id: my-agent
+      name: MyAgent
+      description: 用一句话说明 Agent 的职责。
+      instruction: |
+        在这里编写 Agent 的行为规则、边界和输出要求。
+      output-key: result
+      model-ref: my-model
+      # 限制单次 invocation 的最大执行步数。
+      max-steps: 8
+      # 没有工具或 Skill 时保留空列表。
+      tool-refs:
+        - my-tool
+      skill-refs:
+        - my-skill-toolset

@@ -1,0 +1,14 @@
+ai:
+  agent:
+    agent:
+      schema-version: 1
+      id: pipeline-step-agent
+      name: PipelineStepAgent
+      description: 工作流中的单个智能体用途描述
+      instruction: |
+        在这里编写当前工作流步骤的指令。
+        可以使用前置智能体通过 output-key 产生的上下文变量, 例如 {step_result}。
+      output-key: step_result
+      model-ref: my-model
+      tool-refs: []
+      skill-refs: []
